@@ -112,6 +112,11 @@ export type Category =
   | 'transcripts'
   | 'inbox'
   | 'templates'
+  | 'facts'
+  | 'feelings'
+  | 'lessons'
+  | 'commitments'
+  | 'handoffs'
   | string;
 
 export const DEFAULT_CATEGORIES: Category[] = [
@@ -125,6 +130,81 @@ export const DEFAULT_CATEGORIES: Category[] = [
   'inbox',
   'templates'
 ];
+
+/**
+ * Memory Type Taxonomy (Benthic's 8 categories)
+ * Knowing WHAT KIND of thing helps you know WHERE to put it
+ */
+export type MemoryType = 
+  | 'fact'        // Raw information, data points
+  | 'feeling'     // Emotional states, reactions, moods
+  | 'decision'    // Choices made with reasoning
+  | 'lesson'      // What I learned, insights, patterns
+  | 'commitment'  // Promises, goals, obligations
+  | 'preference'  // Likes, dislikes, how I want things
+  | 'relationship'// People, connections, dynamics
+  | 'project';    // Active work, ventures, ongoing efforts
+
+export const MEMORY_TYPES: MemoryType[] = [
+  'fact', 'feeling', 'decision', 'lesson', 
+  'commitment', 'preference', 'relationship', 'project'
+];
+
+/**
+ * Memory type to category mapping
+ */
+export const TYPE_TO_CATEGORY: Record<MemoryType, Category> = {
+  fact: 'facts',
+  feeling: 'feelings',
+  decision: 'decisions',
+  lesson: 'lessons',
+  commitment: 'commitments',
+  preference: 'preferences',
+  relationship: 'people',
+  project: 'projects'
+};
+
+/**
+ * Handoff document - bridges sessions
+ */
+export interface HandoffDocument {
+  /** When this handoff was created */
+  created: string;
+  /** Session key or identifier */
+  sessionKey?: string;
+  /** What I was working on */
+  workingOn: string[];
+  /** What is currently blocked */
+  blocked: string[];
+  /** What comes next */
+  nextSteps: string[];
+  /** Emotional state/energy */
+  feeling?: string;
+  /** Key decisions made */
+  decisions?: string[];
+  /** Open questions */
+  openQuestions?: string[];
+}
+
+/**
+ * Session recap - who I was when I woke up
+ */
+export interface SessionRecap {
+  /** When recap was generated */
+  generated: string;
+  /** Recent handoffs (last N) */
+  recentHandoffs: HandoffDocument[];
+  /** Active projects */
+  activeProjects: string[];
+  /** Pending commitments */
+  pendingCommitments: string[];
+  /** Recent lessons learned */
+  recentLessons: string[];
+  /** Key relationships to remember */
+  keyRelationships: string[];
+  /** Current emotional arc */
+  emotionalArc?: string;
+}
 
 export const DEFAULT_CONFIG: Partial<VaultConfig> = {
   categories: DEFAULT_CATEGORIES

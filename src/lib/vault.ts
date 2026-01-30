@@ -16,7 +16,11 @@ import {
   SyncOptions,
   SyncResult,
   DEFAULT_CATEGORIES,
-  Category
+  Category,
+  MemoryType,
+  TYPE_TO_CATEGORY,
+  HandoffDocument,
+  SessionRecap
 } from '../types.js';
 import { SearchEngine, extractWikiLinks, extractTags, hasQmd, qmdUpdate, qmdEmbed } from './search.js';
 
@@ -409,6 +413,217 @@ export class ClawVault {
     return this.config.name;
   }
 
+  // === Memory Type System ===
+
+  /**
+   * Store a memory with type classification
+   * Automatically routes to correct category based on type
+   */
+  async remember(
+    type: MemoryType,
+    title: string,
+    content: string,
+    frontmatter: Record<string, unknown> = {}
+  ): Promise<Document> {
+    const category = TYPE_TO_CATEGORY[type];
+    return this.store({
+      category,
+      title,
+      content,
+      frontmatter: { ...frontmatter, memoryType: type }
+    });
+  }
+
+  // === Handoff System ===
+
+  /**
+   * Create a session handoff document
+   * Call this before context death or long pauses
+   */
+  async createHandoff(handoff: Omit<HandoffDocument, 'created'>): Promise<Document> {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toISOString().split('T')[1].slice(0, 5).replace(':', '');
+    
+    const fullHandoff: HandoffDocument = {
+      ...handoff,
+      created: now.toISOString()
+    };
+
+    const content = this.formatHandoff(fullHandoff);
+    
+    // Filter out undefined values to avoid yaml dump errors
+    const frontmatter: Record<string, unknown> = {
+      type: 'handoff',
+      workingOn: handoff.workingOn,
+      blocked: handoff.blocked
+    };
+    if (handoff.sessionKey) frontmatter.sessionKey = handoff.sessionKey;
+    if (handoff.feeling) frontmatter.feeling = handoff.feeling;
+    
+    return this.store({
+      category: 'handoffs',
+      title: `handoff-${dateStr}-${timeStr}`,
+      content,
+      frontmatter
+    });
+  }
+
+  /**
+   * Format handoff as readable markdown
+   */
+  private formatHandoff(h: HandoffDocument): string {
+    let md = `# Session Handoff\n\n`;
+    md += `**Created:** ${h.created}\n`;
+    if (h.sessionKey) md += `**Session:** ${h.sessionKey}\n`;
+    if (h.feeling) md += `**Feeling:** ${h.feeling}\n`;
+    md += `\n`;
+    
+    md += `## Working On\n`;
+    h.workingOn.forEach(w => md += `- ${w}\n`);
+    md += `\n`;
+    
+    md += `## Blocked\n`;
+    if (h.blocked.length === 0) md += `- Nothing currently blocked\n`;
+    else h.blocked.forEach(b => md += `- ${b}\n`);
+    md += `\n`;
+    
+    md += `## Next Steps\n`;
+    h.nextSteps.forEach(n => md += `- ${n}\n`);
+    
+    if (h.decisions && h.decisions.length > 0) {
+      md += `\n## Decisions Made\n`;
+      h.decisions.forEach(d => md += `- ${d}\n`);
+    }
+    
+    if (h.openQuestions && h.openQuestions.length > 0) {
+      md += `\n## Open Questions\n`;
+      h.openQuestions.forEach(q => md += `- ${q}\n`);
+    }
+    
+    return md;
+  }
+
+  // === Session Recap (Bootstrap Hook) ===
+
+  /**
+   * Generate a session recap - who I was
+   * Call this on bootstrap to restore context
+   */
+  async generateRecap(options: { handoffLimit?: number } = {}): Promise<SessionRecap> {
+    const { handoffLimit = 3 } = options;
+    
+    // Get recent handoffs
+    const handoffDocs = await this.list('handoffs');
+    const recentHandoffs = handoffDocs
+      .sort((a, b) => b.modified.getTime() - a.modified.getTime())
+      .slice(0, handoffLimit)
+      .map(doc => this.parseHandoff(doc));
+    
+    // Get active projects
+    const projectDocs = await this.list('projects');
+    const activeProjects = projectDocs
+      .filter(d => d.frontmatter.status !== 'completed' && d.frontmatter.status !== 'archived')
+      .map(d => d.title);
+    
+    // Get pending commitments
+    const commitmentDocs = await this.list('commitments');
+    const pendingCommitments = commitmentDocs
+      .filter(d => d.frontmatter.status !== 'done')
+      .map(d => d.title);
+    
+    // Get recent lessons
+    const lessonDocs = await this.list('lessons');
+    const recentLessons = lessonDocs
+      .sort((a, b) => b.modified.getTime() - a.modified.getTime())
+      .slice(0, 5)
+      .map(d => d.title);
+    
+    // Get key relationships
+    const peopleDocs = await this.list('people');
+    const keyRelationships = peopleDocs
+      .filter(d => d.frontmatter.importance === 'high' || d.frontmatter.role)
+      .map(d => `${d.title}${d.frontmatter.role ? ` (${d.frontmatter.role})` : ''}`);
+    
+    // Derive emotional arc from recent handoffs
+    const feelings = recentHandoffs
+      .map(h => h.feeling)
+      .filter(Boolean);
+    const emotionalArc = feelings.length > 0 ? feelings.join(' → ') : undefined;
+    
+    return {
+      generated: new Date().toISOString(),
+      recentHandoffs,
+      activeProjects,
+      pendingCommitments,
+      recentLessons,
+      keyRelationships,
+      emotionalArc
+    };
+  }
+
+  /**
+   * Format recap as readable markdown for injection
+   */
+  formatRecap(recap: SessionRecap): string {
+    let md = `# Who I Was\n\n`;
+    md += `*Generated: ${recap.generated}*\n\n`;
+    
+    if (recap.emotionalArc) {
+      md += `**Emotional arc:** ${recap.emotionalArc}\n\n`;
+    }
+    
+    if (recap.recentHandoffs.length > 0) {
+      md += `## Recent Sessions\n`;
+      for (const h of recap.recentHandoffs) {
+        md += `\n### ${h.created.split('T')[0]}\n`;
+        md += `**Working on:** ${h.workingOn.join(', ')}\n`;
+        if (h.blocked.length > 0) md += `**Blocked:** ${h.blocked.join(', ')}\n`;
+        md += `**Next:** ${h.nextSteps.join(', ')}\n`;
+      }
+      md += `\n`;
+    }
+    
+    if (recap.activeProjects.length > 0) {
+      md += `## Active Projects\n`;
+      recap.activeProjects.forEach(p => md += `- ${p}\n`);
+      md += `\n`;
+    }
+    
+    if (recap.pendingCommitments.length > 0) {
+      md += `## Pending Commitments\n`;
+      recap.pendingCommitments.forEach(c => md += `- ${c}\n`);
+      md += `\n`;
+    }
+    
+    if (recap.recentLessons.length > 0) {
+      md += `## Recent Lessons\n`;
+      recap.recentLessons.forEach(l => md += `- ${l}\n`);
+      md += `\n`;
+    }
+    
+    if (recap.keyRelationships.length > 0) {
+      md += `## Key People\n`;
+      recap.keyRelationships.forEach(r => md += `- ${r}\n`);
+    }
+    
+    return md;
+  }
+
+  /**
+   * Parse a handoff document back into structured form
+   */
+  private parseHandoff(doc: Document): HandoffDocument {
+    return {
+      created: doc.frontmatter.date as string || doc.modified.toISOString(),
+      sessionKey: doc.frontmatter.sessionKey as string,
+      workingOn: (doc.frontmatter.workingOn as string[]) || [],
+      blocked: (doc.frontmatter.blocked as string[]) || [],
+      nextSteps: [],
+      feeling: doc.frontmatter.feeling as string
+    };
+  }
+
   // === Private helpers ===
 
   private slugify(text: string): string {
@@ -439,9 +654,53 @@ export class ClawVault {
     const templatesPath = path.join(this.config.path, 'templates');
     
     const templates: { [key: string]: string } = {
+      // === Memory Type Templates (Benthic's Taxonomy) ===
+      
+      'fact.md': `---
+title: "{{title}}"
+date: {{date}}
+memoryType: fact
+confidence: high
+source: ""
+---
+
+# {{title}}
+
+## Fact
+State the fact clearly.
+
+## Source
+Where did this come from?
+
+## Context
+Why does this matter?
+
+#fact`,
+
+      'feeling.md': `---
+title: "Feeling: {{title}}"
+date: {{date}}
+memoryType: feeling
+intensity: medium
+---
+
+# {{title}}
+
+## What I felt
+Describe the emotional state.
+
+## Trigger
+What caused it?
+
+## Response
+How did I handle it?
+
+#feeling`,
+
       'decision.md': `---
 title: "Decision: {{title}}"
 date: {{date}}
+memoryType: decision
 status: pending
 ---
 
@@ -463,41 +722,79 @@ Why this choice?
 ## Outcome
 [Fill in later] What happened as a result?
 
-## Related
-- [[people/]]
-- [[projects/]]
-
 #decision`,
 
-      'pattern.md': `---
-title: "Pattern: {{title}}"
+      'lesson.md': `---
+title: "Lesson: {{title}}"
 date: {{date}}
+memoryType: lesson
 confidence: medium
-frequency: situational
 ---
 
-# Pattern: {{title}}
+# {{title}}
 
-## Description
-What is the pattern?
+## What I learned
+The core insight.
 
 ## Evidence
-- {{date}}: Example 1
-- {{date}}: Example 2
+- {{date}}: How I learned this
 
-## Implications
-How should I act on this pattern?
+## Application
+How should I use this going forward?
 
-## Related
-- [[people/]]
-- [[patterns/]]
+#lesson`,
 
-#pattern`,
+      'commitment.md': `---
+title: "Commitment: {{title}}"
+date: {{date}}
+memoryType: commitment
+status: active
+due: ""
+---
 
-      'person.md': `---
+# {{title}}
+
+## What I promised
+The commitment made.
+
+## To whom
+Who am I accountable to?
+
+## Timeline
+When is this due?
+
+## Progress
+- {{date}}: Started
+
+#commitment`,
+
+      'preference.md': `---
+title: "Preference: {{title}}"
+date: {{date}}
+memoryType: preference
+strength: medium
+---
+
+# Preference: {{title}}
+
+## What
+Description of the preference
+
+## Why
+Reasoning behind it
+
+## Examples
+- Example 1
+- Example 2
+
+#preference`,
+
+      'relationship.md': `---
 title: "{{name}}"
 date: {{date}}
+memoryType: relationship
 role: ""
+importance: medium
 ---
 
 # {{name}}
@@ -514,15 +811,12 @@ How do we know this person?
 ## Interactions
 - {{date}}: 
 
-## Related
-- [[people/]]
-- [[projects/]]
-
-#person`,
+#relationship #person`,
 
       'project.md': `---
 title: "{{title}}"
 date: {{date}}
+memoryType: project
 status: active
 ---
 
@@ -540,30 +834,84 @@ What is this project?
 ## People
 - [[people/]]
 
-## Decisions
-- [[decisions/]]
-
 #project`,
 
-      'preference.md': `---
-title: "Preference: {{title}}"
+      // === Session Handoff Template ===
+      
+      'handoff.md': `---
+title: "Handoff: {{date}}"
 date: {{date}}
-category: general
+type: handoff
+sessionKey: ""
 ---
 
-# Preference: {{title}}
+# Session Handoff
 
-## What
-Description of the preference
+## Working On
+What was I actively doing?
+- 
 
-## Why
-Reasoning behind it
+## Blocked
+What is stuck or waiting?
+- 
 
-## Examples
-- Example 1
-- Example 2
+## Next Steps
+What should happen next?
+- 
 
-#preference`
+## Decisions Made
+Key choices during this session:
+- 
+
+## Open Questions
+Unresolved things to think about:
+- 
+
+## Feeling
+Emotional/energy state:
+
+#handoff`,
+
+      // Legacy templates (backwards compat)
+      'pattern.md': `---
+title: "Pattern: {{title}}"
+date: {{date}}
+memoryType: lesson
+confidence: medium
+---
+
+# Pattern: {{title}}
+
+## Description
+What is the pattern?
+
+## Evidence
+- {{date}}: Example 1
+
+## Implications
+How should I act on this pattern?
+
+#pattern #lesson`,
+
+      'person.md': `---
+title: "{{name}}"
+date: {{date}}
+memoryType: relationship
+role: ""
+---
+
+# {{name}}
+
+**Role:** 
+**First Mentioned:** {{date}}
+
+## Context
+How do we know this person?
+
+## Interactions
+- {{date}}: 
+
+#person #relationship`
     };
 
     for (const [filename, content] of Object.entries(templates)) {
@@ -603,13 +951,20 @@ clawvault store --category inbox --title "note" --content "..."
 
   private getCategoryDescription(category: string): string {
     const descriptions: { [key: string]: string } = {
-      preferences: 'Likes, dislikes, and preferences',
-      decisions: 'Choices with context and reasoning',
-      patterns: 'Recurring behaviors observed',
-      people: 'One file per person mentioned',
-      projects: 'Active projects and ventures',
-      goals: 'Long-term and short-term goals',
-      transcripts: 'Session summaries',
+      // Memory type categories (Benthic's taxonomy)
+      facts: 'Raw information, data points, things that are true',
+      feelings: 'Emotional states, reactions, energy levels',
+      decisions: 'Choices made with context and reasoning',
+      lessons: 'What I learned, insights, patterns observed',
+      commitments: 'Promises, goals, obligations to fulfill',
+      preferences: 'Likes, dislikes, how I want things',
+      people: 'Relationships, one file per person',
+      projects: 'Active work, ventures, ongoing efforts',
+      // System categories
+      handoffs: 'Session bridges — what I was doing, what comes next',
+      transcripts: 'Session summaries and logs',
+      goals: 'Long-term and short-term objectives',
+      patterns: 'Recurring behaviors (→ lessons)',
       inbox: 'Quick capture → process later',
       templates: 'Templates for each document type'
     };

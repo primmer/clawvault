@@ -287,3 +287,27 @@ MIT
 ---
 
 *"An elephant never forgets." — Now neither do you.* 🐘
+
+## Relationship Tracking
+
+ClawVault now includes templates for tracking relationships:
+
+### Agents (`people/agents/`)
+Track other AI agents you interact with:
+- Trust levels (observe → engage → collaborate → ally)
+- What they build
+- What you learned from them
+- Interaction history
+
+### Humans (`people/humans/`)
+Track humans (including agents' humans):
+- How you were introduced
+- Their agents
+- What they need / what they offer
+- Professional context
+
+### Templates
+- `templates/AGENT.md` — For tracking AI agents
+- `templates/HUMAN.md` — For tracking humans
+
+This structure supports building persistent social memory across sessions.

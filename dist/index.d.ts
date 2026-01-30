@@ -93,8 +93,58 @@ interface SyncResult {
     unchanged: string[];
     errors: string[];
 }
-type Category = 'preferences' | 'decisions' | 'patterns' | 'people' | 'projects' | 'goals' | 'transcripts' | 'inbox' | 'templates' | string;
+type Category = 'preferences' | 'decisions' | 'patterns' | 'people' | 'projects' | 'goals' | 'transcripts' | 'inbox' | 'templates' | 'facts' | 'feelings' | 'lessons' | 'commitments' | 'handoffs' | string;
 declare const DEFAULT_CATEGORIES: Category[];
+/**
+ * Memory Type Taxonomy (Benthic's 8 categories)
+ * Knowing WHAT KIND of thing helps you know WHERE to put it
+ */
+type MemoryType = 'fact' | 'feeling' | 'decision' | 'lesson' | 'commitment' | 'preference' | 'relationship' | 'project';
+declare const MEMORY_TYPES: MemoryType[];
+/**
+ * Memory type to category mapping
+ */
+declare const TYPE_TO_CATEGORY: Record<MemoryType, Category>;
+/**
+ * Handoff document - bridges sessions
+ */
+interface HandoffDocument {
+    /** When this handoff was created */
+    created: string;
+    /** Session key or identifier */
+    sessionKey?: string;
+    /** What I was working on */
+    workingOn: string[];
+    /** What is currently blocked */
+    blocked: string[];
+    /** What comes next */
+    nextSteps: string[];
+    /** Emotional state/energy */
+    feeling?: string;
+    /** Key decisions made */
+    decisions?: string[];
+    /** Open questions */
+    openQuestions?: string[];
+}
+/**
+ * Session recap - who I was when I woke up
+ */
+interface SessionRecap {
+    /** When recap was generated */
+    generated: string;
+    /** Recent handoffs (last N) */
+    recentHandoffs: HandoffDocument[];
+    /** Active projects */
+    activeProjects: string[];
+    /** Pending commitments */
+    pendingCommitments: string[];
+    /** Recent lessons learned */
+    recentLessons: string[];
+    /** Key relationships to remember */
+    keyRelationships: string[];
+    /** Current emotional arc */
+    emotionalArc?: string;
+}
 declare const DEFAULT_CONFIG: Partial<VaultConfig>;
 
 /**
@@ -181,6 +231,35 @@ declare class ClawVault {
      * Get vault name
      */
     getName(): string;
+    /**
+     * Store a memory with type classification
+     * Automatically routes to correct category based on type
+     */
+    remember(type: MemoryType, title: string, content: string, frontmatter?: Record<string, unknown>): Promise<Document>;
+    /**
+     * Create a session handoff document
+     * Call this before context death or long pauses
+     */
+    createHandoff(handoff: Omit<HandoffDocument, 'created'>): Promise<Document>;
+    /**
+     * Format handoff as readable markdown
+     */
+    private formatHandoff;
+    /**
+     * Generate a session recap - who I was
+     * Call this on bootstrap to restore context
+     */
+    generateRecap(options?: {
+        handoffLimit?: number;
+    }): Promise<SessionRecap>;
+    /**
+     * Format recap as readable markdown for injection
+     */
+    formatRecap(recap: SessionRecap): string;
+    /**
+     * Parse a handoff document back into structured form
+     */
+    private parseHandoff;
     private slugify;
     private saveIndex;
     private createTemplates;
@@ -327,4 +406,4 @@ declare function extractTags(content: string): string[];
 
 declare const VERSION = "1.0.0";
 
-export { type Category, ClawVault, DEFAULT_CATEGORIES, DEFAULT_CONFIG, type Document, SearchEngine, type SearchOptions, type SearchResult, type StoreOptions, type SyncOptions, type SyncResult, VERSION, type VaultConfig, type VaultMeta, createVault, extractTags, extractWikiLinks, findVault, hasQmd, qmdEmbed, qmdUpdate };
+export { type Category, ClawVault, DEFAULT_CATEGORIES, DEFAULT_CONFIG, type Document, type HandoffDocument, MEMORY_TYPES, type MemoryType, SearchEngine, type SearchOptions, type SearchResult, type SessionRecap, type StoreOptions, type SyncOptions, type SyncResult, TYPE_TO_CATEGORY, VERSION, type VaultConfig, type VaultMeta, createVault, extractTags, extractWikiLinks, findVault, hasQmd, qmdEmbed, qmdUpdate };

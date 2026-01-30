@@ -458,5 +458,111 @@ program
     }
   });
 
+// === REMEMBER (type-based storage) ===
+program
+  .command('remember <type> <title>')
+  .description('Store a memory with type classification (fact|feeling|decision|lesson|commitment|preference|relationship|project)')
+  .option('--content <content>', 'Content body')
+  .option('-f, --file <file>', 'Read content from file')
+  .option('--stdin', 'Read content from stdin')
+  .option('-v, --vault <path>', 'Vault path')
+  .action(async (type, title, options) => {
+    const validTypes = ['fact', 'feeling', 'decision', 'lesson', 'commitment', 'preference', 'relationship', 'project'];
+    if (!validTypes.includes(type)) {
+      console.error(chalk.red(`Invalid type: ${type}`));
+      console.error(chalk.dim(`Valid types: ${validTypes.join(', ')}`));
+      process.exit(1);
+    }
+    
+    try {
+      const vault = await getVault(options.vault);
+      
+      let content = options.content || '';
+      if (options.file) {
+        content = fs.readFileSync(options.file, 'utf-8');
+      } else if (options.stdin) {
+        content = fs.readFileSync(0, 'utf-8');
+      }
+      
+      const doc = await vault.remember(type, title, content);
+      console.log(chalk.green(`✓ Remembered (${type}): ${doc.id}`));
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// === HANDOFF (session bridge) ===
+program
+  .command('handoff')
+  .description('Create a session handoff document')
+  .requiredOption('-w, --working-on <items>', 'What I was working on (comma-separated)')
+  .option('-b, --blocked <items>', 'What is blocked (comma-separated)')
+  .option('-n, --next <items>', 'What comes next (comma-separated)')
+  .option('-d, --decisions <items>', 'Key decisions made (comma-separated)')
+  .option('-q, --questions <items>', 'Open questions (comma-separated)')
+  .option('-f, --feeling <state>', 'Emotional/energy state')
+  .option('-s, --session <key>', 'Session key')
+  .option('-v, --vault <path>', 'Vault path')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const vault = await getVault(options.vault);
+      
+      const handoff = {
+        workingOn: options.workingOn.split(',').map(s => s.trim()),
+        blocked: options.blocked ? options.blocked.split(',').map(s => s.trim()) : [],
+        nextSteps: options.next ? options.next.split(',').map(s => s.trim()) : [],
+        decisions: options.decisions ? options.decisions.split(',').map(s => s.trim()) : undefined,
+        openQuestions: options.questions ? options.questions.split(',').map(s => s.trim()) : undefined,
+        feeling: options.feeling,
+        sessionKey: options.session
+      };
+      
+      const doc = await vault.createHandoff(handoff);
+      
+      if (options.json) {
+        console.log(JSON.stringify({ id: doc.id, path: doc.path, handoff }, null, 2));
+        return;
+      }
+      
+      console.log(chalk.green(`✓ Handoff created: ${doc.id}`));
+      console.log(chalk.dim(`  Path: ${doc.path}`));
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// === RECAP (session bootstrap) ===
+program
+  .command('recap')
+  .description('Generate a session recap - who I was (bootstrap hook)')
+  .option('-n, --handoff-limit <n>', 'Number of recent handoffs to include', '3')
+  .option('-v, --vault <path>', 'Vault path')
+  .option('--json', 'Output as JSON')
+  .option('--markdown', 'Output as markdown (default)')
+  .action(async (options) => {
+    try {
+      const vault = await getVault(options.vault);
+      
+      const recap = await vault.generateRecap({
+        handoffLimit: parseInt(options.handoffLimit)
+      });
+      
+      if (options.json) {
+        console.log(JSON.stringify(recap, null, 2));
+        return;
+      }
+      
+      // Output as markdown (default)
+      const md = vault.formatRecap(recap);
+      console.log(md);
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // Parse and run
 program.parse();

@@ -16,6 +16,26 @@ var DEFAULT_CATEGORIES = [
   "inbox",
   "templates"
 ];
+var MEMORY_TYPES = [
+  "fact",
+  "feeling",
+  "decision",
+  "lesson",
+  "commitment",
+  "preference",
+  "relationship",
+  "project"
+];
+var TYPE_TO_CATEGORY = {
+  fact: "facts",
+  feeling: "feelings",
+  decision: "decisions",
+  lesson: "lessons",
+  commitment: "commitments",
+  preference: "preferences",
+  relationship: "people",
+  project: "projects"
+};
 var DEFAULT_CONFIG = {
   categories: DEFAULT_CATEGORIES
 };
@@ -627,6 +647,203 @@ var ClawVault = class {
   getName() {
     return this.config.name;
   }
+  // === Memory Type System ===
+  /**
+   * Store a memory with type classification
+   * Automatically routes to correct category based on type
+   */
+  async remember(type, title, content, frontmatter = {}) {
+    const category = TYPE_TO_CATEGORY[type];
+    return this.store({
+      category,
+      title,
+      content,
+      frontmatter: { ...frontmatter, memoryType: type }
+    });
+  }
+  // === Handoff System ===
+  /**
+   * Create a session handoff document
+   * Call this before context death or long pauses
+   */
+  async createHandoff(handoff) {
+    const now = /* @__PURE__ */ new Date();
+    const dateStr = now.toISOString().split("T")[0];
+    const timeStr = now.toISOString().split("T")[1].slice(0, 5).replace(":", "");
+    const fullHandoff = {
+      ...handoff,
+      created: now.toISOString()
+    };
+    const content = this.formatHandoff(fullHandoff);
+    const frontmatter = {
+      type: "handoff",
+      workingOn: handoff.workingOn,
+      blocked: handoff.blocked
+    };
+    if (handoff.sessionKey) frontmatter.sessionKey = handoff.sessionKey;
+    if (handoff.feeling) frontmatter.feeling = handoff.feeling;
+    return this.store({
+      category: "handoffs",
+      title: `handoff-${dateStr}-${timeStr}`,
+      content,
+      frontmatter
+    });
+  }
+  /**
+   * Format handoff as readable markdown
+   */
+  formatHandoff(h) {
+    let md = `# Session Handoff
+
+`;
+    md += `**Created:** ${h.created}
+`;
+    if (h.sessionKey) md += `**Session:** ${h.sessionKey}
+`;
+    if (h.feeling) md += `**Feeling:** ${h.feeling}
+`;
+    md += `
+`;
+    md += `## Working On
+`;
+    h.workingOn.forEach((w) => md += `- ${w}
+`);
+    md += `
+`;
+    md += `## Blocked
+`;
+    if (h.blocked.length === 0) md += `- Nothing currently blocked
+`;
+    else h.blocked.forEach((b) => md += `- ${b}
+`);
+    md += `
+`;
+    md += `## Next Steps
+`;
+    h.nextSteps.forEach((n) => md += `- ${n}
+`);
+    if (h.decisions && h.decisions.length > 0) {
+      md += `
+## Decisions Made
+`;
+      h.decisions.forEach((d) => md += `- ${d}
+`);
+    }
+    if (h.openQuestions && h.openQuestions.length > 0) {
+      md += `
+## Open Questions
+`;
+      h.openQuestions.forEach((q) => md += `- ${q}
+`);
+    }
+    return md;
+  }
+  // === Session Recap (Bootstrap Hook) ===
+  /**
+   * Generate a session recap - who I was
+   * Call this on bootstrap to restore context
+   */
+  async generateRecap(options = {}) {
+    const { handoffLimit = 3 } = options;
+    const handoffDocs = await this.list("handoffs");
+    const recentHandoffs = handoffDocs.sort((a, b) => b.modified.getTime() - a.modified.getTime()).slice(0, handoffLimit).map((doc) => this.parseHandoff(doc));
+    const projectDocs = await this.list("projects");
+    const activeProjects = projectDocs.filter((d) => d.frontmatter.status !== "completed" && d.frontmatter.status !== "archived").map((d) => d.title);
+    const commitmentDocs = await this.list("commitments");
+    const pendingCommitments = commitmentDocs.filter((d) => d.frontmatter.status !== "done").map((d) => d.title);
+    const lessonDocs = await this.list("lessons");
+    const recentLessons = lessonDocs.sort((a, b) => b.modified.getTime() - a.modified.getTime()).slice(0, 5).map((d) => d.title);
+    const peopleDocs = await this.list("people");
+    const keyRelationships = peopleDocs.filter((d) => d.frontmatter.importance === "high" || d.frontmatter.role).map((d) => `${d.title}${d.frontmatter.role ? ` (${d.frontmatter.role})` : ""}`);
+    const feelings = recentHandoffs.map((h) => h.feeling).filter(Boolean);
+    const emotionalArc = feelings.length > 0 ? feelings.join(" \u2192 ") : void 0;
+    return {
+      generated: (/* @__PURE__ */ new Date()).toISOString(),
+      recentHandoffs,
+      activeProjects,
+      pendingCommitments,
+      recentLessons,
+      keyRelationships,
+      emotionalArc
+    };
+  }
+  /**
+   * Format recap as readable markdown for injection
+   */
+  formatRecap(recap) {
+    let md = `# Who I Was
+
+`;
+    md += `*Generated: ${recap.generated}*
+
+`;
+    if (recap.emotionalArc) {
+      md += `**Emotional arc:** ${recap.emotionalArc}
+
+`;
+    }
+    if (recap.recentHandoffs.length > 0) {
+      md += `## Recent Sessions
+`;
+      for (const h of recap.recentHandoffs) {
+        md += `
+### ${h.created.split("T")[0]}
+`;
+        md += `**Working on:** ${h.workingOn.join(", ")}
+`;
+        if (h.blocked.length > 0) md += `**Blocked:** ${h.blocked.join(", ")}
+`;
+        md += `**Next:** ${h.nextSteps.join(", ")}
+`;
+      }
+      md += `
+`;
+    }
+    if (recap.activeProjects.length > 0) {
+      md += `## Active Projects
+`;
+      recap.activeProjects.forEach((p) => md += `- ${p}
+`);
+      md += `
+`;
+    }
+    if (recap.pendingCommitments.length > 0) {
+      md += `## Pending Commitments
+`;
+      recap.pendingCommitments.forEach((c) => md += `- ${c}
+`);
+      md += `
+`;
+    }
+    if (recap.recentLessons.length > 0) {
+      md += `## Recent Lessons
+`;
+      recap.recentLessons.forEach((l) => md += `- ${l}
+`);
+      md += `
+`;
+    }
+    if (recap.keyRelationships.length > 0) {
+      md += `## Key People
+`;
+      recap.keyRelationships.forEach((r) => md += `- ${r}
+`);
+    }
+    return md;
+  }
+  /**
+   * Parse a handoff document back into structured form
+   */
+  parseHandoff(doc) {
+    return {
+      created: doc.frontmatter.date || doc.modified.toISOString(),
+      sessionKey: doc.frontmatter.sessionKey,
+      workingOn: doc.frontmatter.workingOn || [],
+      blocked: doc.frontmatter.blocked || [],
+      nextSteps: [],
+      feeling: doc.frontmatter.feeling
+    };
+  }
   // === Private helpers ===
   slugify(text) {
     return text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
@@ -646,9 +863,50 @@ var ClawVault = class {
   async createTemplates() {
     const templatesPath = path2.join(this.config.path, "templates");
     const templates = {
+      // === Memory Type Templates (Benthic's Taxonomy) ===
+      "fact.md": `---
+title: "{{title}}"
+date: {{date}}
+memoryType: fact
+confidence: high
+source: ""
+---
+
+# {{title}}
+
+## Fact
+State the fact clearly.
+
+## Source
+Where did this come from?
+
+## Context
+Why does this matter?
+
+#fact`,
+      "feeling.md": `---
+title: "Feeling: {{title}}"
+date: {{date}}
+memoryType: feeling
+intensity: medium
+---
+
+# {{title}}
+
+## What I felt
+Describe the emotional state.
+
+## Trigger
+What caused it?
+
+## Response
+How did I handle it?
+
+#feeling`,
       "decision.md": `---
 title: "Decision: {{title}}"
 date: {{date}}
+memoryType: decision
 status: pending
 ---
 
@@ -670,39 +928,75 @@ Why this choice?
 ## Outcome
 [Fill in later] What happened as a result?
 
-## Related
-- [[people/]]
-- [[projects/]]
-
 #decision`,
-      "pattern.md": `---
-title: "Pattern: {{title}}"
+      "lesson.md": `---
+title: "Lesson: {{title}}"
 date: {{date}}
+memoryType: lesson
 confidence: medium
-frequency: situational
 ---
 
-# Pattern: {{title}}
+# {{title}}
 
-## Description
-What is the pattern?
+## What I learned
+The core insight.
 
 ## Evidence
-- {{date}}: Example 1
-- {{date}}: Example 2
+- {{date}}: How I learned this
 
-## Implications
-How should I act on this pattern?
+## Application
+How should I use this going forward?
 
-## Related
-- [[people/]]
-- [[patterns/]]
+#lesson`,
+      "commitment.md": `---
+title: "Commitment: {{title}}"
+date: {{date}}
+memoryType: commitment
+status: active
+due: ""
+---
 
-#pattern`,
-      "person.md": `---
+# {{title}}
+
+## What I promised
+The commitment made.
+
+## To whom
+Who am I accountable to?
+
+## Timeline
+When is this due?
+
+## Progress
+- {{date}}: Started
+
+#commitment`,
+      "preference.md": `---
+title: "Preference: {{title}}"
+date: {{date}}
+memoryType: preference
+strength: medium
+---
+
+# Preference: {{title}}
+
+## What
+Description of the preference
+
+## Why
+Reasoning behind it
+
+## Examples
+- Example 1
+- Example 2
+
+#preference`,
+      "relationship.md": `---
 title: "{{name}}"
 date: {{date}}
+memoryType: relationship
 role: ""
+importance: medium
 ---
 
 # {{name}}
@@ -719,14 +1013,11 @@ How do we know this person?
 ## Interactions
 - {{date}}: 
 
-## Related
-- [[people/]]
-- [[projects/]]
-
-#person`,
+#relationship #person`,
       "project.md": `---
 title: "{{title}}"
 date: {{date}}
+memoryType: project
 status: active
 ---
 
@@ -744,29 +1035,80 @@ What is this project?
 ## People
 - [[people/]]
 
-## Decisions
-- [[decisions/]]
-
 #project`,
-      "preference.md": `---
-title: "Preference: {{title}}"
+      // === Session Handoff Template ===
+      "handoff.md": `---
+title: "Handoff: {{date}}"
 date: {{date}}
-category: general
+type: handoff
+sessionKey: ""
 ---
 
-# Preference: {{title}}
+# Session Handoff
 
-## What
-Description of the preference
+## Working On
+What was I actively doing?
+- 
 
-## Why
-Reasoning behind it
+## Blocked
+What is stuck or waiting?
+- 
 
-## Examples
-- Example 1
-- Example 2
+## Next Steps
+What should happen next?
+- 
 
-#preference`
+## Decisions Made
+Key choices during this session:
+- 
+
+## Open Questions
+Unresolved things to think about:
+- 
+
+## Feeling
+Emotional/energy state:
+
+#handoff`,
+      // Legacy templates (backwards compat)
+      "pattern.md": `---
+title: "Pattern: {{title}}"
+date: {{date}}
+memoryType: lesson
+confidence: medium
+---
+
+# Pattern: {{title}}
+
+## Description
+What is the pattern?
+
+## Evidence
+- {{date}}: Example 1
+
+## Implications
+How should I act on this pattern?
+
+#pattern #lesson`,
+      "person.md": `---
+title: "{{name}}"
+date: {{date}}
+memoryType: relationship
+role: ""
+---
+
+# {{name}}
+
+**Role:** 
+**First Mentioned:** {{date}}
+
+## Context
+How do we know this person?
+
+## Interactions
+- {{date}}: 
+
+#person #relationship`
     };
     for (const [filename, content] of Object.entries(templates)) {
       const filePath = path2.join(templatesPath, filename);
@@ -803,13 +1145,20 @@ clawvault store --category inbox --title "note" --content "..."
   }
   getCategoryDescription(category) {
     const descriptions = {
-      preferences: "Likes, dislikes, and preferences",
-      decisions: "Choices with context and reasoning",
-      patterns: "Recurring behaviors observed",
-      people: "One file per person mentioned",
-      projects: "Active projects and ventures",
-      goals: "Long-term and short-term goals",
-      transcripts: "Session summaries",
+      // Memory type categories (Benthic's taxonomy)
+      facts: "Raw information, data points, things that are true",
+      feelings: "Emotional states, reactions, energy levels",
+      decisions: "Choices made with context and reasoning",
+      lessons: "What I learned, insights, patterns observed",
+      commitments: "Promises, goals, obligations to fulfill",
+      preferences: "Likes, dislikes, how I want things",
+      people: "Relationships, one file per person",
+      projects: "Active work, ventures, ongoing efforts",
+      // System categories
+      handoffs: "Session bridges \u2014 what I was doing, what comes next",
+      transcripts: "Session summaries and logs",
+      goals: "Long-term and short-term objectives",
+      patterns: "Recurring behaviors (\u2192 lessons)",
       inbox: "Quick capture \u2192 process later",
       templates: "Templates for each document type"
     };
@@ -841,7 +1190,9 @@ export {
   ClawVault,
   DEFAULT_CATEGORIES,
   DEFAULT_CONFIG,
+  MEMORY_TYPES,
   SearchEngine,
+  TYPE_TO_CATEGORY,
   VERSION,
   createVault,
   extractTags,

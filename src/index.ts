@@ -38,10 +38,13 @@ export type {
   StoreOptions,
   SyncOptions,
   SyncResult,
-  Category
+  Category,
+  MemoryType,
+  HandoffDocument,
+  SessionRecap
 } from './types.js';
 
-export { DEFAULT_CATEGORIES, DEFAULT_CONFIG } from './types.js';
+export { DEFAULT_CATEGORIES, DEFAULT_CONFIG, MEMORY_TYPES, TYPE_TO_CATEGORY } from './types.js';
 
 // Version
 export const VERSION = '1.0.0';

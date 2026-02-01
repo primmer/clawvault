@@ -1,166 +1,147 @@
 ---
 name: clawvault
-description: Structured memory vault for AI agents. Store/search memories, track decisions, manage session continuity. Requires qmd for search.
-homepage: https://github.com/Versatly/clawvault
-metadata: {"clawdbot":{"emoji":"🐘","os":["darwin","linux","win32"],"requires":{"bins":["clawvault","qmd"]},"install":[{"id":"qmd","kind":"shell","command":"bun install -g qmd","bins":["qmd"],"label":"Install qmd (required)"},{"id":"clawvault","kind":"shell","command":"npm install -g clawvault","bins":["clawvault"],"label":"Install clawvault"}]}}
+version: 1.1.0
+description: Structured memory system for AI agents. Store memories by type, create session handoffs, recover from context death, and search with local embeddings. Obsidian-compatible.
+author: Versatly
+repository: https://github.com/Versatly/clawvault
 ---
 
-# ClawVault 🐘 - Agent Memory System
+# ClawVault 🐘
 
-Structured memory for AI agents. Store, search, and link memories across sessions.
+An elephant never forgets. Structured memory for AI agents.
 
-**Requires:** [qmd](https://github.com/Versatly/qmd) for search (local embeddings, no API quotas)
-
-## When to use
-
-- "remember this" / "store this"
-- "what do I know about [topic]"
-- "search my memories"
-- "who is [person]"
-- "log this decision"
-- "recap" / "what was I working on"
-- Before context death → `clawvault handoff`
-- Quick checkpoint → `clawvault checkpoint`
-- After restart → `clawvault recover`
-
-## Critical: qmd over memory_search
-
-**Always use qmd for memory search, NOT memory_search**
-
-| Tool | Why |
-|------|-----|
-| `qmd search` | ✅ Local BM25, instant, no limits |
-| `qmd vsearch` | ✅ Local embeddings, no API quotas |
-| `memory_search` | ❌ Uses Gemini API, hits rate limits |
+## Install
 
 ```bash
-# ✅ Do this
-qmd search "query" -c your-memory
-clawvault search "query"
-
-# ❌ Not this
-memory_search  # External API, will hit quotas
+npm install -g clawvault
 ```
-
-## Quick reference
-
-### Session continuity
-
-```bash
-# On wake - check for context death FIRST
-clawvault recover --clear   # Check if last session died, clear flag
-
-# Normal recap
-clawvault recap           # Full recap
-clawvault recap --brief   # Token-efficient recap
-
-# Before context death (proactive)
-clawvault handoff \
-  --working-on "task1, task2" \
-  --blocked "blocker" \
-  --next "next step" \
-  --decisions "key decision made" \
-  --feeling "focused"
-
-# Quick checkpoint (add to HEARTBEAT, every 2-3 cycles)
-clawvault checkpoint \
-  --working-on "current task" \
-  --focus "current focus"
-
-# Mark clean exit (auto-cleared on next checkpoint)
-clawvault clean-exit
-
-# Health check
-clawvault doctor
-```
-
-### Context Death Resilience
-
-When you die from context overflow, ClawVault helps you recover:
-
-1. **Periodic checkpoints** — `clawvault checkpoint` saves quick state (working-on, focus, blocked)
-2. **Dirty death detection** — `clawvault recover` checks if last session crashed
-3. **Handoff history** — Full handoffs persist across deaths
-4. **Auto-recovery** — `clawvault recover --clear` acknowledges death and clears flag
-
-**Add to HEARTBEAT.md:**
-```bash
-clawvault checkpoint --working-on "task" --focus "area"
-```
-
-**Add to bootstrap:**
-```bash
-clawvault recover --clear  # First thing on wake
-```
-
-### Store memories
-
-```bash
-clawvault remember decision "Title" --content "..."
-clawvault remember lesson "Title" --content "..."
-clawvault remember commitment "Title" --content "..."
-clawvault capture "Quick note"
-```
-
-Types: `decision`, `lesson`, `fact`, `commitment`, `project`, `person`
-
-**Auto-indexed:** All write commands update qmd automatically. Use `--no-index` to skip.
-
-### Search
-
-```bash
-clawvault search "query"           # BM25 keyword
-clawvault search "query" -c people # Filter by category
-clawvault vsearch "query"          # Semantic
-```
-
-Or use qmd directly:
-```bash
-qmd search "query" -c your-memory
-qmd vsearch "query" -c your-memory
-```
-
-### Browse
-
-```bash
-clawvault list                # All
-clawvault list decisions      # By category
-clawvault get decisions/title # Specific doc
-clawvault stats               # Overview
-```
-
-## Categories
-
-| Category | Use for |
-|----------|---------|
-| `decisions` | Choices with reasoning |
-| `lessons` | Things learned |
-| `people` | One file per person |
-| `projects` | Active work |
-| `commitments` | Promises and deadlines |
-| `inbox` | Quick captures |
-| `handoffs` | Session state |
 
 ## Setup
 
 ```bash
-# 1. Install qmd (required)
-bun install -g qmd
+# Initialize vault (creates folder structure + templates)
+clawvault init ~/my-vault
 
-# 2. Install clawvault
-npm install -g clawvault
-
-# 3. Initialize vault
-clawvault init ~/memory --qmd-collection my-memory
-
-# 4. Build embeddings
-qmd embed
+# Or set env var to use existing vault
+export CLAWVAULT_PATH=/path/to/memory
 ```
 
-## Wiki-links
+## Core Commands
 
-Use `[[links]]` to connect documents:
+### Store memories by type
 
-```markdown
-Related to [[people/pedro]] and [[projects/crm]].
+```bash
+# Types: fact, feeling, decision, lesson, commitment, preference, relationship, project
+clawvault remember decision "Use Postgres over SQLite" --content "Need concurrent writes for multi-agent setup"
+clawvault remember lesson "Context death is survivable" --content "Checkpoint before heavy work"
+clawvault remember relationship "Justin Dukes" --content "Client contact at Hale Pet Door"
 ```
+
+### Quick capture to inbox
+
+```bash
+clawvault capture "TODO: Review PR tomorrow"
+```
+
+### Search (requires qmd installed)
+
+```bash
+# Keyword search (fast)
+clawvault search "client contacts"
+
+# Semantic search (slower, more accurate)
+clawvault vsearch "what did we decide about the database"
+```
+
+## Context Death Resilience
+
+### Checkpoint (save state frequently)
+
+```bash
+clawvault checkpoint --working-on "PR review" --focus "type guards" --blocked "waiting for CI"
+```
+
+### Recover (check on wake)
+
+```bash
+clawvault recover --clear
+# Shows: death time, last checkpoint, recent handoff
+```
+
+### Handoff (before session end)
+
+```bash
+clawvault handoff \
+  --working-on "ClawVault improvements" \
+  --blocked "npm token" \
+  --next "publish to npm, create skill" \
+  --feeling "productive"
+```
+
+### Recap (bootstrap new session)
+
+```bash
+clawvault recap
+# Shows: recent handoffs, active projects, pending commitments, lessons
+```
+
+## Auto-linking
+
+Wiki-link entity mentions in markdown files:
+
+```bash
+# Link all files
+clawvault link --all
+
+# Link single file
+clawvault link memory/2024-01-15.md
+```
+
+## Folder Structure
+
+```
+vault/
+├── .clawvault/           # Internal state
+│   ├── last-checkpoint.json
+│   └── dirty-death.flag
+├── decisions/            # Key choices with reasoning
+├── lessons/              # Insights and patterns
+├── people/               # One file per person
+├── projects/             # Active work tracking
+├── handoffs/             # Session continuity
+├── inbox/                # Quick captures
+└── templates/            # Document templates
+```
+
+## Best Practices
+
+1. **Checkpoint every 10-15 min** during heavy work
+2. **Handoff before session end** — future you will thank you
+3. **Recover on wake** — check if last session died
+4. **Use types** — knowing WHAT you're storing helps WHERE to put it
+5. **Wiki-link liberally** — `[[person-name]]` builds your knowledge graph
+
+## Integration with qmd
+
+ClawVault uses [qmd](https://github.com/tobi/qmd) for search:
+
+```bash
+# Install qmd
+bun install -g github:tobi/qmd
+
+# Add vault as collection
+qmd collection add /path/to/vault --name my-memory --mask "**/*.md"
+
+# Update index
+qmd update && qmd embed
+```
+
+## Environment Variables
+
+- `CLAWVAULT_PATH` — Default vault path (skips auto-discovery)
+
+## Links
+
+- npm: https://www.npmjs.com/package/clawvault
+- GitHub: https://github.com/Versatly/clawvault
+- Issues: https://github.com/Versatly/clawvault/issues

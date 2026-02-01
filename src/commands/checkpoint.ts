@@ -25,12 +25,36 @@ const CHECKPOINT_FILE = 'last-checkpoint.json';
 const SESSION_STATE_FILE = 'session-state.json';
 const DIRTY_DEATH_FLAG = 'dirty-death.flag';
 
+let pendingCheckpoint: NodeJS.Timeout | null = null;
+let pendingData: { dir: string; data: CheckpointData } | null = null;
+
 function ensureClawvaultDir(vaultPath: string): string {
   const dir = path.join(vaultPath, CLAWVAULT_DIR);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
   return dir;
+}
+
+function writeCheckpointToDisk(dir: string, data: CheckpointData): void {
+  const checkpointPath = path.join(dir, CHECKPOINT_FILE);
+  fs.writeFileSync(checkpointPath, JSON.stringify(data, null, 2));
+
+  const flagPath = path.join(dir, DIRTY_DEATH_FLAG);
+  fs.writeFileSync(flagPath, data.timestamp);
+}
+
+export async function flush(): Promise<CheckpointData | null> {
+  if (pendingCheckpoint) {
+    clearTimeout(pendingCheckpoint);
+    pendingCheckpoint = null;
+  }
+  if (!pendingData) return null;
+
+  const { dir, data } = pendingData;
+  pendingData = null;
+  writeCheckpointToDisk(dir, data);
+  return data;
 }
 
 export async function checkpoint(options: CheckpointOptions): Promise<CheckpointData> {
@@ -53,15 +77,14 @@ export async function checkpoint(options: CheckpointOptions): Promise<Checkpoint
       // Ignore parse errors
     }
   }
-  
-  // Write checkpoint
-  const checkpointPath = path.join(dir, CHECKPOINT_FILE);
-  fs.writeFileSync(checkpointPath, JSON.stringify(data, null, 2));
-  
-  // Set dirty death flag (cleared on clean exit)
-  const flagPath = path.join(dir, DIRTY_DEATH_FLAG);
-  fs.writeFileSync(flagPath, data.timestamp);
-  
+
+  // Debounce writes to avoid rapid write spam; last call wins.
+  pendingData = { dir, data };
+  if (pendingCheckpoint) clearTimeout(pendingCheckpoint);
+  pendingCheckpoint = setTimeout(() => {
+    void flush();
+  }, 1000);
+
   return data;
 }
 

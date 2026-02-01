@@ -433,6 +433,6 @@ declare function extractTags(content: string): string[];
  * ```
  */
 
-declare const VERSION = "1.0.0";
+declare const VERSION: string;
 
 export { type Category, ClawVault, DEFAULT_CATEGORIES, DEFAULT_CONFIG, type Document, type HandoffDocument, MEMORY_TYPES, type MemoryType, QMD_INSTALL_URL, QmdUnavailableError, SearchEngine, type SearchOptions, type SearchResult, type SessionRecap, type StoreOptions, type SyncOptions, type SyncResult, TYPE_TO_CATEGORY, VERSION, type VaultConfig, type VaultMeta, createVault, extractTags, extractWikiLinks, findVault, hasQmd, qmdEmbed, qmdUpdate };

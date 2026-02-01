@@ -1,3 +1,6 @@
+// src/index.ts
+import * as fs2 from "fs";
+
 // src/lib/vault.ts
 import * as fs from "fs";
 import * as path2 from "path";
@@ -1212,7 +1215,16 @@ async function createVault(vaultPath, options = {}) {
 }
 
 // src/index.ts
-var VERSION = "1.0.0";
+function readPackageVersion() {
+  try {
+    const pkgUrl = new URL("../package.json", import.meta.url);
+    const pkg = JSON.parse(fs2.readFileSync(pkgUrl, "utf-8"));
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+var VERSION = readPackageVersion();
 export {
   ClawVault,
   DEFAULT_CATEGORIES,

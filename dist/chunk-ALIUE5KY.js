@@ -60,6 +60,9 @@ async function clearDirtyFlag(vaultPath) {
     fs.unlinkSync(flagPath);
   }
 }
+async function cleanExit(vaultPath) {
+  await clearDirtyFlag(vaultPath);
+}
 async function checkDirtyDeath(vaultPath) {
   const dir = path.join(vaultPath, CLAWVAULT_DIR);
   const flagPath = path.join(dir, DIRTY_DEATH_FLAG);
@@ -90,6 +93,7 @@ export {
   flush,
   checkpoint,
   clearDirtyFlag,
+  cleanExit,
   checkDirtyDeath,
   setSessionState
 };

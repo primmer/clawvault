@@ -705,5 +705,141 @@ program
     }
   });
 
+// === ENTITIES ===
+program
+  .command('entities')
+  .description('List all linkable entities in the vault')
+  .option('-v, --vault <path>', 'Vault path')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const vaultPath = options.vault || process.env.CLAWVAULT_PATH;
+      if (!vaultPath) {
+        console.error(chalk.red('Error: No vault path. Set CLAWVAULT_PATH or use -v'));
+        process.exit(1);
+      }
+      
+      const { entitiesCommand } = await import('../dist/commands/entities.js');
+      await entitiesCommand({ json: options.json });
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// === LINK ===
+program
+  .command('link [file]')
+  .description('Auto-link entity mentions in markdown files')
+  .option('--all', 'Link all files in vault')
+  .option('--dry-run', 'Show what would be linked without changing files')
+  .option('-v, --vault <path>', 'Vault path')
+  .action(async (file, options) => {
+    try {
+      const vaultPath = options.vault || process.env.CLAWVAULT_PATH;
+      if (!vaultPath) {
+        console.error(chalk.red('Error: No vault path. Set CLAWVAULT_PATH or use -v'));
+        process.exit(1);
+      }
+      
+      const { linkCommand } = await import('../dist/commands/link.js');
+      await linkCommand(file, { all: options.all, dryRun: options.dryRun });
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// === CHECKPOINT ===
+program
+  .command('checkpoint')
+  .description('Quick state checkpoint for context death resilience')
+  .option('--working-on <text>', 'What you are currently working on')
+  .option('--focus <text>', 'Current focus area')
+  .option('--blocked <text>', 'What is blocking progress')
+  .option('-v, --vault <path>', 'Vault path')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const vaultPath = options.vault || process.env.CLAWVAULT_PATH;
+      if (!vaultPath) {
+        console.error(chalk.red('Error: No vault path. Set CLAWVAULT_PATH or use -v'));
+        process.exit(1);
+      }
+      
+      const { checkpoint } = await import('../dist/commands/checkpoint.js');
+      const data = await checkpoint({
+        vaultPath: path.resolve(vaultPath),
+        workingOn: options.workingOn,
+        focus: options.focus,
+        blocked: options.blocked,
+      });
+      
+      if (options.json) {
+        console.log(JSON.stringify(data, null, 2));
+      } else {
+        console.log(chalk.green('✓ Checkpoint saved'));
+        console.log(chalk.dim(`  Timestamp: ${data.timestamp}`));
+        if (data.workingOn) console.log(chalk.dim(`  Working on: ${data.workingOn}`));
+        if (data.focus) console.log(chalk.dim(`  Focus: ${data.focus}`));
+        if (data.blocked) console.log(chalk.dim(`  Blocked: ${data.blocked}`));
+      }
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// === RECOVER ===
+program
+  .command('recover')
+  .description('Check for context death and recover state')
+  .option('--clear', 'Clear the dirty death flag after recovery')
+  .option('-v, --vault <path>', 'Vault path')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const vaultPath = options.vault || process.env.CLAWVAULT_PATH;
+      if (!vaultPath) {
+        console.error(chalk.red('Error: No vault path. Set CLAWVAULT_PATH or use -v'));
+        process.exit(1);
+      }
+      
+      const { recover, formatRecoveryInfo } = await import('../dist/commands/recover.js');
+      const info = await recover(path.resolve(vaultPath), options.clear);
+      
+      if (options.json) {
+        console.log(JSON.stringify(info, null, 2));
+      } else {
+        console.log(formatRecoveryInfo(info));
+      }
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// === CLEAN-EXIT ===
+program
+  .command('clean-exit')
+  .description('Mark session as cleanly exited (clears dirty death flag)')
+  .option('-v, --vault <path>', 'Vault path')
+  .action(async (options) => {
+    try {
+      const vaultPath = options.vault || process.env.CLAWVAULT_PATH;
+      if (!vaultPath) {
+        console.error(chalk.red('Error: No vault path. Set CLAWVAULT_PATH or use -v'));
+        process.exit(1);
+      }
+      
+      const { clearDirtyFlag } = await import('../dist/commands/checkpoint.js');
+      await clearDirtyFlag(path.resolve(vaultPath));
+      console.log(chalk.green('✓ Clean exit recorded'));
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // Parse and run
 program.parse();

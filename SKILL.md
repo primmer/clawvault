@@ -20,6 +20,8 @@ Structured memory for AI agents. Store, search, and link memories across session
 - "log this decision"
 - "recap" / "what was I working on"
 - Before context death → `clawvault handoff`
+- Quick checkpoint → `clawvault checkpoint`
+- After restart → `clawvault recover`
 
 ## Critical: qmd over memory_search
 
@@ -45,11 +47,14 @@ memory_search  # External API, will hit quotas
 ### Session continuity
 
 ```bash
-# On wake
+# On wake - check for context death FIRST
+clawvault recover --clear   # Check if last session died, clear flag
+
+# Normal recap
 clawvault recap           # Full recap
 clawvault recap --brief   # Token-efficient recap
 
-# Before context death
+# Before context death (proactive)
 clawvault handoff \
   --working-on "task1, task2" \
   --blocked "blocker" \
@@ -57,8 +62,35 @@ clawvault handoff \
   --decisions "key decision made" \
   --feeling "focused"
 
+# Quick checkpoint (add to HEARTBEAT, every 2-3 cycles)
+clawvault checkpoint \
+  --working-on "current task" \
+  --focus "current focus"
+
+# Mark clean exit (auto-cleared on next checkpoint)
+clawvault clean-exit
+
 # Health check
 clawvault doctor
+```
+
+### Context Death Resilience
+
+When you die from context overflow, ClawVault helps you recover:
+
+1. **Periodic checkpoints** — `clawvault checkpoint` saves quick state (working-on, focus, blocked)
+2. **Dirty death detection** — `clawvault recover` checks if last session crashed
+3. **Handoff history** — Full handoffs persist across deaths
+4. **Auto-recovery** — `clawvault recover --clear` acknowledges death and clears flag
+
+**Add to HEARTBEAT.md:**
+```bash
+clawvault checkpoint --working-on "task" --focus "area"
+```
+
+**Add to bootstrap:**
+```bash
+clawvault recover --clear  # First thing on wake
 ```
 
 ### Store memories

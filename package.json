@@ -66,5 +66,16 @@
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0"
+  },
+  "optionalDependencies": {
+    "qmd": "github:tobi/qmd"
+  },
+  "peerDependencies": {
+    "qmd": "*"
+  },
+  "peerDependenciesMeta": {
+    "qmd": {
+      "optional": true
+    }
   }
 }

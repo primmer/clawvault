@@ -1014,252 +1014,152 @@ var ClawVault = class {
   async createTemplates() {
     const templatesPath = path2.join(this.config.path, "templates");
     const templates = {
-      // === Memory Type Templates (Benthic's Taxonomy) ===
-      "fact.md": `---
+      "decision.md": `---
 title: "{{title}}"
 date: {{date}}
-memoryType: fact
-confidence: high
-source: ""
----
-
-# {{title}}
-
-## Fact
-State the fact clearly.
-
-## Source
-Where did this come from?
-
-## Context
-Why does this matter?
-
-#fact`,
-      "feeling.md": `---
-title: "Feeling: {{title}}"
-date: {{date}}
-memoryType: feeling
-intensity: medium
----
-
-# {{title}}
-
-## What I felt
-Describe the emotional state.
-
-## Trigger
-What caused it?
-
-## Response
-How did I handle it?
-
-#feeling`,
-      "decision.md": `---
-title: "Decision: {{title}}"
-date: {{date}}
-memoryType: decision
-status: pending
+type: decision
+status: decided
 ---
 
 # Decision: {{title}}
 
 ## Context
-What situation led to this decision?
+[What situation required a decision?]
 
-## Options Considered
-1. **Option A** \u2014 pros/cons
-2. **Option B** \u2014 pros/cons
+## Options
+1. **Option A** \u2014 [pros/cons]
+2. **Option B** \u2014 [pros/cons]
 
 ## Decision
-What was decided?
-
-## Reasoning
-Why this choice?
+[What was decided and why]
 
 ## Outcome
-[Fill in later] What happened as a result?
+[Fill in later: What happened as a result?]
 
 #decision`,
       "lesson.md": `---
-title: "Lesson: {{title}}"
+title: "{{title}}"
 date: {{date}}
-memoryType: lesson
-confidence: medium
+type: lesson
+---
+
+# Lesson: {{title}}
+
+## What Happened
+[The situation or event]
+
+## What I Learned
+[The insight or takeaway]
+
+## How to Apply
+[How to use this going forward]
+
+#lesson`,
+      "person.md": `---
+title: "{{name}}"
+date: {{date}}
+type: person
+---
+
+# {{name}}
+
+**Contact:** [email / phone / handle]
+**Context:** [How you met]
+
+## Role
+[What they do]
+
+## Interactions
+### {{date}}
+- [What happened]
+
+## Notes
+[Anything to remember]
+
+#person`,
+      "project.md": `---
+title: "{{title}}"
+date: {{date}}
+type: project
+status: active
 ---
 
 # {{title}}
 
-## What I learned
-The core insight.
+## Goal
+[What is this project trying to achieve?]
 
-## Evidence
-- {{date}}: How I learned this
+## Status
+- [ ] In Progress
 
-## Application
-How should I use this going forward?
+## Progress
+### {{date}}
+- [What happened]
 
-#lesson`,
+## Next Steps
+- [ ] [Next action]
+
+#project`,
       "commitment.md": `---
-title: "Commitment: {{title}}"
+title: "{{title}}"
 date: {{date}}
-memoryType: commitment
+type: commitment
 status: active
 due: ""
 ---
 
 # {{title}}
 
-## What I promised
-The commitment made.
+## What
+[The commitment]
 
-## To whom
-Who am I accountable to?
+## To Whom
+[Who you're accountable to]
 
-## Timeline
-When is this due?
+## Due
+[When]
 
 ## Progress
 - {{date}}: Started
 
 #commitment`,
-      "preference.md": `---
-title: "Preference: {{title}}"
-date: {{date}}
-memoryType: preference
-strength: medium
----
-
-# Preference: {{title}}
-
-## What
-Description of the preference
-
-## Why
-Reasoning behind it
-
-## Examples
-- Example 1
-- Example 2
-
-#preference`,
-      "relationship.md": `---
-title: "{{name}}"
-date: {{date}}
-memoryType: relationship
-role: ""
-importance: medium
----
-
-# {{name}}
-
-**Role:** 
-**First Mentioned:** {{date}}
-
-## Context
-How do we know this person?
-
-## Key Facts
-- 
-
-## Interactions
-- {{date}}: 
-
-#relationship #person`,
-      "project.md": `---
-title: "{{title}}"
-date: {{date}}
-memoryType: project
-status: active
----
-
-# {{title}}
-
-## Overview
-What is this project?
-
-## Goals
-- 
-
-## Progress
-- {{date}}: Started
-
-## People
-- [[people/]]
-
-#project`,
-      // === Session Handoff Template ===
       "handoff.md": `---
-title: "Handoff: {{date}}"
+title: "Handoff {{date}}"
 date: {{date}}
 type: handoff
-sessionKey: ""
 ---
 
 # Session Handoff
 
 ## Working On
-What was I actively doing?
-- 
+- [Active task]
 
 ## Blocked
-What is stuck or waiting?
-- 
+- [Blocker if any]
 
 ## Next Steps
-What should happen next?
-- 
+- [ ] [What to do next]
 
 ## Decisions Made
-Key choices during this session:
-- 
-
-## Open Questions
-Unresolved things to think about:
-- 
-
-## Feeling
-Emotional/energy state:
+- [Key decision]
 
 #handoff`,
-      // Legacy templates (backwards compat)
-      "pattern.md": `---
-title: "Pattern: {{title}}"
+      "daily.md": `---
+title: "{{date}}"
 date: {{date}}
-memoryType: lesson
-confidence: medium
+type: daily
 ---
 
-# Pattern: {{title}}
+# {{date}}
 
-## Description
-What is the pattern?
+## Done
+- [x] [Completed task]
 
-## Evidence
-- {{date}}: Example 1
+## In Progress
+- [ ] [Active task]
 
-## Implications
-How should I act on this pattern?
-
-#pattern #lesson`,
-      "person.md": `---
-title: "{{name}}"
-date: {{date}}
-memoryType: relationship
-role: ""
----
-
-# {{name}}
-
-**Role:** 
-**First Mentioned:** {{date}}
-
-## Context
-How do we know this person?
-
-## Interactions
-- {{date}}: 
-
-#person #relationship`
+## Notes
+[Anything important]`
     };
     for (const [filename, content] of Object.entries(templates)) {
       const filePath = path2.join(templatesPath, filename);

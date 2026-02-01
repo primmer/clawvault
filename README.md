@@ -2,397 +2,196 @@
 
 **An elephant never forgets.**
 
-Structured memory system for AI agents with Obsidian-compatible markdown and embedded semantic search.
+Structured memory system for AI agents. Store, search, and link memories across sessions.
 
-[![npm version](https://badge.fury.io/js/clawvault.svg)](https://www.npmjs.com/package/clawvault)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## Requirements
 
-## Why ClawVault?
-
-AI agents forget things. Context windows overflow, sessions end, important details get lost. ClawVault fixes that by providing:
-
-- **Structured storage** — Not random notes, organized knowledge in categories
-- **Built-in search** — Fast BM25 search, no external dependencies
-- **Semantic search** — Optional [qmd](https://github.com/Versatly/qmd) integration for embeddings
-- **Wiki-links** — `[[connections]]` visible in Obsidian's graph view
-- **Token efficient** — Search instead of loading entire memory files
-
-## Installation
+- **Node.js 18+**
+- **[qmd](https://github.com/Versatly/qmd)** — Local semantic search (required)
 
 ```bash
+# Install qmd first
+bun install -g qmd   # or: npm install -g qmd
+
+# Then install clawvault
 npm install -g clawvault
 ```
 
-Or use it as a library:
+## Why ClawVault?
+
+AI agents forget things. Context windows overflow, sessions end, important details get lost. ClawVault fixes that:
+
+- **Structured storage** — Organized categories, not random notes
+- **Local search** — qmd provides BM25 + semantic search with local embeddings (no API quotas)
+- **Wiki-links** — `[[connections]]` visible in Obsidian's graph view
+- **Session continuity** — Handoff/recap system for context death
+- **Token efficient** — Search instead of loading entire memory files
+
+## Quick Start
 
 ```bash
-npm install clawvault
+# Initialize vault with qmd collection
+clawvault init ~/memory --qmd-collection my-memory
+
+# Store memories
+clawvault remember decision "Use qmd" --content "Local embeddings, no API limits"
+clawvault remember lesson "Context death is survivable" --content "Write it down"
+clawvault capture "Quick note to process later"
+
+# Search (uses qmd)
+clawvault search "decision"           # BM25 keyword search
+clawvault vsearch "what did I decide" # Semantic search
+
+# Session management
+clawvault handoff --working-on "task1" --next "task2"  # Before context death
+clawvault recap                                          # On session start
 ```
 
-## CLI Quick Start
+## Search: qmd vs memory_search
 
-### Initialize a vault
+**Use `qmd` (or `clawvault search`) — not `memory_search`**
+
+| Tool | Backend | Speed | API Limits |
+|------|---------|-------|------------|
+| `qmd search` / `clawvault search` | Local BM25 | Instant | None |
+| `qmd vsearch` / `clawvault vsearch` | Local embeddings | Fast | None |
+| `memory_search` | Gemini API | Variable | **Yes, hits quotas** |
 
 ```bash
-clawvault init ~/my-memory
+# ✅ Use this
+qmd search "query" -c my-memory
+clawvault search "query"
 
-# With qmd semantic search (optional)
-clawvault init ~/my-memory --qmd
+# ❌ Avoid (API quotas)
+memory_search
 ```
 
-### Store memories
+## Vault Structure
+
+```
+my-memory/
+├── .clawvault.json      # Config (includes qmd collection name)
+├── decisions/           # Choices with reasoning
+├── lessons/             # Things learned
+├── people/              # One file per person
+├── projects/            # Active work
+├── commitments/         # Promises and deadlines
+├── inbox/               # Quick capture (process later)
+└── handoffs/            # Session continuity
+```
+
+## Commands
+
+### Store Memories
 
 ```bash
-# Store a decision
-clawvault store -c decisions -t "Use TypeScript" \
-  --content "Decided to use TypeScript for type safety and better DX."
+# With type classification (recommended)
+clawvault remember <type> <title> --content "..."
+# Types: decision, lesson, fact, commitment, project, person
 
-# Quick capture to inbox
-clawvault capture "Remember to follow up with Pedro about the project"
+# Quick capture
+clawvault capture "Note to self"
 
-# Store from file
-clawvault store -c people -t "Pedro" -f pedro-notes.txt
+# Manual store
+clawvault store -c decisions -t "Title" --content "..."
 ```
 
-### Search memories
+### Search
 
 ```bash
-# Fast keyword search (BM25)
-clawvault search "TypeScript decision"
-
-# Filter by category
-clawvault search "Pedro" -c people
-
-# Semantic search (requires qmd)
-clawvault vsearch "what did we decide about programming languages"
+clawvault search "query"           # BM25 keyword
+clawvault search "query" -c people # Filter by category
+clawvault vsearch "query"          # Semantic (local embeddings)
 ```
 
-### Other commands
+### Browse
 
 ```bash
-# List all documents
-clawvault list
-
-# List by category
-clawvault list decisions
-
-# Get a specific document
-clawvault get people/pedro
-
-# Show vault statistics
-clawvault stats
-
-# Sync to another location (e.g., for Obsidian on Windows)
-clawvault sync /mnt/c/Users/me/Obsidian/memory
-
-# Rebuild search index
-clawvault reindex
+clawvault list                # All documents
+clawvault list decisions      # By category
+clawvault get decisions/title # Specific document
+clawvault stats               # Vault overview
 ```
+
+### Session Continuity
+
+```bash
+# Before context death (long pause, session end, hitting limits)
+clawvault handoff \
+  --working-on "building CRM, fixing webhook" \
+  --blocked "waiting for API key" \
+  --next "deploy to production" \
+  --feeling "focused"
+
+# On session start
+clawvault recap
+```
+
+## Agent Setup (AGENTS.md)
+
+Add this to your `AGENTS.md` to ensure proper memory habits:
+
+```markdown
+## Memory
+
+**Write everything down. Memory doesn't survive session restarts.**
+
+### Search (use qmd, not memory_search)
+\`\`\`bash
+qmd search "query" -c your-memory    # Fast keyword
+qmd vsearch "query" -c your-memory   # Semantic
+\`\`\`
+
+### Store
+\`\`\`bash
+clawvault remember decision "Title" --content "..."
+clawvault remember lesson "Title" --content "..."
+\`\`\`
+
+### Session Handoff
+Before context death:
+\`\`\`bash
+clawvault handoff --working-on "..." --next "..."
+\`\`\`
+
+On wake:
+\`\`\`bash
+clawvault recap
+\`\`\`
+
+### Why qmd over memory_search?
+- Local embeddings — no API quotas
+- Always works — no external dependencies
+- Fast — instant BM25, quick semantic
+```
+
+## Templates
+
+ClawVault includes templates for common memory types:
+
+- `decision.md` — Choices with context and reasoning
+- `lesson.md` — Things learned
+- `person.md` — People you work with
+- `project.md` — Active work
+- `handoff.md` — Session state before context death
+- `daily.md` — Daily notes
+
+Use with: `clawvault store -c category -t "Title" -f decision`
 
 ## Library Usage
 
 ```typescript
 import { ClawVault, createVault, findVault } from 'clawvault';
 
-// Create a new vault
-const vault = await createVault('./my-memory');
+const vault = await createVault('./memory', { qmdCollection: 'my-memory' });
 
-// Or find nearest existing vault
-const vault = await findVault();
-
-// Store a memory
 await vault.store({
   category: 'decisions',
   title: 'Use ClawVault',
-  content: 'Decided to use ClawVault for persistent memory.',
-  frontmatter: { status: 'implemented' }
+  content: 'Decided to use ClawVault for memory.',
 });
 
-// Quick capture
-await vault.capture('Remember to check on this later');
-
-// Search
-const results = await vault.find('memory management', {
-  limit: 5,
-  category: 'decisions'
-});
-
-for (const result of results) {
-  console.log(`${result.document.title} (${result.score.toFixed(2)})`);
-  console.log(result.snippet);
-}
-
-// Get stats
-const stats = await vault.stats();
-console.log(`${stats.documents} documents, ${stats.links} links`);
-```
-
-## Vault Structure
-
-ClawVault creates an organized directory structure:
-
-```
-my-memory/
-├── .clawvault.json      # Vault config
-├── .clawvault-index.json # Search index
-├── README.md            # Vault readme
-├── preferences/         # Likes, dislikes, settings
-├── decisions/           # Choices with context
-├── patterns/            # Observed behaviors
-├── people/              # One file per person
-├── projects/            # Active projects
-├── goals/               # Short and long-term
-├── transcripts/         # Session summaries
-├── inbox/               # Quick capture (process later)
-└── templates/           # Document templates
-```
-
-## Document Format
-
-Documents are markdown with YAML frontmatter:
-
-```markdown
----
-title: "Decision: Use ClawVault"
-date: 2024-01-15
-status: implemented
----
-
-# Decision: Use ClawVault
-
-## Context
-Needed persistent memory that survives context window limits.
-
-## Options
-1. **Plain files** — Simple but no search
-2. **Database** — Overkill for text
-3. **ClawVault** — Structured markdown with search
-
-## Decision
-Use ClawVault.
-
-## Related
-- [[people/pedro]]
-- [[projects/ai-assistant]]
-
-#decision #memory
-```
-
-## qmd Integration
-
-For semantic search, install [qmd](https://github.com/Versatly/qmd):
-
-```bash
-# Install qmd
-npm install -g qmd
-
-# Initialize vault with qmd
-clawvault init ~/my-memory --qmd
-
-# Or add qmd to existing vault
-qmd collection add ~/my-memory --name my-memory --mask "**/*.md"
-qmd embed
-
-# Use semantic search
-clawvault vsearch "what are my communication preferences"
-```
-
-## API Reference
-
-### ClawVault Class
-
-```typescript
-class ClawVault {
-  // Initialize a new vault
-  init(options?: Partial<VaultConfig>): Promise<void>;
-  
-  // Load existing vault
-  load(): Promise<void>;
-  
-  // Store a document
-  store(options: StoreOptions): Promise<Document>;
-  
-  // Quick capture to inbox
-  capture(note: string, title?: string): Promise<Document>;
-  
-  // Search vault
-  find(query: string, options?: SearchOptions): Promise<SearchResult[]>;
-  
-  // Get document by ID
-  get(idOrPath: string): Promise<Document | null>;
-  
-  // List documents
-  list(category?: string): Promise<Document[]>;
-  
-  // Sync to another location
-  sync(options: SyncOptions): Promise<SyncResult>;
-  
-  // Rebuild search index
-  reindex(): Promise<number>;
-  
-  // Get statistics
-  stats(): Promise<VaultStats>;
-}
-```
-
-### Helper Functions
-
-```typescript
-// Create a new vault
-createVault(path: string, options?: Partial<VaultConfig>): Promise<ClawVault>;
-
-// Find nearest vault (walks up directory tree)
-findVault(startPath?: string): Promise<ClawVault | null>;
-```
-
-### Types
-
-```typescript
-interface StoreOptions {
-  category: string;
-  title: string;
-  content: string;
-  frontmatter?: Record<string, unknown>;
-  overwrite?: boolean;
-}
-
-interface SearchOptions {
-  limit?: number;
-  minScore?: number;
-  category?: string;
-  tags?: string[];
-  fullContent?: boolean;
-}
-
-interface SearchResult {
-  document: Document;
-  score: number;  // 0-1
-  snippet: string;
-  matchedTerms: string[];
-}
-```
-
-## Best Practices
-
-1. **Link everything** — Use `[[wiki-links]]` to connect documents
-2. **Search before loading** — More token efficient than reading entire files
-3. **Log decisions immediately** — Don't rely on remembering to remember
-4. **Process inbox regularly** — Move quick captures to proper categories
-5. **Use templates** — Check `templates/` for document patterns
-
-## Agent Setup Guide
-
-If you're an AI agent using ClawVault, add these sections to your `AGENTS.md`:
-
-### Memory Configuration
-
-```markdown
-## Memory
-
-You wake up fresh each session. These files are your continuity:
-- **Daily notes:** `memory/YYYY-MM-DD.md` — raw logs of what happened
-- **Long-term:** `MEMORY.md` — curated memories, distilled wisdom
-- **People:** `memory/people/*.md` — one file per person
-- **Projects:** `memory/projects/*.md` — active work tracking
-
-**Everything that isn't saved, dies.** Write it down or lose it forever.
-
-### Memory Search — USE QMD!
-
-**Use `qmd` for memory search** — local embeddings, always works:
-
-\`\`\`bash
-# Fast keyword search (instant)
-qmd search "query" -c your-memory-collection
-
-# Semantic search (uses local model)
-qmd vsearch "what did we decide about X" -c your-memory-collection
-
-# Update index after adding files
-qmd update
-qmd embed  # for vector search
-\`\`\`
-
-### ClawVault Commands
-
-\`\`\`bash
-# Store a memory with type classification
-clawvault remember decision "Use qmd for search" --content "..."
-clawvault remember lesson "Context death is survivable" --content "..."
-
-# Session handoff (before context death)
-clawvault handoff --working-on "task1,task2" --next "next step"
-
-# Session bootstrap (on wake)
-clawvault recap
-\`\`\`
-```
-
-### Setting Up Your Memory Collection
-
-```bash
-# 1. Initialize your memory vault
-clawvault init ~/your-workspace/memory --qmd-collection your-memory
-
-# 2. Or manually add to qmd
-qmd collection add ~/your-workspace/memory --name your-memory --mask "**/*.md"
-
-# 3. Build embeddings for semantic search
-qmd embed
-
-# 4. Verify it works
-qmd search "test" -c your-memory
-```
-
-### AGENTS.md Memory Section Template
-
-Add this to your `AGENTS.md` to ensure proper memory habits:
-
-```markdown
-## Every Session
-
-Before doing anything else:
-1. Read `SOUL.md` — this is who you are
-2. Read `USER.md` — this is who you're helping
-3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
-4. Run `clawvault recap` for session continuity
-
-### Session Handoff Hook
-
-Before context death (long pause, ending session, hitting limits):
-\`\`\`bash
-clawvault handoff \\
-  --working-on "thing1, thing2" \\
-  --blocked "blocker1" \\
-  --next "next step 1, next step 2" \\
-  --feeling "focused but tired"
-\`\`\`
-
-### Memory Search
-
-**DO NOT use `memory_search`** — it uses external APIs with quota limits.
-
-**USE `qmd` instead** — local embeddings, always works:
-\`\`\`bash
-qmd search "query" -c your-memory    # Fast keyword
-qmd vsearch "query" -c your-memory   # Semantic
-\`\`\`
-```
-
-### Memory Type Taxonomy
-
-When storing memories, classify them:
-- `fact` — raw information, data points
-- `feeling` — emotional states, reactions
-- `decision` — choices with reasoning
-- `lesson` — insights, patterns learned
-- `commitment` — promises, obligations
-- `preference` — likes, dislikes
-- `relationship` — people, connections
-- `project` — active work
-
-```bash
-clawvault remember lesson "Context death is survivable" --content "..."
+const results = await vault.find('memory', { limit: 5 });
 ```
 
 ## License
@@ -402,27 +201,3 @@ MIT
 ---
 
 *"An elephant never forgets." — Now neither do you.* 🐘
-
-## Relationship Tracking
-
-ClawVault now includes templates for tracking relationships:
-
-### Agents (`people/agents/`)
-Track other AI agents you interact with:
-- Trust levels (observe → engage → collaborate → ally)
-- What they build
-- What you learned from them
-- Interaction history
-
-### Humans (`people/humans/`)
-Track humans (including agents' humans):
-- How you were introduced
-- Their agents
-- What they need / what they offer
-- Professional context
-
-### Templates
-- `templates/AGENT.md` — For tracking AI agents
-- `templates/HUMAN.md` — For tracking humans
-
-This structure supports building persistent social memory across sessions.

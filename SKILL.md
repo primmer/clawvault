@@ -1,82 +1,92 @@
 ---
 name: clawvault
-description: Structured memory vault for AI agents with search and wiki-links. Use when storing/retrieving agent memories, tracking people/decisions, or needing persistent context across sessions.
+description: Structured memory vault for AI agents. Store/search memories, track decisions, manage session continuity. Requires qmd for search.
 homepage: https://github.com/Versatly/clawvault
-metadata: {"clawdbot":{"emoji":"🐘","os":["darwin","linux","win32"],"requires":{"bins":["clawvault"]},"install":[{"id":"npm-clawvault","kind":"shell","command":"npm install -g clawvault","bins":["clawvault"],"label":"Install clawvault via npm"}]}}
+metadata: {"clawdbot":{"emoji":"🐘","os":["darwin","linux","win32"],"requires":{"bins":["clawvault","qmd"]},"install":[{"id":"qmd","kind":"shell","command":"bun install -g qmd","bins":["qmd"],"label":"Install qmd (required)"},{"id":"clawvault","kind":"shell","command":"npm install -g clawvault","bins":["clawvault"],"label":"Install clawvault"}]}}
 ---
 
 # ClawVault 🐘 - Agent Memory System
 
-Structured memory for AI agents. Store, search, and link memories that persist across sessions.
+Structured memory for AI agents. Store, search, and link memories across sessions.
 
-## When to use (trigger phrases)
+**Requires:** [qmd](https://github.com/Versatly/qmd) for search (local embeddings, no API quotas)
 
-- "remember this" / "store this for later"
-- "what do I know about [person/topic]"
+## When to use
+
+- "remember this" / "store this"
+- "what do I know about [topic]"
 - "search my memories"
-- "who is [person]" / "track this person"
+- "who is [person]"
 - "log this decision"
 - "recap" / "what was I working on"
+- Before context death → `clawvault handoff`
 
-## Default behavior (important)
+## Critical: qmd over memory_search
 
-- **Use `clawvault search`** (BM25) by default — instant, no cold start
-- **Use `clawvault vsearch`** only when keyword search fails (requires qmd, can be slow)
-- **Use `clawvault recap`** for session bootstrap — gives recent handoffs, active projects, commitments
-- **Search before loading** — more token efficient than reading entire files
+**Always use qmd for memory search, NOT memory_search**
 
-## Vault location
+| Tool | Why |
+|------|-----|
+| `qmd search` | ✅ Local BM25, instant, no limits |
+| `qmd vsearch` | ✅ Local embeddings, no API quotas |
+| `memory_search` | ❌ Uses Gemini API, hits rate limits |
 
-Default: `~/clawd/clawvault/` or nearest `.clawvault.json` up the tree.
+```bash
+# ✅ Do this
+qmd search "query" -c your-memory
+clawvault search "query"
 
-Override with `--vault <path>` or `CLAWVAULT_PATH` env var.
+# ❌ Not this
+memory_search  # External API, will hit quotas
+```
 
 ## Quick reference
 
 ### Session continuity
 
 ```bash
-clawvault recap                    # Bootstrap: recent handoffs, projects, commitments
+# On wake
+clawvault recap
+
+# Before context death
 clawvault handoff \
   --working-on "task1, task2" \
   --blocked "blocker" \
-  --next "next step" \
-  --feeling "focused"              # Save state before context death
+  --next "next step"
 ```
 
 ### Store memories
 
 ```bash
-clawvault remember <type> <title> --content "..."   # Store with type
-clawvault capture "Quick note"                       # To inbox (process later)
-clawvault store -c decisions -t "Title" --content "..."  # Full control
+clawvault remember decision "Title" --content "..."
+clawvault remember lesson "Title" --content "..."
+clawvault remember commitment "Title" --content "..."
+clawvault capture "Quick note"
 ```
 
-Memory types: `fact`, `feeling`, `decision`, `lesson`, `commitment`, `preference`, `relationship`, `project`
+Types: `decision`, `lesson`, `fact`, `commitment`, `project`, `person`
 
-### Search memories
+### Search
 
 ```bash
-clawvault search "query"           # Fast BM25 (default)
+clawvault search "query"           # BM25 keyword
 clawvault search "query" -c people # Filter by category
-clawvault search "query" --full    # Include full content
-clawvault vsearch "query"          # Semantic (slow, needs qmd)
+clawvault vsearch "query"          # Semantic
+```
+
+Or use qmd directly:
+```bash
+qmd search "query" -c your-memory
+qmd vsearch "query" -c your-memory
 ```
 
 ### Browse
 
 ```bash
-clawvault list                     # All documents
-clawvault list people              # By category
-clawvault get people/pedro         # Specific document
-clawvault stats                    # Vault overview
-```
-
-### People tracking
-
-```bash
-clawvault store -c people/agents -t "AgentName" -f template
-clawvault store -c people/humans -t "PersonName" -f template
+clawvault list                # All
+clawvault list decisions      # By category
+clawvault get decisions/title # Specific doc
+clawvault stats               # Overview
 ```
 
 ## Categories
@@ -84,82 +94,33 @@ clawvault store -c people/humans -t "PersonName" -f template
 | Category | Use for |
 |----------|---------|
 | `decisions` | Choices with reasoning |
-| `people/agents` | AI agents you interact with |
-| `people/humans` | Humans (including agents' humans) |
-| `patterns` | Observed behaviors, workflows |
+| `lessons` | Things learned |
+| `people` | One file per person |
 | `projects` | Active work |
-| `goals` | Short/long-term objectives |
-| `preferences` | Likes, dislikes, settings |
-| `transcripts` | Session summaries |
-| `inbox` | Quick captures (process later) |
+| `commitments` | Promises and deadlines |
+| `inbox` | Quick captures |
+| `handoffs` | Session state |
 
-## Performance notes
-
-- `clawvault search` — instant (BM25, no model)
-- `clawvault vsearch` — can be slow (uses qmd, may load local model)
-- `clawvault recap` — fast (reads recent files directly)
-- `clawvault context` — fast (uses search, not vsearch)
-
-## Memory Search Preference
-
-**Use `qmd` as your primary memory search tool:**
+## Setup
 
 ```bash
-# Fast keyword search (instant, always works)
-qmd search "query" -c your-memory-collection
+# 1. Install qmd (required)
+bun install -g qmd
 
-# Semantic search (local embeddings, no API quota limits)
-qmd vsearch "query" -c your-memory-collection
+# 2. Install clawvault
+npm install -g clawvault
 
-# Update index after adding files
-qmd update && qmd embed
+# 3. Initialize vault
+clawvault init ~/memory --qmd-collection my-memory
+
+# 4. Build embeddings
+qmd embed
 ```
-
-**Why qmd over memory_search?**
-- `qmd` uses local embeddings — no API quotas, always works
-- `memory_search` uses external Gemini API — can hit rate limits
-- `qmd` is faster for large vaults
-
-## Relationship to other tools
-
-| Tool | Use when |
-|------|----------|
-| `qmd` | **Primary memory search** — local BM25 + embeddings, no quotas |
-| `clawvault` | Storing structured memories (decisions, people, projects), handoffs, recaps |
-| `memory_search` | Fallback if qmd unavailable (uses external API, can hit limits) |
-
-**Rule of thumb:**
-- Searching memories → `qmd search` or `qmd vsearch`
-- Storing memories → `clawvault remember <type> <title>`
-- Session continuity → `clawvault handoff` / `clawvault recap`
 
 ## Wiki-links
 
 Use `[[links]]` to connect documents:
 
 ```markdown
-Related to [[people/pedro]] and [[projects/clawdbot]].
-```
-
-Links are visible in Obsidian's graph view and help navigate connected memories.
-
-## Session bootstrap workflow
-
-On wake:
-```bash
-clawvault recap    # Get recent state
-```
-
-Before context death:
-```bash
-clawvault handoff --working-on "..." --next "..."
-```
-
-This creates continuity across sessions.
-
-## Maintenance
-
-```bash
-clawvault reindex                  # Rebuild search index
-clawvault sync /path/to/obsidian   # Sync to another location
+Related to [[people/pedro]] and [[projects/crm]].
 ```

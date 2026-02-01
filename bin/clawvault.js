@@ -10,7 +10,15 @@ import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { ClawVault, createVault, findVault, VERSION } from '../dist/index.js';
+import {
+  ClawVault,
+  createVault,
+  findVault,
+  VERSION,
+  hasQmd,
+  QmdUnavailableError,
+  QMD_INSTALL_URL
+} from '../dist/index.js';
 
 const program = new Command();
 
@@ -30,16 +38,6 @@ async function getVault(vaultPath) {
   return vault;
 }
 
-// Helper for qmd integration
-function hasQmd() {
-  try {
-    const result = spawn('which', ['qmd'], { stdio: 'pipe' });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-}
-
 async function runQmd(args) {
   return new Promise((resolve, reject) => {
     const proc = spawn('qmd', args, { stdio: 'inherit' });
@@ -49,6 +47,11 @@ async function runQmd(args) {
     });
     proc.on('error', reject);
   });
+}
+
+function printQmdMissing() {
+  console.error(chalk.red('Error: qmd is not installed or not on PATH.'));
+  console.log(chalk.dim(`Install qmd: ${QMD_INSTALL_URL}`));
 }
 
 program
@@ -62,26 +65,42 @@ program
   .description('Initialize a new ClawVault')
   .option('-n, --name <name>', 'Vault name')
   .option('--qmd', 'Set up qmd semantic search collection')
+  .option('--qmd-collection <name>', 'qmd collection name (defaults to vault name)')
   .action(async (vaultPath, options) => {
     const targetPath = vaultPath || '.';
     console.log(chalk.cyan(`\n🐘 Initializing ClawVault at ${path.resolve(targetPath)}...\n`));
     
     try {
       const vault = await createVault(targetPath, {
-        name: options.name || path.basename(path.resolve(targetPath))
+        name: options.name || path.basename(path.resolve(targetPath)),
+        qmdCollection: options.qmdCollection
       });
       
       console.log(chalk.green('✓ Vault created'));
       console.log(chalk.dim(`  Categories: ${vault.getCategories().join(', ')}`));
+
+      const qmdAvailable = hasQmd();
       
       // Set up qmd if requested
       if (options.qmd) {
         console.log(chalk.cyan('\nSetting up qmd collection...'));
-        try {
-          await runQmd(['collection', 'add', vault.getPath(), '--name', vault.getName(), '--mask', '**/*.md']);
-          console.log(chalk.green('✓ qmd collection created'));
-        } catch (err) {
-          console.log(chalk.yellow('⚠ qmd setup failed (is qmd installed?)'));
+        if (!qmdAvailable) {
+          console.log(chalk.yellow('⚠ qmd setup skipped (qmd not installed).'));
+        } else {
+          try {
+            await runQmd([
+              'collection',
+              'add',
+              vault.getQmdRoot(),
+              '--name',
+              vault.getQmdCollection(),
+              '--mask',
+              '**/*.md'
+            ]);
+            console.log(chalk.green('✓ qmd collection created'));
+          } catch (err) {
+            console.log(chalk.yellow('⚠ qmd setup failed'));
+          }
         }
       }
       
@@ -158,7 +177,7 @@ program
 // === SEARCH ===
 program
   .command('search <query>')
-  .description('Search the vault (built-in BM25)')
+  .description('Search the vault via qmd (BM25)')
   .option('-n, --limit <n>', 'Max results', '10')
   .option('-c, --category <category>', 'Filter by category')
   .option('--tags <tags>', 'Filter by tags (comma-separated)')
@@ -199,6 +218,10 @@ program
         console.log();
       }
     } catch (err) {
+      if (err instanceof QmdUnavailableError) {
+        printQmdMissing();
+        process.exit(1);
+      }
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);
     }
@@ -248,8 +271,12 @@ program
         console.log();
       }
     } catch (err) {
+      if (err instanceof QmdUnavailableError) {
+        printQmdMissing();
+        process.exit(1);
+      }
       console.error(chalk.red(`Error: ${err.message}`));
-      console.log(chalk.dim('\nTip: Install qmd for semantic search: https://github.com/Versatly/qmd'));
+      console.log(chalk.dim(`\nTip: Install qmd for semantic search: ${QMD_INSTALL_URL}`));
       process.exit(1);
     }
   });
@@ -444,7 +471,8 @@ program
       if (options.qmd) {
         console.log(chalk.cyan('Updating qmd embeddings...'));
         try {
-          await runQmd(['update']);
+          const collection = vault.getQmdCollection();
+          await runQmd(collection ? ['update', '-c', collection] : ['update']);
           console.log(chalk.green('✓ qmd updated'));
         } catch {
           console.log(chalk.yellow('⚠ qmd update failed'));

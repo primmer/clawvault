@@ -41,48 +41,113 @@ var DEFAULT_CONFIG = {
 };
 
 // src/lib/search.ts
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as path from "path";
-function execQmd(args) {
+var QMD_INSTALL_URL = "https://github.com/Versatly/qmd";
+var QMD_NOT_INSTALLED_MESSAGE = `qmd is required for search. Install it from ${QMD_INSTALL_URL}`;
+var QmdUnavailableError = class extends Error {
+  constructor(message = QMD_NOT_INSTALLED_MESSAGE) {
+    super(message);
+    this.name = "QmdUnavailableError";
+  }
+};
+function ensureJsonArgs(args) {
+  return args.includes("--json") ? args : [...args, "--json"];
+}
+function tryParseJson(raw) {
   try {
-    const result = execSync(`qmd ${args.join(" ")}`, {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function extractJsonPayload(raw) {
+  const start = raw.search(/[\[{]/);
+  if (start === -1) return null;
+  const end = Math.max(raw.lastIndexOf("]"), raw.lastIndexOf("}"));
+  if (end <= start) return null;
+  return raw.slice(start, end + 1);
+}
+function parseQmdOutput(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  const direct = tryParseJson(trimmed);
+  const extracted = direct ? null : extractJsonPayload(trimmed);
+  const parsed = direct ?? (extracted ? tryParseJson(extracted) : null);
+  if (!parsed) {
+    throw new Error("qmd returned non-JSON output. Ensure qmd supports --json.");
+  }
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+  if (parsed && typeof parsed === "object") {
+    const candidate = parsed.results ?? parsed.items ?? parsed.data;
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error("qmd returned an unexpected JSON shape.");
+}
+function ensureQmdAvailable() {
+  if (!hasQmd()) {
+    throw new QmdUnavailableError();
+  }
+}
+function execQmd(args) {
+  ensureQmdAvailable();
+  const finalArgs = ensureJsonArgs(args);
+  try {
+    const result = execFileSync("qmd", finalArgs, {
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 10 * 1024 * 1024
       // 10MB
     });
-    const parsed = JSON.parse(result.trim());
-    return Array.isArray(parsed) ? parsed : [];
+    return parseQmdOutput(result);
   } catch (err) {
-    if (err.stdout) {
+    if (err?.code === "ENOENT") {
+      throw new QmdUnavailableError();
+    }
+    const output = [err?.stdout, err?.stderr].filter(Boolean).join("\n");
+    if (output) {
       try {
-        const parsed = JSON.parse(err.stdout.trim());
-        return Array.isArray(parsed) ? parsed : [];
+        return parseQmdOutput(output);
       } catch {
       }
     }
-    console.error(`qmd error: ${err.message}`);
-    return [];
+    const message = err?.message ? `qmd failed: ${err.message}` : "qmd failed";
+    throw new Error(message);
   }
 }
 function hasQmd() {
   try {
-    execSync("which qmd", { stdio: "pipe" });
+    const cmd = process.platform === "win32" ? "where" : "which";
+    execFileSync(cmd, ["qmd"], { stdio: "ignore" });
     return true;
   } catch {
     return false;
   }
 }
-function qmdUpdate() {
+function qmdUpdate(collection) {
   try {
-    execSync("qmd update", { stdio: "inherit" });
+    ensureQmdAvailable();
+    const args = ["update"];
+    if (collection) {
+      args.push("-c", collection);
+    }
+    execFileSync("qmd", args, { stdio: "inherit" });
   } catch (err) {
     console.error(`qmd update failed: ${err.message}`);
   }
 }
-function qmdEmbed() {
+function qmdEmbed(collection) {
   try {
-    execSync("qmd embed", { stdio: "inherit" });
+    ensureQmdAvailable();
+    const args = ["embed"];
+    if (collection) {
+      args.push("-c", collection);
+    }
+    execFileSync("qmd", args, { stdio: "inherit" });
   } catch (err) {
     console.error(`qmd embed failed: ${err.message}`);
   }
@@ -91,6 +156,7 @@ var SearchEngine = class {
   documents = /* @__PURE__ */ new Map();
   collection = "clawvault";
   vaultPath = "";
+  collectionRoot = "";
   /**
    * Set the collection name (usually vault name)
    */
@@ -102,6 +168,12 @@ var SearchEngine = class {
    */
   setVaultPath(vaultPath) {
     this.vaultPath = vaultPath;
+  }
+  /**
+   * Set the collection root for qmd:// URI resolution
+   */
+  setCollectionRoot(root) {
+    this.collectionRoot = path.resolve(root);
   }
   /**
    * Add or update a document in the local cache
@@ -135,7 +207,7 @@ var SearchEngine = class {
     if (!query.trim()) return [];
     const args = [
       "search",
-      `"${query.replace(/"/g, '\\"')}"`,
+      query,
       "-n",
       String(limit * 2),
       // Request extra for filtering
@@ -167,7 +239,7 @@ var SearchEngine = class {
     if (!query.trim()) return [];
     const args = [
       "vsearch",
-      `"${query.replace(/"/g, '\\"')}"`,
+      query,
       "-n",
       String(limit * 2),
       // Request extra for filtering
@@ -199,7 +271,7 @@ var SearchEngine = class {
     if (!query.trim()) return [];
     const args = [
       "query",
-      `"${query.replace(/"/g, '\\"')}"`,
+      query,
       "-n",
       String(limit * 2),
       "--json"
@@ -270,20 +342,12 @@ var SearchEngine = class {
       const withoutScheme = uri.slice(6);
       const slashIndex = withoutScheme.indexOf("/");
       if (slashIndex > -1) {
-        const collectionName = withoutScheme.slice(0, slashIndex);
         const relativePath = withoutScheme.slice(slashIndex + 1);
-        if (this.vaultPath) {
-          return path.join(this.vaultPath, relativePath);
+        const root = this.collectionRoot || this.vaultPath;
+        if (root) {
+          return path.join(root, relativePath);
         }
-        const homeDir = process.env.HOME || "/home/frame";
-        const possiblePaths = [
-          path.join(homeDir, "clawd/memory", relativePath),
-          path.join(homeDir, "clawd", collectionName, relativePath),
-          relativePath
-        ];
-        for (const p of possiblePaths) {
-          return p;
-        }
+        return relativePath;
       }
     }
     return uri;
@@ -351,11 +415,12 @@ var ClawVault = class {
     this.config = {
       path: path2.resolve(vaultPath),
       name: path2.basename(vaultPath),
-      categories: DEFAULT_CATEGORIES
+      categories: DEFAULT_CATEGORIES,
+      qmdCollection: void 0,
+      qmdRoot: void 0
     };
     this.search = new SearchEngine();
-    this.search.setVaultPath(this.config.path);
-    this.search.setCollection(this.config.name);
+    this.applyQmdConfig();
   }
   /**
    * Initialize a new vault
@@ -363,6 +428,7 @@ var ClawVault = class {
   async init(options = {}) {
     const vaultPath = this.config.path;
     this.config = { ...this.config, ...options };
+    this.applyQmdConfig();
     if (!fs.existsSync(vaultPath)) {
       fs.mkdirSync(vaultPath, { recursive: true });
     }
@@ -384,9 +450,14 @@ var ClawVault = class {
       created: (/* @__PURE__ */ new Date()).toISOString(),
       lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
       categories: this.config.categories,
-      documentCount: 0
+      documentCount: 0,
+      qmdCollection: this.getQmdCollection(),
+      qmdRoot: this.getQmdRoot()
     };
     fs.writeFileSync(configPath, JSON.stringify(meta, null, 2));
+    if (!hasQmd()) {
+      console.warn("qmd not found. Install qmd to enable search.");
+    }
     this.initialized = true;
   }
   /**
@@ -401,8 +472,14 @@ var ClawVault = class {
     const meta = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     this.config.name = meta.name;
     this.config.categories = meta.categories;
-    this.search.setVaultPath(this.config.path);
-    this.search.setCollection(meta.qmdCollection || this.config.name);
+    this.config.qmdCollection = meta.qmdCollection;
+    this.config.qmdRoot = meta.qmdRoot;
+    if (!meta.qmdCollection || !meta.qmdRoot) {
+      meta.qmdCollection = meta.qmdCollection || meta.name;
+      meta.qmdRoot = meta.qmdRoot || this.config.path;
+      fs.writeFileSync(configPath, JSON.stringify(meta, null, 2));
+    }
+    this.applyQmdConfig(meta);
     await this.reindex();
     this.initialized = true;
   }
@@ -489,10 +566,12 @@ var ClawVault = class {
     }
     if (triggerUpdate || triggerEmbed) {
       if (hasQmd()) {
-        qmdUpdate();
+        qmdUpdate(this.getQmdCollection());
         if (triggerEmbed) {
-          qmdEmbed();
+          qmdEmbed(this.getQmdCollection());
         }
+      } else {
+        console.warn("qmd not found. Skipping index update.");
       }
     }
     return doc;
@@ -646,6 +725,18 @@ var ClawVault = class {
    */
   getName() {
     return this.config.name;
+  }
+  /**
+   * Get qmd collection name
+   */
+  getQmdCollection() {
+    return this.config.qmdCollection || this.config.name;
+  }
+  /**
+   * Get qmd collection root
+   */
+  getQmdRoot() {
+    return this.config.qmdRoot || this.config.path;
   }
   // === Memory Type System ===
   /**
@@ -845,6 +936,15 @@ var ClawVault = class {
     };
   }
   // === Private helpers ===
+  applyQmdConfig(meta) {
+    const collection = meta?.qmdCollection || this.config.qmdCollection || this.config.name;
+    const root = meta?.qmdRoot || this.config.qmdRoot || this.config.path;
+    this.config.qmdCollection = collection;
+    this.config.qmdRoot = root;
+    this.search.setVaultPath(this.config.path);
+    this.search.setCollection(collection);
+    this.search.setCollectionRoot(root);
+  }
   slugify(text) {
     return text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
   }
@@ -1191,6 +1291,8 @@ export {
   DEFAULT_CATEGORIES,
   DEFAULT_CONFIG,
   MEMORY_TYPES,
+  QMD_INSTALL_URL,
+  QmdUnavailableError,
   SearchEngine,
   TYPE_TO_CATEGORY,
   VERSION,

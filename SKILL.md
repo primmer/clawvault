@@ -100,18 +100,38 @@ clawvault store -c people/humans -t "PersonName" -f template
 - `clawvault recap` — fast (reads recent files directly)
 - `clawvault context` — fast (uses search, not vsearch)
 
+## Memory Search Preference
+
+**Use `qmd` as your primary memory search tool:**
+
+```bash
+# Fast keyword search (instant, always works)
+qmd search "query" -c your-memory-collection
+
+# Semantic search (local embeddings, no API quota limits)
+qmd vsearch "query" -c your-memory-collection
+
+# Update index after adding files
+qmd update && qmd embed
+```
+
+**Why qmd over memory_search?**
+- `qmd` uses local embeddings — no API quotas, always works
+- `memory_search` uses external Gemini API — can hit rate limits
+- `qmd` is faster for large vaults
+
 ## Relationship to other tools
 
 | Tool | Use when |
 |------|----------|
-| `clawvault` | Storing/searching structured agent memories (decisions, people, projects) |
-| `memory_search` | Searching Clawdbot's MEMORY.md + memory/*.md (chat-level context) |
-| `qmd` | Searching user's markdown notes/docs (not agent memory) |
+| `qmd` | **Primary memory search** — local BM25 + embeddings, no quotas |
+| `clawvault` | Storing structured memories (decisions, people, projects), handoffs, recaps |
+| `memory_search` | Fallback if qmd unavailable (uses external API, can hit limits) |
 
 **Rule of thumb:**
-- Agent wants to remember something → `clawvault`
-- Agent checking prior conversation context → `memory_search`
-- Agent searching user's notes → `qmd`
+- Searching memories → `qmd search` or `qmd vsearch`
+- Storing memories → `clawvault remember <type> <title>`
+- Session continuity → `clawvault handoff` / `clawvault recap`
 
 ## Wiki-links
 

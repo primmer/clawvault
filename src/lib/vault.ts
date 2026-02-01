@@ -36,11 +36,12 @@ export class ClawVault {
     this.config = {
       path: path.resolve(vaultPath),
       name: path.basename(vaultPath),
-      categories: DEFAULT_CATEGORIES
+      categories: DEFAULT_CATEGORIES,
+      qmdCollection: undefined,
+      qmdRoot: undefined
     };
     this.search = new SearchEngine();
-    this.search.setVaultPath(this.config.path);
-    this.search.setCollection(this.config.name);
+    this.applyQmdConfig();
   }
 
   /**
@@ -51,6 +52,7 @@ export class ClawVault {
     
     // Merge options
     this.config = { ...this.config, ...options };
+    this.applyQmdConfig();
     
     // Create vault directory
     if (!fs.existsSync(vaultPath)) {
@@ -82,9 +84,15 @@ export class ClawVault {
       created: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
       categories: this.config.categories,
-      documentCount: 0
+      documentCount: 0,
+      qmdCollection: this.getQmdCollection(),
+      qmdRoot: this.getQmdRoot()
     };
     fs.writeFileSync(configPath, JSON.stringify(meta, null, 2));
+
+    if (!hasQmd()) {
+      console.warn('qmd not found. Install qmd to enable search.');
+    }
 
     this.initialized = true;
   }
@@ -103,11 +111,17 @@ export class ClawVault {
     const meta: VaultMeta = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     this.config.name = meta.name;
     this.config.categories = meta.categories;
+    this.config.qmdCollection = meta.qmdCollection;
+    this.config.qmdRoot = meta.qmdRoot;
+
+    if (!meta.qmdCollection || !meta.qmdRoot) {
+      meta.qmdCollection = meta.qmdCollection || meta.name;
+      meta.qmdRoot = meta.qmdRoot || this.config.path;
+      fs.writeFileSync(configPath, JSON.stringify(meta, null, 2));
+    }
 
     // Configure search engine with vault info
-    this.search.setVaultPath(this.config.path);
-    // Use qmdCollection if set, otherwise fall back to vault name
-    this.search.setCollection(meta.qmdCollection || this.config.name);
+    this.applyQmdConfig(meta);
 
     // Index all documents (local cache)
     await this.reindex();
@@ -220,10 +234,12 @@ export class ClawVault {
     // Trigger qmd reindex if requested
     if (triggerUpdate || triggerEmbed) {
       if (hasQmd()) {
-        qmdUpdate();
+        qmdUpdate(this.getQmdCollection());
         if (triggerEmbed) {
-          qmdEmbed();
+          qmdEmbed(this.getQmdCollection());
         }
+      } else {
+        console.warn('qmd not found. Skipping index update.');
       }
     }
 
@@ -411,6 +427,20 @@ export class ClawVault {
    */
   getName(): string {
     return this.config.name;
+  }
+
+  /**
+   * Get qmd collection name
+   */
+  getQmdCollection(): string {
+    return this.config.qmdCollection || this.config.name;
+  }
+
+  /**
+   * Get qmd collection root
+   */
+  getQmdRoot(): string {
+    return this.config.qmdRoot || this.config.path;
   }
 
   // === Memory Type System ===
@@ -625,6 +655,18 @@ export class ClawVault {
   }
 
   // === Private helpers ===
+
+  private applyQmdConfig(meta?: VaultMeta): void {
+    const collection = meta?.qmdCollection || this.config.qmdCollection || this.config.name;
+    const root = meta?.qmdRoot || this.config.qmdRoot || this.config.path;
+
+    this.config.qmdCollection = collection;
+    this.config.qmdRoot = root;
+
+    this.search.setVaultPath(this.config.path);
+    this.search.setCollection(collection);
+    this.search.setCollectionRoot(root);
+  }
 
   private slugify(text: string): string {
     return text

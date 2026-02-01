@@ -9,6 +9,10 @@ export interface VaultConfig {
   name: string;
   /** Categories to create on init */
   categories: string[];
+  /** qmd collection name (defaults to vault name if not set) */
+  qmdCollection?: string;
+  /** Root path for qmd collection (defaults to vault path) */
+  qmdRoot?: string;
   /** Custom templates path (optional) */
   templatesPath?: string;
 }
@@ -22,6 +26,8 @@ export interface VaultMeta {
   documentCount: number;
   /** qmd collection name (defaults to vault name if not set) */
   qmdCollection?: string;
+  /** Root path for qmd collection (defaults to vault path) */
+  qmdRoot?: string;
 }
 
 export interface Document {

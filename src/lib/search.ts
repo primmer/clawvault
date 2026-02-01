@@ -3,9 +3,19 @@
  * Uses qmd CLI for BM25 and vector search
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { Document, SearchResult, SearchOptions } from '../types.js';
+
+export const QMD_INSTALL_URL = 'https://github.com/Versatly/qmd';
+const QMD_NOT_INSTALLED_MESSAGE = `qmd is required for search. Install it from ${QMD_INSTALL_URL}`;
+
+export class QmdUnavailableError extends Error {
+  constructor(message: string = QMD_NOT_INSTALLED_MESSAGE) {
+    super(message);
+    this.name = 'QmdUnavailableError';
+  }
+}
 
 /**
  * QMD search result format
@@ -18,32 +28,92 @@ interface QmdResult {
   snippet: string;
 }
 
+function ensureJsonArgs(args: string[]): string[] {
+  return args.includes('--json') ? args : [...args, '--json'];
+}
+
+function tryParseJson(raw: string): unknown | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function extractJsonPayload(raw: string): string | null {
+  const start = raw.search(/[\[{]/);
+  if (start === -1) return null;
+  const end = Math.max(raw.lastIndexOf(']'), raw.lastIndexOf('}'));
+  if (end <= start) return null;
+  return raw.slice(start, end + 1);
+}
+
+function parseQmdOutput(raw: string): QmdResult[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const direct = tryParseJson(trimmed);
+  const extracted = direct ? null : extractJsonPayload(trimmed);
+  const parsed = direct ?? (extracted ? tryParseJson(extracted) : null);
+
+  if (!parsed) {
+    throw new Error('qmd returned non-JSON output. Ensure qmd supports --json.');
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed as QmdResult[];
+  }
+
+  if (parsed && typeof parsed === 'object') {
+    const candidate = (parsed as { results?: unknown; items?: unknown; data?: unknown; }).results
+      ?? (parsed as { results?: unknown; items?: unknown; data?: unknown; }).items
+      ?? (parsed as { results?: unknown; items?: unknown; data?: unknown; }).data;
+
+    if (Array.isArray(candidate)) {
+      return candidate as QmdResult[];
+    }
+  }
+
+  throw new Error('qmd returned an unexpected JSON shape.');
+}
+
+function ensureQmdAvailable(): void {
+  if (!hasQmd()) {
+    throw new QmdUnavailableError();
+  }
+}
+
 /**
  * Execute qmd command and return parsed JSON
  */
 function execQmd(args: string[]): QmdResult[] {
+  ensureQmdAvailable();
+  const finalArgs = ensureJsonArgs(args);
+
   try {
-    const result = execSync(`qmd ${args.join(' ')}`, {
+    const result = execFileSync('qmd', finalArgs, {
       encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 10 * 1024 * 1024 // 10MB
     });
-    
-    // Parse JSON output
-    const parsed = JSON.parse(result.trim());
-    return Array.isArray(parsed) ? parsed : [];
+
+    return parseQmdOutput(result);
   } catch (err: any) {
-    // Check if there's output in stderr or stdout
-    if (err.stdout) {
+    if (err?.code === 'ENOENT') {
+      throw new QmdUnavailableError();
+    }
+
+    const output = [err?.stdout, err?.stderr].filter(Boolean).join('\n');
+    if (output) {
       try {
-        const parsed = JSON.parse(err.stdout.trim());
-        return Array.isArray(parsed) ? parsed : [];
+        return parseQmdOutput(output);
       } catch {
-        // Not JSON
+        // Fall through to throw a helpful error
       }
     }
-    console.error(`qmd error: ${err.message}`);
-    return [];
+
+    const message = err?.message ? `qmd failed: ${err.message}` : 'qmd failed';
+    throw new Error(message);
   }
 }
 
@@ -52,7 +122,9 @@ function execQmd(args: string[]): QmdResult[] {
  */
 export function hasQmd(): boolean {
   try {
-    execSync('which qmd', { stdio: 'pipe' });
+    // Use 'which' on Unix or 'where' on Windows to check if qmd exists
+    const cmd = process.platform === 'win32' ? 'where' : 'which';
+    execFileSync(cmd, ['qmd'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -62,9 +134,14 @@ export function hasQmd(): boolean {
 /**
  * Trigger qmd update (reindex)
  */
-export function qmdUpdate(): void {
+export function qmdUpdate(collection?: string): void {
   try {
-    execSync('qmd update', { stdio: 'inherit' });
+    ensureQmdAvailable();
+    const args = ['update'];
+    if (collection) {
+      args.push('-c', collection);
+    }
+    execFileSync('qmd', args, { stdio: 'inherit' });
   } catch (err: any) {
     console.error(`qmd update failed: ${err.message}`);
   }
@@ -73,9 +150,14 @@ export function qmdUpdate(): void {
 /**
  * Trigger qmd embed (create/update vector embeddings)
  */
-export function qmdEmbed(): void {
+export function qmdEmbed(collection?: string): void {
   try {
-    execSync('qmd embed', { stdio: 'inherit' });
+    ensureQmdAvailable();
+    const args = ['embed'];
+    if (collection) {
+      args.push('-c', collection);
+    }
+    execFileSync('qmd', args, { stdio: 'inherit' });
   } catch (err: any) {
     console.error(`qmd embed failed: ${err.message}`);
   }
@@ -88,6 +170,7 @@ export class SearchEngine {
   private documents: Map<string, Document> = new Map();
   private collection: string = 'clawvault';
   private vaultPath: string = '';
+  private collectionRoot: string = '';
 
   /**
    * Set the collection name (usually vault name)
@@ -101,6 +184,13 @@ export class SearchEngine {
    */
   setVaultPath(vaultPath: string): void {
     this.vaultPath = vaultPath;
+  }
+
+  /**
+   * Set the collection root for qmd:// URI resolution
+   */
+  setCollectionRoot(root: string): void {
+    this.collectionRoot = path.resolve(root);
   }
 
   /**
@@ -142,7 +232,7 @@ export class SearchEngine {
     // Build qmd command
     const args = [
       'search',
-      `"${query.replace(/"/g, '\\"')}"`,
+      query,
       '-n', String(limit * 2), // Request extra for filtering
       '--json'
     ];
@@ -181,7 +271,7 @@ export class SearchEngine {
     // Build qmd vsearch command
     const args = [
       'vsearch',
-      `"${query.replace(/"/g, '\\"')}"`,
+      query,
       '-n', String(limit * 2), // Request extra for filtering
       '--json'
     ];
@@ -220,7 +310,7 @@ export class SearchEngine {
     // Build qmd query command (combined search with reranking)
     const args = [
       'query',
-      `"${query.replace(/"/g, '\\"')}"`,
+      query,
       '-n', String(limit * 2),
       '--json'
     ];
@@ -322,26 +412,14 @@ export class SearchEngine {
       const slashIndex = withoutScheme.indexOf('/');
       if (slashIndex > -1) {
         // Get collection name and relative path
-        const collectionName = withoutScheme.slice(0, slashIndex);
         const relativePath = withoutScheme.slice(slashIndex + 1);
-        
-        // Try to resolve from vault path first
-        if (this.vaultPath) {
-          return path.join(this.vaultPath, relativePath);
+
+        const root = this.collectionRoot || this.vaultPath;
+        if (root) {
+          return path.join(root, relativePath);
         }
-        
-        // Fallback: try common paths
-        const homeDir = process.env.HOME || '/home/frame';
-        const possiblePaths = [
-          path.join(homeDir, 'clawd/memory', relativePath),
-          path.join(homeDir, 'clawd', collectionName, relativePath),
-          relativePath
-        ];
-        
-        for (const p of possiblePaths) {
-          // Return first possibility (caller can verify existence)
-          return p;
-        }
+
+        return relativePath;
       }
     }
     

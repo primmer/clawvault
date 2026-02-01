@@ -8,6 +8,10 @@ interface VaultConfig {
     name: string;
     /** Categories to create on init */
     categories: string[];
+    /** qmd collection name (defaults to vault name if not set) */
+    qmdCollection?: string;
+    /** Root path for qmd collection (defaults to vault path) */
+    qmdRoot?: string;
     /** Custom templates path (optional) */
     templatesPath?: string;
 }
@@ -20,6 +24,8 @@ interface VaultMeta {
     documentCount: number;
     /** qmd collection name (defaults to vault name if not set) */
     qmdCollection?: string;
+    /** Root path for qmd collection (defaults to vault path) */
+    qmdRoot?: string;
 }
 interface Document {
     /** Unique ID (relative path without extension) */
@@ -232,6 +238,14 @@ declare class ClawVault {
      */
     getName(): string;
     /**
+     * Get qmd collection name
+     */
+    getQmdCollection(): string;
+    /**
+     * Get qmd collection root
+     */
+    getQmdRoot(): string;
+    /**
      * Store a memory with type classification
      * Automatically routes to correct category based on type
      */
@@ -260,6 +274,7 @@ declare class ClawVault {
      * Parse a handoff document back into structured form
      */
     private parseHandoff;
+    private applyQmdConfig;
     private slugify;
     private saveIndex;
     private createTemplates;
@@ -280,6 +295,10 @@ declare function createVault(vaultPath: string, options?: Partial<VaultConfig>):
  * Uses qmd CLI for BM25 and vector search
  */
 
+declare const QMD_INSTALL_URL = "https://github.com/Versatly/qmd";
+declare class QmdUnavailableError extends Error {
+    constructor(message?: string);
+}
 /**
  * Check if qmd is available
  */
@@ -287,11 +306,11 @@ declare function hasQmd(): boolean;
 /**
  * Trigger qmd update (reindex)
  */
-declare function qmdUpdate(): void;
+declare function qmdUpdate(collection?: string): void;
 /**
  * Trigger qmd embed (create/update vector embeddings)
  */
-declare function qmdEmbed(): void;
+declare function qmdEmbed(collection?: string): void;
 /**
  * QMD Search Engine - wraps qmd CLI
  */
@@ -299,6 +318,7 @@ declare class SearchEngine {
     private documents;
     private collection;
     private vaultPath;
+    private collectionRoot;
     /**
      * Set the collection name (usually vault name)
      */
@@ -307,6 +327,10 @@ declare class SearchEngine {
      * Set the vault path for file resolution
      */
     setVaultPath(vaultPath: string): void;
+    /**
+     * Set the collection root for qmd:// URI resolution
+     */
+    setCollectionRoot(root: string): void;
     /**
      * Add or update a document in the local cache
      * Note: qmd indexing happens via qmd update command
@@ -406,4 +430,4 @@ declare function extractTags(content: string): string[];
 
 declare const VERSION = "1.0.0";
 
-export { type Category, ClawVault, DEFAULT_CATEGORIES, DEFAULT_CONFIG, type Document, type HandoffDocument, MEMORY_TYPES, type MemoryType, SearchEngine, type SearchOptions, type SearchResult, type SessionRecap, type StoreOptions, type SyncOptions, type SyncResult, TYPE_TO_CATEGORY, VERSION, type VaultConfig, type VaultMeta, createVault, extractTags, extractWikiLinks, findVault, hasQmd, qmdEmbed, qmdUpdate };
+export { type Category, ClawVault, DEFAULT_CATEGORIES, DEFAULT_CONFIG, type Document, type HandoffDocument, MEMORY_TYPES, type MemoryType, QMD_INSTALL_URL, QmdUnavailableError, SearchEngine, type SearchOptions, type SearchResult, type SessionRecap, type StoreOptions, type SyncOptions, type SyncResult, TYPE_TO_CATEGORY, VERSION, type VaultConfig, type VaultMeta, createVault, extractTags, extractWikiLinks, findVault, hasQmd, qmdEmbed, qmdUpdate };

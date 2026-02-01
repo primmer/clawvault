@@ -280,6 +280,121 @@ interface SearchResult {
 4. **Process inbox regularly** — Move quick captures to proper categories
 5. **Use templates** — Check `templates/` for document patterns
 
+## Agent Setup Guide
+
+If you're an AI agent using ClawVault, add these sections to your `AGENTS.md`:
+
+### Memory Configuration
+
+```markdown
+## Memory
+
+You wake up fresh each session. These files are your continuity:
+- **Daily notes:** `memory/YYYY-MM-DD.md` — raw logs of what happened
+- **Long-term:** `MEMORY.md` — curated memories, distilled wisdom
+- **People:** `memory/people/*.md` — one file per person
+- **Projects:** `memory/projects/*.md` — active work tracking
+
+**Everything that isn't saved, dies.** Write it down or lose it forever.
+
+### Memory Search — USE QMD!
+
+**Use `qmd` for memory search** — local embeddings, always works:
+
+\`\`\`bash
+# Fast keyword search (instant)
+qmd search "query" -c your-memory-collection
+
+# Semantic search (uses local model)
+qmd vsearch "what did we decide about X" -c your-memory-collection
+
+# Update index after adding files
+qmd update
+qmd embed  # for vector search
+\`\`\`
+
+### ClawVault Commands
+
+\`\`\`bash
+# Store a memory with type classification
+clawvault remember decision "Use qmd for search" --content "..."
+clawvault remember lesson "Context death is survivable" --content "..."
+
+# Session handoff (before context death)
+clawvault handoff --working-on "task1,task2" --next "next step"
+
+# Session bootstrap (on wake)
+clawvault recap
+\`\`\`
+```
+
+### Setting Up Your Memory Collection
+
+```bash
+# 1. Initialize your memory vault
+clawvault init ~/your-workspace/memory --qmd-collection your-memory
+
+# 2. Or manually add to qmd
+qmd collection add ~/your-workspace/memory --name your-memory --mask "**/*.md"
+
+# 3. Build embeddings for semantic search
+qmd embed
+
+# 4. Verify it works
+qmd search "test" -c your-memory
+```
+
+### AGENTS.md Memory Section Template
+
+Add this to your `AGENTS.md` to ensure proper memory habits:
+
+```markdown
+## Every Session
+
+Before doing anything else:
+1. Read `SOUL.md` — this is who you are
+2. Read `USER.md` — this is who you're helping
+3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
+4. Run `clawvault recap` for session continuity
+
+### Session Handoff Hook
+
+Before context death (long pause, ending session, hitting limits):
+\`\`\`bash
+clawvault handoff \\
+  --working-on "thing1, thing2" \\
+  --blocked "blocker1" \\
+  --next "next step 1, next step 2" \\
+  --feeling "focused but tired"
+\`\`\`
+
+### Memory Search
+
+**DO NOT use `memory_search`** — it uses external APIs with quota limits.
+
+**USE `qmd` instead** — local embeddings, always works:
+\`\`\`bash
+qmd search "query" -c your-memory    # Fast keyword
+qmd vsearch "query" -c your-memory   # Semantic
+\`\`\`
+```
+
+### Memory Type Taxonomy
+
+When storing memories, classify them:
+- `fact` — raw information, data points
+- `feeling` — emotional states, reactions
+- `decision` — choices with reasoning
+- `lesson` — insights, patterns learned
+- `commitment` — promises, obligations
+- `preference` — likes, dislikes
+- `relationship` — people, connections
+- `project` — active work
+
+```bash
+clawvault remember lesson "Context death is survivable" --content "..."
+```
+
 ## License
 
 MIT

@@ -127,8 +127,8 @@ program
   .option('-f, --file <file>', 'Read content from file')
   .option('--stdin', 'Read content from stdin')
   .option('--overwrite', 'Overwrite if exists')
-  .option('--qmd-update', 'Trigger qmd reindex after storing')
-  .option('--qmd-embed', 'Trigger qmd embed after storing (for vector search)')
+  .option('--no-index', 'Skip qmd index update (auto-updates by default)')
+  .option('--embed', 'Also update qmd embeddings for vector search')
   .option('-v, --vault <path>', 'Vault path (default: find nearest)')
   .action(async (options) => {
     try {
@@ -146,13 +146,22 @@ program
         category: options.category,
         title: options.title,
         content,
-        overwrite: options.overwrite,
-        qmdUpdate: options.qmdUpdate,
-        qmdEmbed: options.qmdEmbed
+        overwrite: options.overwrite
       });
       
       console.log(chalk.green(`✓ Stored: ${doc.id}`));
       console.log(chalk.dim(`  Path: ${doc.path}`));
+      
+      // Auto-update qmd index unless --no-index
+      if (options.index !== false && hasQmd()) {
+        try {
+          const collection = vault.getQmdCollection();
+          await runQmd(collection ? ['update', '-c', collection] : ['update']);
+          if (options.embed) {
+            await runQmd(['embed']);
+          }
+        } catch { /* ignore qmd errors */ }
+      }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);
@@ -165,11 +174,20 @@ program
   .description('Quick capture to inbox')
   .option('-t, --title <title>', 'Note title')
   .option('-v, --vault <path>', 'Vault path')
+  .option('--no-index', 'Skip qmd index update')
   .action(async (note, options) => {
     try {
       const vault = await getVault(options.vault);
       const doc = await vault.capture(note, options.title);
       console.log(chalk.green(`✓ Captured: ${doc.id}`));
+      
+      // Auto-update qmd index unless --no-index
+      if (options.index !== false && hasQmd()) {
+        try {
+          const collection = vault.getQmdCollection();
+          await runQmd(collection ? ['update', '-c', collection] : ['update']);
+        } catch { /* ignore qmd errors */ }
+      }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);
@@ -496,6 +514,7 @@ program
   .option('-f, --file <file>', 'Read content from file')
   .option('--stdin', 'Read content from stdin')
   .option('-v, --vault <path>', 'Vault path')
+  .option('--no-index', 'Skip qmd index update')
   .action(async (type, title, options) => {
     const validTypes = ['fact', 'feeling', 'decision', 'lesson', 'commitment', 'preference', 'relationship', 'project'];
     if (!validTypes.includes(type)) {
@@ -516,6 +535,14 @@ program
       
       const doc = await vault.remember(type, title, content);
       console.log(chalk.green(`✓ Remembered (${type}): ${doc.id}`));
+      
+      // Auto-update qmd index unless --no-index
+      if (options.index !== false && hasQmd()) {
+        try {
+          const collection = vault.getQmdCollection();
+          await runQmd(collection ? ['update', '-c', collection] : ['update']);
+        } catch { /* ignore qmd errors */ }
+      }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);
@@ -553,11 +580,18 @@ program
       
       if (options.json) {
         console.log(JSON.stringify({ id: doc.id, path: doc.path, handoff }, null, 2));
-        return;
+      } else {
+        console.log(chalk.green(`✓ Handoff created: ${doc.id}`));
+        console.log(chalk.dim(`  Path: ${doc.path}`));
       }
       
-      console.log(chalk.green(`✓ Handoff created: ${doc.id}`));
-      console.log(chalk.dim(`  Path: ${doc.path}`));
+      // Auto-update qmd index
+      if (hasQmd()) {
+        try {
+          const collection = vault.getQmdCollection();
+          await runQmd(collection ? ['update', '-c', collection] : ['update']);
+        } catch { /* ignore qmd errors */ }
+      }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);

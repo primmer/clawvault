@@ -1,6 +1,6 @@
 {
   "name": "clawvault",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "🐘 An elephant never forgets. Structured memory for OpenClaw agents. Context death resilience, Obsidian-compatible markdown, local semantic search.",
   "type": "module",
   "main": "dist/index.cjs",
@@ -65,8 +65,16 @@
     "chalk": "^5.3.0",
     "glob": "^10.3.10",
     "gray-matter": "^4.0.3",
-    "natural": "^6.10.4",
-    "qmd": "github:tobi/qmd"
+    "natural": "^6.10.4"
+  },
+  "optionalDependencies": {},
+  "peerDependencies": {
+    "qmd": "*"
+  },
+  "peerDependenciesMeta": {
+    "qmd": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

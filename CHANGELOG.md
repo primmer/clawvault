@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.1] - 2026-02-06
+
+### Security
+- **Fixed shell injection vulnerability** in hooks/clawvault/handler.js
+  - Changed from `execSync` (with shell) to `execFileSync` (no shell)
+  - All arguments passed as array, never interpolated into shell string
+  - Vault path validation: must be absolute, exist, and contain .clawvault.json
+
+- **Fixed prompt injection vulnerability**
+  - Checkpoint recovery data now sanitized before injection
+  - Control characters stripped, markdown escaped, length limited
+  - Session keys and command sources sanitized with strict allowlist
+
+- **Removed direct GitHub dependency** for qmd
+  - qmd moved to optional peer dependency
+  - Users install separately: `npm install -g github:tobi/qmd`
+  - ClawVault gracefully handles missing qmd
+
+### Changed
+- Hook now validates vault paths before use
+- Error messages in hooks are now generic (no sensitive data leaked)
+
+---
+
 ## [1.5.0] - 2026-02-06
 
 ### Added

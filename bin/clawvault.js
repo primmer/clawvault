@@ -1081,5 +1081,53 @@ program
     }
   });
 
+// === REPAIR-SESSION ===
+program
+  .command('repair-session')
+  .description('Repair corrupted OpenClaw session transcripts')
+  .option('-s, --session <id>', 'Session ID (defaults to current main session)')
+  .option('-a, --agent <id>', 'Agent ID (defaults to configured agent)')
+  .option('--backup', 'Create backup before repair (default: true)', true)
+  .option('--no-backup', 'Skip backup creation')
+  .option('--dry-run', 'Show what would be repaired without writing')
+  .option('--list', 'List available sessions')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const {
+        repairSessionCommand,
+        formatRepairResult,
+        listAgentSessions
+      } = await import('../dist/commands/repair-session.js');
+      
+      // List mode
+      if (options.list) {
+        console.log(listAgentSessions(options.agent));
+        return;
+      }
+      
+      const result = await repairSessionCommand({
+        sessionId: options.session,
+        agentId: options.agent,
+        backup: options.backup,
+        dryRun: options.dryRun
+      });
+      
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(formatRepairResult(result, { dryRun: options.dryRun }));
+      }
+      
+      // Exit with code 1 if corruption was found but not fixed (dry-run)
+      if (result.corruptedEntries.length > 0 && !result.repaired) {
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // Parse and run
 program.parse();

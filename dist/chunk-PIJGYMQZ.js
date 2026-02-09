@@ -1,7 +1,7 @@
 import {
   DEFAULT_CATEGORIES,
   hasQmd
-} from "./chunk-VHECN4BB.js";
+} from "./chunk-MIIXBNO3.js";
 
 // src/commands/setup.ts
 import * as fs from "fs";

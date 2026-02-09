@@ -47,7 +47,7 @@ openclaw hooks enable clawvault
 ### Session Start
 
 1. Extracts the initial user prompt (`context.initialPrompt` or first user message)
-2. Runs `clawvault context "<prompt>" --format json`
+2. Runs `clawvault context "<prompt>" --format json -v <vaultPath>`
 3. Injects up to 4 relevant context bullets into session messages
 
 Injection format:

@@ -384,6 +384,29 @@ program
     }
   });
 
+// === SESSION-RECAP ===
+program
+  .command('session-recap <sessionKey>')
+  .description('Generate recap from a specific OpenClaw session transcript')
+  .option('-n, --limit <n>', 'Number of messages to include', '15')
+  .option('--format <format>', 'Output format (markdown|json)', 'markdown')
+  .option('-a, --agent <id>', 'Agent ID (default: OPENCLAW_AGENT_ID or clawdious)')
+  .action(async (sessionKey, options) => {
+    try {
+      const { sessionRecapCommand } = await import('../dist/commands/session-recap.js');
+      const format = options.format === 'json' ? 'json' : 'markdown';
+      const parsedLimit = Number.parseInt(options.limit, 10);
+      await sessionRecapCommand(sessionKey, {
+        limit: Number.isNaN(parsedLimit) ? 15 : parsedLimit,
+        format,
+        agentId: options.agent
+      });
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // === LIST ===
 program
   .command('list [category]')

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ClawVault Graph Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="toolbar-title">
+        <h1>ClawVault Graph</h1>
+        <p id="stats">Loading graph...</p>
+      </div>
+      <div class="toolbar-controls">
+        <input id="search" type="search" placeholder="Search notes, ids, tags...">
+        <select id="category-filter">
+          <option value="all">All categories</option>
+        </select>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section id="graph" aria-label="Vault graph visualization"></section>
+      <aside class="details-panel">
+        <h2>Node Details</h2>
+        <div id="node-details">
+          <p>Select a node to inspect details and connections.</p>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/vendor/force-graph.min.js"></script>
+    <script>
+      if (!window.ForceGraph) {
+        document.write('<script src="https://unpkg.com/force-graph"><\/script>');
+      }
+    </script>
+    <script type="module" src="/graph.js"></script>
+  </body>
+</html>

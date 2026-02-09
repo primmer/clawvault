@@ -2,6 +2,7 @@ import { V as VaultConfig, S as StoreOptions, D as Document, a as SearchOptions,
 export { f as DEFAULT_CATEGORIES, g as DEFAULT_CONFIG, h as MEMORY_TYPES, T as TYPE_TO_CATEGORY, i as VaultMeta } from './types-DMU3SuAV.js';
 export { setupCommand } from './commands/setup.js';
 export { ContextEntry, ContextFormat, ContextOptions, ContextResult, buildContext, contextCommand, formatContextMarkdown } from './commands/context.js';
+export { SessionRecapFormat, SessionRecapOptions, SessionRecapResult, SessionTurn, buildSessionRecap, formatSessionRecapMarkdown, sessionRecapCommand } from './commands/session-recap.js';
 export { TemplateVariables, buildTemplateVariables, renderTemplate } from './lib/template-engine.js';
 
 /**

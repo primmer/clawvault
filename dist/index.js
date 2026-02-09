@@ -1,6 +1,11 @@
 import {
+  buildSessionRecap,
+  formatSessionRecapMarkdown,
+  sessionRecapCommand
+} from "./chunk-XQUQIW6E.js";
+import {
   setupCommand
-} from "./chunk-Z6LQ4VTI.js";
+} from "./chunk-PIJGYMQZ.js";
 import {
   buildTemplateVariables,
   renderTemplate
@@ -9,12 +14,12 @@ import {
   buildContext,
   contextCommand,
   formatContextMarkdown
-} from "./chunk-WBVPVD2C.js";
+} from "./chunk-XPGSEJGY.js";
 import {
   ClawVault,
   createVault,
   findVault
-} from "./chunk-Y4H6XSBV.js";
+} from "./chunk-3HFB7EMU.js";
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_CONFIG,
@@ -29,7 +34,8 @@ import {
   hasQmd,
   qmdEmbed,
   qmdUpdate
-} from "./chunk-VHECN4BB.js";
+} from "./chunk-MIIXBNO3.js";
+import "./chunk-AZRV2I5U.js";
 
 // src/index.ts
 import * as fs from "fs";
@@ -55,6 +61,7 @@ export {
   TYPE_TO_CATEGORY,
   VERSION,
   buildContext,
+  buildSessionRecap,
   buildTemplateVariables,
   contextCommand,
   createVault,
@@ -62,9 +69,11 @@ export {
   extractWikiLinks,
   findVault,
   formatContextMarkdown,
+  formatSessionRecapMarkdown,
   hasQmd,
   qmdEmbed,
   qmdUpdate,
   renderTemplate,
+  sessionRecapCommand,
   setupCommand
 };

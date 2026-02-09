@@ -16,6 +16,8 @@ import * as path from 'path';
 const MAX_CONTEXT_RESULTS = 4;
 const MAX_CONTEXT_PROMPT_LENGTH = 500;
 const MAX_CONTEXT_SNIPPET_LENGTH = 220;
+const MAX_RECAP_RESULTS = 6;
+const MAX_RECAP_SNIPPET_LENGTH = 220;
 
 // Sanitize string for safe display (prevent prompt injection via control chars)
 function sanitizeForDisplay(str) {
@@ -35,6 +37,40 @@ function sanitizePromptForContext(str) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, MAX_CONTEXT_PROMPT_LENGTH);
+}
+
+function sanitizeSessionKey(str) {
+  if (typeof str !== 'string') return '';
+  const trimmed = str.trim();
+  if (!/^agent:[a-zA-Z0-9_-]+:[a-zA-Z0-9:_-]+$/.test(trimmed)) {
+    return '';
+  }
+  return trimmed.slice(0, 200);
+}
+
+function extractSessionKey(event) {
+  const candidates = [
+    event?.sessionKey,
+    event?.context?.sessionKey,
+    event?.session?.key,
+    event?.context?.session?.key,
+    event?.metadata?.sessionKey
+  ];
+
+  for (const candidate of candidates) {
+    const key = sanitizeSessionKey(candidate);
+    if (key) return key;
+  }
+
+  return '';
+}
+
+function extractAgentIdFromSessionKey(sessionKey) {
+  const match = /^agent:([^:]+):/.exec(sessionKey);
+  if (!match?.[1]) return '';
+  const agentId = match[1].trim();
+  if (!/^[a-zA-Z0-9_-]{1,100}$/.test(agentId)) return '';
+  return agentId;
 }
 
 function extractTextFromMessage(message) {
@@ -97,6 +133,12 @@ function truncateSnippet(snippet) {
   return `${safe.slice(0, MAX_CONTEXT_SNIPPET_LENGTH - 3).trimEnd()}...`;
 }
 
+function truncateRecapSnippet(snippet) {
+  const safe = sanitizeForDisplay(snippet).replace(/\s+/g, ' ').trim();
+  if (safe.length <= MAX_RECAP_SNIPPET_LENGTH) return safe;
+  return `${safe.slice(0, MAX_RECAP_SNIPPET_LENGTH - 3).trimEnd()}...`;
+}
+
 function parseContextJson(output) {
   try {
     const parsed = JSON.parse(output);
@@ -115,12 +157,75 @@ function parseContextJson(output) {
   }
 }
 
-function formatContextInjection(entries) {
-  const lines = ['[ClawVault] Relevant context for this task:'];
-  for (const entry of entries) {
-    lines.push(`- ${entry.title} (${entry.age}): ${entry.snippet}`);
+function parseSessionRecapJson(output) {
+  try {
+    const parsed = JSON.parse(output);
+    if (!parsed || !Array.isArray(parsed.messages)) return [];
+
+    return parsed.messages
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+        const role = typeof entry.role === 'string' ? entry.role.toLowerCase() : '';
+        if (role !== 'user' && role !== 'assistant') return null;
+        const text = truncateRecapSnippet(typeof entry.text === 'string' ? entry.text : '');
+        if (!text) return null;
+        return {
+          role: role === 'user' ? 'User' : 'Assistant',
+          text
+        };
+      })
+      .filter(Boolean)
+      .slice(-MAX_RECAP_RESULTS);
+  } catch {
+    return [];
   }
+}
+
+function formatSessionContextInjection(recapEntries, memoryEntries) {
+  const lines = ['[ClawVault] Session context restored:', '', 'Recent conversation:'];
+
+  if (recapEntries.length === 0) {
+    lines.push('- No recent user/assistant turns found for this session.');
+  } else {
+    for (const entry of recapEntries) {
+      lines.push(`- ${entry.role}: ${entry.text}`);
+    }
+  }
+
+  lines.push('', 'Relevant memories:');
+  if (memoryEntries.length === 0) {
+    lines.push('- No relevant vault memories found for the current prompt.');
+  } else {
+    for (const entry of memoryEntries) {
+      lines.push(`- ${entry.title} (${entry.age}): ${entry.snippet}`);
+    }
+  }
+
   return lines.join('\n');
+}
+
+function injectSystemMessage(event, message) {
+  if (!event.messages || !Array.isArray(event.messages)) return false;
+
+  if (event.messages.length === 0) {
+    event.messages.push(message);
+    return true;
+  }
+
+  const first = event.messages[0];
+  if (first && typeof first === 'object' && !Array.isArray(first)) {
+    if ('role' in first || 'content' in first) {
+      event.messages.push({ role: 'system', content: message });
+      return true;
+    }
+    if ('type' in first || 'text' in first) {
+      event.messages.push({ type: 'system', text: message });
+      return true;
+    }
+  }
+
+  event.messages.push(message);
+  return true;
 }
 
 // Validate vault path - must be absolute and exist
@@ -252,11 +357,9 @@ async function handleStartup(event) {
     const alertMsg = alertParts.join(' ');
 
     // Inject into event messages if available
-    if (event.messages && Array.isArray(event.messages)) {
-      event.messages.push(alertMsg);
+    if (injectSystemMessage(event, alertMsg)) {
+      console.warn('[clawvault] Context death detected, alert injected');
     }
-    
-    console.warn('[clawvault] Context death detected, alert injected');
   } else {
     console.log('[clawvault] Clean startup - no context death');
   }
@@ -303,35 +406,56 @@ async function handleSessionStart(event) {
     return;
   }
 
+  const sessionKey = extractSessionKey(event);
   const prompt = extractInitialPrompt(event);
-  if (!prompt) {
-    console.log('[clawvault] No initial prompt, skipping context injection');
+  let recapEntries = [];
+  let memoryEntries = [];
+
+  if (sessionKey) {
+    console.log('[clawvault] Fetching session recap for context restoration');
+    const recapArgs = ['session-recap', sessionKey, '--format', 'json'];
+    const agentId = extractAgentIdFromSessionKey(sessionKey);
+    if (agentId) {
+      recapArgs.push('--agent', agentId);
+    }
+
+    const recapResult = runClawvault(recapArgs);
+    if (!recapResult.success) {
+      console.warn('[clawvault] Session recap lookup failed');
+    } else {
+      recapEntries = parseSessionRecapJson(recapResult.output);
+    }
+  } else {
+    console.log('[clawvault] No session key found, skipping session recap');
+  }
+
+  if (prompt) {
+    console.log('[clawvault] Fetching vault memories for session start prompt');
+    const contextResult = runClawvault([
+      'context',
+      prompt,
+      '--format', 'json',
+      '-v', vaultPath
+    ]);
+
+    if (!contextResult.success) {
+      console.warn('[clawvault] Context lookup failed');
+    } else {
+      memoryEntries = parseContextJson(contextResult.output);
+    }
+  } else {
+    console.log('[clawvault] No initial prompt, skipping vault memory lookup');
+  }
+
+  if (recapEntries.length === 0 && memoryEntries.length === 0) {
+    console.log('[clawvault] No session context available to inject');
     return;
   }
 
-  console.log('[clawvault] Fetching context for session start');
-
-  const result = runClawvault([
-    'context',
-    prompt,
-    '--format', 'json',
-    '-v', vaultPath
-  ]);
-
-  if (!result.success) {
-    console.warn('[clawvault] Context lookup failed');
-    return;
-  }
-
-  const entries = parseContextJson(result.output);
-  if (entries.length === 0) {
-    console.log('[clawvault] No relevant context found for prompt');
-    return;
-  }
-
-  if (event.messages && Array.isArray(event.messages)) {
-    event.messages.push(formatContextInjection(entries));
-    console.log(`[clawvault] Injected ${entries.length} context item(s)`);
+  if (injectSystemMessage(event, formatSessionContextInjection(recapEntries, memoryEntries))) {
+    console.log(`[clawvault] Injected session context (${recapEntries.length} recap, ${memoryEntries.length} memories)`);
+  } else {
+    console.log('[clawvault] No message array available, skipping injection');
   }
 }
 

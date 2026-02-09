@@ -268,9 +268,8 @@ var SearchEngine = class {
         matchedTerms: []
         // qmd doesn't provide this
       });
-      if (results.length >= limit) break;
     }
-    return results;
+    return results.sort((a, b) => b.score - a.score).slice(0, limit);
   }
   resolveModifiedAt(doc, filePath) {
     if (doc) return doc.modified;

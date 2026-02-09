@@ -32,6 +32,17 @@ export { setupCommand } from './commands/setup.js';
 export { contextCommand, buildContext, formatContextMarkdown } from './commands/context.js';
 export type { ContextFormat, ContextOptions, ContextEntry, ContextResult } from './commands/context.js';
 export {
+  sessionRecapCommand,
+  buildSessionRecap,
+  formatSessionRecapMarkdown
+} from './commands/session-recap.js';
+export type {
+  SessionRecapFormat,
+  SessionRecapOptions,
+  SessionTurn,
+  SessionRecapResult
+} from './commands/session-recap.js';
+export {
   SearchEngine,
   extractWikiLinks,
   extractTags,

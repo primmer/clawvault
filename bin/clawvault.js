@@ -1186,5 +1186,34 @@ program
     }
   });
 
+// === DASHBOARD ===
+program
+  .command('dashboard')
+  .description('Run local vault graph dashboard')
+  .option('-p, --port <port>', 'Dashboard port', '3377')
+  .option('-v, --vault <path>', 'Vault path')
+  .action(async (options) => {
+    try {
+      const parsedPort = Number.parseInt(options.port, 10);
+      if (Number.isNaN(parsedPort)) {
+        console.error(chalk.red(`Error: Invalid port: ${options.port}`));
+        process.exit(1);
+      }
+
+      const vaultPath = options.vault
+        ? path.resolve(options.vault)
+        : resolveVaultPath(undefined);
+
+      const { startDashboard } = await import('../dashboard/server.js');
+      await startDashboard({
+        port: parsedPort,
+        vaultPath
+      });
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // Parse and run
 program.parse();

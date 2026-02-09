@@ -4,6 +4,7 @@
  * Provides automatic context death resilience:
  * - gateway:startup → detect context death, inject recovery info
  * - command:new → auto-checkpoint before session reset
+ * - session:start → inject relevant context for first user prompt
  * 
  * SECURITY: Uses execFileSync (no shell) to prevent command injection
  */
@@ -11,6 +12,10 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const MAX_CONTEXT_RESULTS = 4;
+const MAX_CONTEXT_PROMPT_LENGTH = 500;
+const MAX_CONTEXT_SNIPPET_LENGTH = 220;
 
 // Sanitize string for safe display (prevent prompt injection via control chars)
 function sanitizeForDisplay(str) {
@@ -20,6 +25,102 @@ function sanitizeForDisplay(str) {
     .replace(/[\x00-\x1f\x7f]/g, '') // Remove control chars
     .replace(/[`*_~\[\]]/g, '\\$&')  // Escape markdown
     .slice(0, 200);                   // Limit length
+}
+
+// Sanitize prompt before passing to CLI command
+function sanitizePromptForContext(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_CONTEXT_PROMPT_LENGTH);
+}
+
+function extractTextFromMessage(message) {
+  if (typeof message === 'string') return message;
+  if (!message || typeof message !== 'object') return '';
+
+  const content = message.content ?? message.text ?? message.message;
+  if (typeof content === 'string') return content;
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (!part || typeof part !== 'object') return '';
+        if (typeof part.text === 'string') return part.text;
+        if (typeof part.content === 'string') return part.content;
+        return '';
+      })
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return '';
+}
+
+function isUserMessage(message) {
+  if (typeof message === 'string') return true;
+  if (!message || typeof message !== 'object') return false;
+  const role = typeof message.role === 'string' ? message.role.toLowerCase() : '';
+  const type = typeof message.type === 'string' ? message.type.toLowerCase() : '';
+  return role === 'user' || role === 'human' || type === 'user';
+}
+
+function extractInitialPrompt(event) {
+  const fromContext = sanitizePromptForContext(event?.context?.initialPrompt);
+  if (fromContext) return fromContext;
+
+  const candidates = [
+    event?.context?.messages,
+    event?.context?.initialMessages,
+    event?.context?.history,
+    event?.messages
+  ];
+
+  for (const list of candidates) {
+    if (!Array.isArray(list)) continue;
+    for (const message of list) {
+      if (!isUserMessage(message)) continue;
+      const text = sanitizePromptForContext(extractTextFromMessage(message));
+      if (text) return text;
+    }
+  }
+
+  return '';
+}
+
+function truncateSnippet(snippet) {
+  const safe = sanitizeForDisplay(snippet).replace(/\s+/g, ' ').trim();
+  if (safe.length <= MAX_CONTEXT_SNIPPET_LENGTH) return safe;
+  return `${safe.slice(0, MAX_CONTEXT_SNIPPET_LENGTH - 3).trimEnd()}...`;
+}
+
+function parseContextJson(output) {
+  try {
+    const parsed = JSON.parse(output);
+    if (!parsed || !Array.isArray(parsed.context)) return [];
+
+    return parsed.context
+      .slice(0, MAX_CONTEXT_RESULTS)
+      .map((entry) => ({
+        title: sanitizeForDisplay(entry?.title || 'Untitled'),
+        age: sanitizeForDisplay(entry?.age || 'unknown age'),
+        snippet: truncateSnippet(entry?.snippet || '')
+      }))
+      .filter((entry) => entry.snippet);
+  } catch {
+    return [];
+  }
+}
+
+function formatContextInjection(entries) {
+  const lines = ['[ClawVault] Relevant context for this task:'];
+  for (const entry of entries) {
+    lines.push(`- ${entry.title} (${entry.age}): ${entry.snippet}`);
+  }
+  return lines.join('\n');
 }
 
 // Validate vault path - must be absolute and exist
@@ -194,6 +295,46 @@ async function handleNew(event) {
   }
 }
 
+// Handle session start - inject dynamic context for first prompt
+async function handleSessionStart(event) {
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.log('[clawvault] No vault found, skipping context injection');
+    return;
+  }
+
+  const prompt = extractInitialPrompt(event);
+  if (!prompt) {
+    console.log('[clawvault] No initial prompt, skipping context injection');
+    return;
+  }
+
+  console.log('[clawvault] Fetching context for session start');
+
+  const result = runClawvault([
+    'context',
+    prompt,
+    '--format', 'json',
+    '-v', vaultPath
+  ]);
+
+  if (!result.success) {
+    console.warn('[clawvault] Context lookup failed');
+    return;
+  }
+
+  const entries = parseContextJson(result.output);
+  if (entries.length === 0) {
+    console.log('[clawvault] No relevant context found for prompt');
+    return;
+  }
+
+  if (event.messages && Array.isArray(event.messages)) {
+    event.messages.push(formatContextInjection(entries));
+    console.log(`[clawvault] Injected ${entries.length} context item(s)`);
+  }
+}
+
 // Main handler - route events
 const handler = async (event) => {
   try {
@@ -204,6 +345,11 @@ const handler = async (event) => {
 
     if (event.type === 'command' && event.action === 'new') {
       await handleNew(event);
+      return;
+    }
+
+    if (event.type === 'session' && event.action === 'start') {
+      await handleSessionStart(event);
       return;
     }
   } catch (err) {

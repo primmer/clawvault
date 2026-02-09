@@ -1,10 +1,10 @@
 ---
 name: clawvault
-description: "Context death resilience - auto-checkpoint and recovery detection"
+description: "Context resilience - recovery detection, auto-checkpoint, and session context injection"
 metadata:
   openclaw:
     emoji: "🐘"
-    events: ["gateway:startup", "command:new"]
+    events: ["gateway:startup", "command:new", "session:start"]
     requires:
       bins: ["clawvault"]
 ---
@@ -15,6 +15,7 @@ Integrates ClawVault's context death resilience into OpenClaw:
 
 - **On gateway startup**: Checks for context death, alerts agent
 - **On /new command**: Auto-checkpoints before session reset
+- **On session start**: Injects relevant vault context for the initial prompt
 
 ## Installation
 
@@ -42,6 +43,20 @@ openclaw hooks enable clawvault
 1. Creates automatic checkpoint with session info
 2. Captures state even if agent forgot to handoff
 3. Ensures continuity across session resets
+
+### Session Start
+
+1. Extracts the initial user prompt (`context.initialPrompt` or first user message)
+2. Runs `clawvault context "<prompt>" --format json`
+3. Injects up to 4 relevant context bullets into session messages
+
+Injection format:
+
+```text
+[ClawVault] Relevant context for this task:
+- <title> (<age>): <snippet>
+- <title> (<age>): <snippet>
+```
 
 ## No Configuration Needed
 

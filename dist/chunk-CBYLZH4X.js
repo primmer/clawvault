@@ -2,7 +2,7 @@ import {
   getSessionFilePath,
   getSessionsDir,
   loadSessionsStore
-} from "./chunk-AZRV2I5U.js";
+} from "./chunk-YBJDNBWV.js";
 
 // src/commands/session-recap.ts
 import * as fs from "fs";

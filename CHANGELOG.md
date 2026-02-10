@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.1] - 2026-02-09
+
+### Added
+- **OPENCLAW_HOME support** - Session utilities now respect the `OPENCLAW_HOME` environment variable for custom OpenClaw installations
+- **OPENCLAW_STATE_DIR support** - Also supports `OPENCLAW_STATE_DIR` for overriding state/agent paths
+
+### Compatibility
+- Verified compatibility with OpenClaw v2026.2.9
+- Hook handler confirmed working after OpenClaw's tsdown migration fix (#9295)
+- Session transcript reading benefits from OpenClaw's parentId chain fix (#12283)
+
+---
+
 ## [1.5.1] - 2026-02-06
 
 ### Security

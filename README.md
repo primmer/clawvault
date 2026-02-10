@@ -29,6 +29,25 @@ bun install -g qmd   # or: npm install -g qmd
 npm install -g clawvault
 ```
 
+## Blog and SEO
+
+- Blog: `https://versatly.github.io/clawvault/blog/`
+- RSS feed: `https://versatly.github.io/clawvault/blog/feed.xml`
+- Sitemap: `https://versatly.github.io/clawvault/sitemap.xml`
+- Robots: `https://versatly.github.io/clawvault/robots.txt`
+
+When you add or update blog/docs content, regenerate SEO assets:
+
+```bash
+npm run seo:generate
+```
+
+Optional: override the base URL while generating:
+
+```bash
+CLAWVAULT_SITE_URL="https://your-domain.example" npm run seo:generate
+```
+
 ## Why ClawVault?
 
 AI agents forget things. Context windows overflow, sessions end, important details get lost. ClawVault fixes that:

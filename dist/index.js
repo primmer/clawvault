@@ -3,6 +3,7 @@ import {
   formatSessionRecapMarkdown,
   sessionRecapCommand
 } from "./chunk-ZKGY7WTT.js";
+import "./chunk-HRLWZGMA.js";
 import {
   setupCommand
 } from "./chunk-PIJGYMQZ.js";
@@ -35,7 +36,6 @@ import {
   qmdEmbed,
   qmdUpdate
 } from "./chunk-MIIXBNO3.js";
-import "./chunk-HRLWZGMA.js";
 
 // src/index.ts
 import * as fs from "fs";

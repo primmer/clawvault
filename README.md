@@ -31,24 +31,11 @@ bun install -g qmd   # or: npm install -g qmd
 npm install -g clawvault
 ```
 
-## Blog and SEO
+## Blog & Resources
 
-- Blog: `https://versatly.github.io/clawvault/blog/`
-- RSS feed: `https://versatly.github.io/clawvault/blog/feed.xml`
-- Sitemap: `https://versatly.github.io/clawvault/sitemap.xml`
-- Robots: `https://versatly.github.io/clawvault/robots.txt`
-
-When you add or update blog/docs content, regenerate SEO assets:
-
-```bash
-npm run seo:generate
-```
-
-Optional: override the base URL while generating:
-
-```bash
-CLAWVAULT_SITE_URL="https://your-domain.example" npm run seo:generate
-```
+- **Blog:** [clawvault.dev/blog](https://clawvault.dev/blog/)
+- **RSS:** [feed.xml](https://clawvault.dev/blog/feed.xml)
+- **Sitemap:** [sitemap.xml](https://clawvault.dev/sitemap.xml)
 
 ## Why ClawVault?
 
@@ -86,6 +73,32 @@ clawvault recap                                         # Manual recap (advanced
 ```bash
 echo 'export CLAWVAULT_PATH="$HOME/memory"' >> ~/.bashrc
 eval "$(clawvault shell-init)"
+```
+
+## ClawVault Cloud
+
+ClawVault Cloud extends local memory with org-linked decision traces. The local vault stays your source of truth, and cloud sync adds cross-agent visibility plus centralized audit trails.
+
+- **Local-first writes** - `trace emit` always appends locally before sync attempts.
+- **Queued and retryable sync** - traces are buffered and sent with `clawvault sync`.
+- **Org-linked vault identity** - each vault can be linked once, then monitored with status checks.
+- **Backwards-compatible sync command** - `clawvault sync <target>` still syncs vault files to a folder.
+
+Quick setup:
+
+```bash
+# 1) Save your cloud API key
+clawvault config --cloud-key cvk_xxx
+
+# 2) Link this local vault to your org
+clawvault org link --vault ~/memory
+
+# 3) Verify cloud + org link state
+clawvault org status
+
+# 4) Emit trace events and sync queued traces
+clawvault trace emit --summary "Approved 20% discount for ACME"
+clawvault sync
 ```
 
 ## Search: qmd vs memory_search
@@ -175,6 +188,30 @@ clawvault recap --brief   # Token-efficient recap
 
 # Health check
 clawvault doctor
+```
+
+### Cloud Sync
+
+```bash
+# Configure cloud API access
+clawvault config --cloud-key cvk_xxx
+clawvault config --cloud-api-url https://api.clawvault.dev # optional override
+
+# Link local vault to cloud org/vault ID
+clawvault org link --vault ~/memory
+clawvault org status
+
+# Emit decision traces (summary-only or JSON payload)
+clawvault trace emit --summary "Approved 20% discount for ACME"
+clawvault trace emit --trace-file ./trace.json
+
+# Sync queued cloud traces (no target argument)
+clawvault sync
+clawvault sync --all
+clawvault sync --limit 25
+
+# Existing file sync still works when target is provided
+clawvault sync ./obsidian   # existing file sync to target folder
 ```
 
 ## Agent Setup (AGENTS.md)

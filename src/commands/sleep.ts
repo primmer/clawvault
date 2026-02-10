@@ -6,6 +6,8 @@ import { ClawVault } from '../lib/vault.js';
 import { qmdUpdate } from '../lib/search.js';
 import type { Document, HandoffDocument } from '../types.js';
 import { clearDirtyFlag } from './checkpoint.js';
+import { autoSyncOnHandoff } from '../cloud/service.js';
+import type { CloudSyncResult } from '../cloud/types.js';
 
 export type PromptFn = (question: string) => Promise<string>;
 
@@ -36,6 +38,7 @@ export interface SleepResult {
   handoff: HandoffDocument;
   document: Document;
   git?: GitCommitResult;
+  cloudSync?: CloudSyncResult;
 }
 
 function isInteractive(): boolean {
@@ -215,5 +218,7 @@ export async function sleep(options: SleepOptions): Promise<SleepResult> {
     interactive
   });
 
-  return { handoff, document, git };
+  const cloudSync = await autoSyncOnHandoff();
+
+  return { handoff, document, git, cloudSync };
 }

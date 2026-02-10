@@ -1,4 +1,5 @@
 import { H as HandoffDocument, D as Document } from '../types-DMU3SuAV.js';
+import { C as CloudSyncResult } from '../types-CilEQY9w.js';
 
 type PromptFn = (question: string) => Promise<string>;
 interface SleepOptions {
@@ -26,6 +27,7 @@ interface SleepResult {
     handoff: HandoffDocument;
     document: Document;
     git?: GitCommitResult;
+    cloudSync?: CloudSyncResult;
 }
 declare function sleep(options: SleepOptions): Promise<SleepResult>;
 

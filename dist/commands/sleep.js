@@ -1,4 +1,7 @@
 import {
+  autoSyncOnHandoff
+} from "../chunk-BBPSJL6H.js";
+import {
   ClawVault
 } from "../chunk-3HFB7EMU.js";
 import {
@@ -150,7 +153,8 @@ async function sleep(options) {
     cwd: options.cwd ?? process.cwd(),
     interactive
   });
-  return { handoff, document, git };
+  const cloudSync = await autoSyncOnHandoff();
+  return { handoff, document, git, cloudSync };
 }
 export {
   sleep

@@ -2,8 +2,19 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+function getOpenClawDir() {
+  const customHome = process.env.OPENCLAW_HOME;
+  if (customHome) {
+    return path.resolve(customHome);
+  }
+  return path.join(os.homedir(), ".openclaw");
+}
 function getOpenClawAgentsDir() {
-  return path.join(os.homedir(), ".openclaw", "agents");
+  const stateDir = process.env.OPENCLAW_STATE_DIR;
+  if (stateDir) {
+    return path.join(path.resolve(stateDir), "agents");
+  }
+  return path.join(getOpenClawDir(), "agents");
 }
 function getSessionsDir(agentId) {
   return path.join(getOpenClawAgentsDir(), agentId, "sessions");
@@ -120,6 +131,7 @@ function backupSession(filePath) {
 }
 
 export {
+  getOpenClawDir,
   getOpenClawAgentsDir,
   getSessionsDir,
   getSessionsJsonPath,

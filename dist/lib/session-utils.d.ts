@@ -16,7 +16,11 @@ interface SessionsStore {
     };
 }
 /**
- * Get the OpenClaw agents directory
+ * Get the OpenClaw home directory (respects OPENCLAW_HOME env var)
+ */
+declare function getOpenClawDir(): string;
+/**
+ * Get the OpenClaw agents directory (respects OPENCLAW_STATE_DIR and OPENCLAW_HOME)
  */
 declare function getOpenClawAgentsDir(): string;
 /**
@@ -56,4 +60,4 @@ declare function listSessions(agentId: string): SessionInfo[];
  */
 declare function backupSession(filePath: string): string;
 
-export { type SessionInfo, type SessionsStore, backupSession, findMainSession, findSessionById, getOpenClawAgentsDir, getSessionFilePath, getSessionsDir, getSessionsJsonPath, listAgents, listSessions, loadSessionsStore };
+export { type SessionInfo, type SessionsStore, backupSession, findMainSession, findSessionById, getOpenClawAgentsDir, getOpenClawDir, getSessionFilePath, getSessionsDir, getSessionsJsonPath, listAgents, listSessions, loadSessionsStore };

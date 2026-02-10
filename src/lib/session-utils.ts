@@ -23,10 +23,25 @@ export interface SessionsStore {
 }
 
 /**
- * Get the OpenClaw agents directory
+ * Get the OpenClaw home directory (respects OPENCLAW_HOME env var)
+ */
+export function getOpenClawDir(): string {
+  const customHome = process.env.OPENCLAW_HOME;
+  if (customHome) {
+    return path.resolve(customHome);
+  }
+  return path.join(os.homedir(), '.openclaw');
+}
+
+/**
+ * Get the OpenClaw agents directory (respects OPENCLAW_STATE_DIR and OPENCLAW_HOME)
  */
 export function getOpenClawAgentsDir(): string {
-  return path.join(os.homedir(), '.openclaw', 'agents');
+  const stateDir = process.env.OPENCLAW_STATE_DIR;
+  if (stateDir) {
+    return path.join(path.resolve(stateDir), 'agents');
+  }
+  return path.join(getOpenClawDir(), 'agents');
 }
 
 /**

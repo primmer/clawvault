@@ -23,12 +23,28 @@ export interface SessionsStore {
 }
 
 /**
+ * Validate and normalize an environment variable path.
+ * Returns null if the path is invalid (empty, whitespace-only, or non-absolute after resolve).
+ */
+function validateEnvPath(envValue: string | undefined): string | null {
+  if (!envValue) return null;
+  const trimmed = envValue.trim();
+  if (!trimmed) return null;
+  
+  const resolved = path.resolve(trimmed);
+  // Require absolute paths to avoid cwd-dependent behavior
+  if (!path.isAbsolute(resolved)) return null;
+  
+  return resolved;
+}
+
+/**
  * Get the OpenClaw home directory (respects OPENCLAW_HOME env var)
  */
 export function getOpenClawDir(): string {
-  const customHome = process.env.OPENCLAW_HOME;
+  const customHome = validateEnvPath(process.env.OPENCLAW_HOME);
   if (customHome) {
-    return path.resolve(customHome);
+    return customHome;
   }
   return path.join(os.homedir(), '.openclaw');
 }
@@ -37,9 +53,9 @@ export function getOpenClawDir(): string {
  * Get the OpenClaw agents directory (respects OPENCLAW_STATE_DIR and OPENCLAW_HOME)
  */
 export function getOpenClawAgentsDir(): string {
-  const stateDir = process.env.OPENCLAW_STATE_DIR;
+  const stateDir = validateEnvPath(process.env.OPENCLAW_STATE_DIR);
   if (stateDir) {
-    return path.join(path.resolve(stateDir), 'agents');
+    return path.join(stateDir, 'agents');
   }
   return path.join(getOpenClawDir(), 'agents');
 }
@@ -70,15 +86,29 @@ export function getSessionFilePath(agentId: string, sessionId: string): string {
  */
 export function listAgents(): string[] {
   const agentsDir = getOpenClawAgentsDir();
-  if (!fs.existsSync(agentsDir)) {
+  
+  try {
+    if (!fs.existsSync(agentsDir)) {
+      return [];
+    }
+    
+    const stat = fs.statSync(agentsDir);
+    if (!stat.isDirectory()) {
+      return [];
+    }
+    
+    return fs.readdirSync(agentsDir)
+      .filter(name => {
+        try {
+          const sessionsDir = getSessionsDir(name);
+          return fs.existsSync(sessionsDir) && fs.statSync(sessionsDir).isDirectory();
+        } catch {
+          return false;
+        }
+      });
+  } catch {
     return [];
   }
-  
-  return fs.readdirSync(agentsDir)
-    .filter(name => {
-      const sessionsDir = getSessionsDir(name);
-      return fs.existsSync(sessionsDir) && fs.statSync(sessionsDir).isDirectory();
-    });
 }
 
 /**

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.2] - 2026-02-09
+
+### Fixed
+- **Path validation** - OPENCLAW_HOME and OPENCLAW_STATE_DIR now properly validated (trimmed, require absolute paths)
+- **Error handling** - `listAgents()` now wrapped in try/catch to handle malformed filesystem state gracefully
+
+---
+
 ## [1.8.1] - 2026-02-09
 
 ### Added

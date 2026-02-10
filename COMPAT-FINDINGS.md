@@ -2,7 +2,13 @@
 
 ## Summary
 
-ClawVault v1.8.0 is **compatible** with OpenClaw v2026.2.9. One enhancement opportunity identified.
+ClawVault v1.8.2 is **fully compatible** with OpenClaw v2026.2.9.
+
+### Implemented (v1.8.1 → v1.8.2)
+- ✅ OPENCLAW_HOME env var support
+- ✅ OPENCLAW_STATE_DIR env var support
+- ✅ Path validation (trim, require absolute paths)
+- ✅ Robust error handling in listAgents()
 
 ## Analysis
 

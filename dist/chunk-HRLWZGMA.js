@@ -2,17 +2,25 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+function validateEnvPath(envValue) {
+  if (!envValue) return null;
+  const trimmed = envValue.trim();
+  if (!trimmed) return null;
+  const resolved = path.resolve(trimmed);
+  if (!path.isAbsolute(resolved)) return null;
+  return resolved;
+}
 function getOpenClawDir() {
-  const customHome = process.env.OPENCLAW_HOME;
+  const customHome = validateEnvPath(process.env.OPENCLAW_HOME);
   if (customHome) {
-    return path.resolve(customHome);
+    return customHome;
   }
   return path.join(os.homedir(), ".openclaw");
 }
 function getOpenClawAgentsDir() {
-  const stateDir = process.env.OPENCLAW_STATE_DIR;
+  const stateDir = validateEnvPath(process.env.OPENCLAW_STATE_DIR);
   if (stateDir) {
-    return path.join(path.resolve(stateDir), "agents");
+    return path.join(stateDir, "agents");
   }
   return path.join(getOpenClawDir(), "agents");
 }
@@ -27,13 +35,25 @@ function getSessionFilePath(agentId, sessionId) {
 }
 function listAgents() {
   const agentsDir = getOpenClawAgentsDir();
-  if (!fs.existsSync(agentsDir)) {
+  try {
+    if (!fs.existsSync(agentsDir)) {
+      return [];
+    }
+    const stat = fs.statSync(agentsDir);
+    if (!stat.isDirectory()) {
+      return [];
+    }
+    return fs.readdirSync(agentsDir).filter((name) => {
+      try {
+        const sessionsDir = getSessionsDir(name);
+        return fs.existsSync(sessionsDir) && fs.statSync(sessionsDir).isDirectory();
+      } catch {
+        return false;
+      }
+    });
+  } catch {
     return [];
   }
-  return fs.readdirSync(agentsDir).filter((name) => {
-    const sessionsDir = getSessionsDir(name);
-    return fs.existsSync(sessionsDir) && fs.statSync(sessionsDir).isDirectory();
-  });
 }
 function loadSessionsStore(agentId) {
   const sessionsJsonPath = getSessionsJsonPath(agentId);

@@ -1,6 +1,6 @@
 ---
 name: clawvault
-version: 1.5.1
+version: 1.8.2
 description: Structured memory system for OpenClaw agents. Context death resilience (checkpoint/recover), structured storage, Obsidian-compatible markdown, local semantic search, and session transcript repair.
 author: Versatly
 repository: https://github.com/Versatly/clawvault

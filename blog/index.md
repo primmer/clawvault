@@ -1,3 +1,23 @@
+---
+title: "ClawVault Blog"
+description: "Release notes and product updates for ClawVault."
+canonical_url: "https://versatly.github.io/clawvault/blog/"
+keywords:
+  - clawvault blog
+  - release notes
+  - openclaw
+og:
+  title: "ClawVault Blog"
+  description: "Release notes and product updates for ClawVault."
+  image: "https://versatly.github.io/clawvault/assets/clawvault-social-card.png"
+  type: "website"
+twitter:
+  card: "summary_large_image"
+  title: "ClawVault Blog"
+  description: "Release notes and product updates for ClawVault."
+  image: "https://versatly.github.io/clawvault/assets/clawvault-social-card.png"
+---
+
 # ClawVault Blog
 
 Updates, releases, and insights about ClawVault — the structured memory system for AI agents.
@@ -15,4 +35,4 @@ Watch the [GitHub repository](https://github.com/Versatly/clawvault) for release
 
 ## RSS Feed
 
-Coming soon — an RSS feed for blog updates.
+Subscribe with: `https://versatly.github.io/clawvault/blog/feed.xml`

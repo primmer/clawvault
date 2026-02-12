@@ -65,6 +65,7 @@ export { Reflector } from './observer/reflector.js';
 export type { ReflectorOptions } from './observer/reflector.js';
 export { SessionWatcher } from './observer/watcher.js';
 export type { SessionWatcherOptions } from './observer/watcher.js';
+export { parseSessionFile } from './observer/session-parser.js';
 
 export {
   renderTemplate,

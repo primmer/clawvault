@@ -3,6 +3,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import type { Command } from 'commander';
 import { Observer } from '../observer/observer.js';
+import { parseSessionFile } from '../observer/session-parser.js';
 import { SessionWatcher } from '../observer/watcher.js';
 
 const VAULT_CONFIG_FILE = '.clawvault.json';
@@ -90,9 +91,8 @@ async function runOneShotCompression(
     throw new Error(`Conversation file not found: ${resolved}`);
   }
 
-  const raw = fs.readFileSync(resolved, 'utf-8');
-  const messages = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  await observer.processMessages(messages.length > 0 ? messages : [raw]);
+  const messages = parseSessionFile(resolved);
+  await observer.processMessages(messages);
 
   // Force flush to capture everything
   const { observations, routingSummary } = await observer.flush();

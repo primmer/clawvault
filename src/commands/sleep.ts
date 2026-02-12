@@ -8,6 +8,8 @@ import type { Document, HandoffDocument } from '../types.js';
 import { clearDirtyFlag } from './checkpoint.js';
 import { autoSyncOnHandoff } from '../cloud/service.js';
 import type { CloudSyncResult } from '../cloud/types.js';
+import { Observer } from '../observer/observer.js';
+import { parseSessionFile } from '../observer/session-parser.js';
 
 export type PromptFn = (question: string) => Promise<string>;
 
@@ -22,6 +24,7 @@ export interface SleepOptions {
   vaultPath: string;
   index?: boolean;
   git?: boolean;
+  sessionTranscript?: string;
   prompt?: PromptFn;
   cwd?: string;
 }
@@ -39,6 +42,7 @@ export interface SleepResult {
   document: Document;
   git?: GitCommitResult;
   cloudSync?: CloudSyncResult;
+  observationRoutingSummary?: string;
 }
 
 function isInteractive(): boolean {
@@ -61,6 +65,25 @@ function parseList(raw?: string): string[] {
     .split(',')
     .map(item => item.trim())
     .filter(Boolean);
+}
+
+function resolveSessionTranscriptPath(explicitPath?: string): string | null {
+  const candidates = [
+    explicitPath,
+    process.env.CLAWVAULT_SESSION_TRANSCRIPT,
+    process.env.OPENCLAW_SESSION_FILE,
+    process.env.OPENCLAW_SESSION_TRANSCRIPT
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate?.trim()) continue;
+    const resolved = path.resolve(candidate.trim());
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+      return resolved;
+    }
+  }
+
+  return null;
 }
 
 function ensureNonEmpty(label: string, items: string[]): void {
@@ -219,6 +242,20 @@ export async function sleep(options: SleepOptions): Promise<SleepResult> {
   });
 
   const cloudSync = await autoSyncOnHandoff();
+  let observationRoutingSummary: string | undefined;
 
-  return { handoff, document, git, cloudSync };
+  try {
+    const transcriptPath = resolveSessionTranscriptPath(options.sessionTranscript);
+    if (transcriptPath) {
+      const observer = new Observer(vault.getPath());
+      const messages = parseSessionFile(transcriptPath);
+      await observer.processMessages(messages);
+      const { routingSummary } = await observer.flush();
+      observationRoutingSummary = routingSummary || undefined;
+    }
+  } catch {
+    // Observational memory should never block session handoff completion.
+  }
+
+  return { handoff, document, git, cloudSync, observationRoutingSummary };
 }

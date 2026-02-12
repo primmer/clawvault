@@ -26,12 +26,18 @@
 
 import * as fs from 'fs';
 import type { Command } from 'commander';
+import { registerContextCommand } from './commands/context.js';
 import { registerObserveCommand } from './commands/observe.js';
 
 // Core exports
 export { ClawVault, createVault, findVault } from './lib/vault.js';
 export { setupCommand } from './commands/setup.js';
-export { contextCommand, buildContext, formatContextMarkdown } from './commands/context.js';
+export {
+  contextCommand,
+  buildContext,
+  formatContextMarkdown,
+  registerContextCommand
+} from './commands/context.js';
 export type { ContextFormat, ContextOptions, ContextEntry, ContextResult } from './commands/context.js';
 export { observeCommand, registerObserveCommand } from './commands/observe.js';
 export type { ObserveCommandOptions } from './commands/observe.js';
@@ -104,6 +110,7 @@ function readPackageVersion(): string {
 export const VERSION = readPackageVersion();
 
 export function registerCommanderCommands(program: Command): Command {
+  registerContextCommand(program);
   registerObserveCommand(program);
   return program;
 }

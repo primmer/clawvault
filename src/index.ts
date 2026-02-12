@@ -25,12 +25,16 @@
  */
 
 import * as fs from 'fs';
+import type { Command } from 'commander';
+import { registerObserveCommand } from './commands/observe.js';
 
 // Core exports
 export { ClawVault, createVault, findVault } from './lib/vault.js';
 export { setupCommand } from './commands/setup.js';
 export { contextCommand, buildContext, formatContextMarkdown } from './commands/context.js';
 export type { ContextFormat, ContextOptions, ContextEntry, ContextResult } from './commands/context.js';
+export { observeCommand, registerObserveCommand } from './commands/observe.js';
+export type { ObserveCommandOptions } from './commands/observe.js';
 export {
   sessionRecapCommand,
   buildSessionRecap,
@@ -53,6 +57,14 @@ export {
   QMD_INSTALL_COMMAND,
   QMD_INSTALL_URL
 } from './lib/search.js';
+export { Observer } from './observer/observer.js';
+export type { ObserverOptions, ObserverCompressor, ObserverReflector } from './observer/observer.js';
+export { Compressor } from './observer/compressor.js';
+export type { CompressorOptions } from './observer/compressor.js';
+export { Reflector } from './observer/reflector.js';
+export type { ReflectorOptions } from './observer/reflector.js';
+export { SessionWatcher } from './observer/watcher.js';
+export type { SessionWatcherOptions } from './observer/watcher.js';
 
 export {
   renderTemplate,
@@ -90,3 +102,8 @@ function readPackageVersion(): string {
 }
 
 export const VERSION = readPackageVersion();
+
+export function registerCommanderCommands(program: Command): Command {
+  registerObserveCommand(program);
+  return program;
+}

@@ -6,8 +6,6 @@ import { ClawVault } from '../lib/vault.js';
 import { qmdUpdate } from '../lib/search.js';
 import type { Document, HandoffDocument } from '../types.js';
 import { clearDirtyFlag } from './checkpoint.js';
-import { autoSyncOnHandoff } from '../cloud/service.js';
-import type { CloudSyncResult } from '../cloud/types.js';
 import { Observer } from '../observer/observer.js';
 import { parseSessionFile } from '../observer/session-parser.js';
 
@@ -41,7 +39,6 @@ export interface SleepResult {
   handoff: HandoffDocument;
   document: Document;
   git?: GitCommitResult;
-  cloudSync?: CloudSyncResult;
   observationRoutingSummary?: string;
 }
 
@@ -241,7 +238,6 @@ export async function sleep(options: SleepOptions): Promise<SleepResult> {
     interactive
   });
 
-  const cloudSync = await autoSyncOnHandoff();
   let observationRoutingSummary: string | undefined;
 
   try {
@@ -257,5 +253,5 @@ export async function sleep(options: SleepOptions): Promise<SleepResult> {
     // Observational memory should never block session handoff completion.
   }
 
-  return { handoff, document, git, cloudSync, observationRoutingSummary };
+  return { handoff, document, git, observationRoutingSummary };
 }

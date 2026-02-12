@@ -1,9 +1,11 @@
 ---
 name: clawvault
-version: 1.8.2
-description: Agent memory system with checkpoint/recover, structured storage, semantic search. Use when: storing/searching memories, preventing context death. Don't use when: general file I/O.
+version: 1.11.2
+description: Agent memory system with checkpoint/recover, structured storage, semantic search, session transcript repair, and optional cloud sync. Use when: storing/searching memories, preventing context death, repairing broken sessions. Don't use when: general file I/O.
 author: Versatly
 repository: https://github.com/Versatly/clawvault
+homepage: https://clawvault.dev
+metadata: {"openclaw":{"emoji":"🐘","requires":{"bins":["clawvault"]},"install":[{"id":"node","kind":"node","package":"clawvault","bins":["clawvault"],"label":"Install ClawVault CLI (npm)"}]}}
 ---
 
 # ClawVault 🐘
@@ -11,6 +13,23 @@ repository: https://github.com/Versatly/clawvault
 An elephant never forgets. Structured memory for OpenClaw agents.
 
 > **Built for [OpenClaw](https://openclaw.ai)** — install via `clawhub install clawvault`
+
+## Security & Transparency
+
+**What this skill does:**
+- Reads/writes markdown files in your vault directory (`CLAWVAULT_PATH` or auto-discovered)
+- `repair-session` reads and modifies OpenClaw session transcripts (`~/.openclaw/agents/`) — creates backups before writing
+- Installs an OpenClaw **hook** (`hooks/clawvault/handler.js`) that runs on `gateway:startup` and `command:new` events to auto-checkpoint and detect context death. The hook is **opt-in** — enable via `openclaw hooks enable clawvault`
+- `observe --compress` makes LLM API calls (Gemini Flash by default) to compress session transcripts into observations
+
+**Environment variables used:**
+- `CLAWVAULT_PATH` — vault location (optional, auto-discovered if not set)
+- `OPENCLAW_HOME` / `OPENCLAW_STATE_DIR` — used by `repair-session` to find session transcripts
+- `GEMINI_API_KEY` — used by `observe` for LLM compression (optional, only if using observe features)
+
+**No cloud sync — all data stays local. No network calls except LLM API for observe compression.**
+
+**This is a full CLI tool, not instruction-only.** It writes files, registers hooks, and runs code.
 
 ## Install
 
@@ -226,6 +245,9 @@ qmd update && qmd embed
 ## Environment Variables
 
 - `CLAWVAULT_PATH` — Default vault path (skips auto-discovery)
+- `OPENCLAW_HOME` — OpenClaw home directory (used by repair-session)
+- `OPENCLAW_STATE_DIR` — OpenClaw state directory (used by repair-session)
+- `GEMINI_API_KEY` — Used by `observe` for LLM-powered compression (optional)
 
 ## Links
 

@@ -6,14 +6,12 @@ import * as path from 'path';
 const {
   createHandoffMock,
   clearDirtyFlagMock,
-  autoSyncOnHandoffMock,
   parseSessionFileMock,
   processMessagesMock,
   flushMock
 } = vi.hoisted(() => ({
   createHandoffMock: vi.fn(),
   clearDirtyFlagMock: vi.fn(),
-  autoSyncOnHandoffMock: vi.fn(),
   parseSessionFileMock: vi.fn(),
   processMessagesMock: vi.fn(),
   flushMock: vi.fn()
@@ -57,10 +55,6 @@ vi.mock('../lib/vault.js', () => ({
 
 vi.mock('./checkpoint.js', () => ({
   clearDirtyFlag: clearDirtyFlagMock
-}));
-
-vi.mock('../cloud/service.js', () => ({
-  autoSyncOnHandoff: autoSyncOnHandoffMock
 }));
 
 vi.mock('../observer/session-parser.js', () => ({
@@ -115,7 +109,6 @@ describe('sleep', () => {
       tags: [],
       modified: new Date('2026-02-11T08:00:00.000Z')
     });
-    autoSyncOnHandoffMock.mockResolvedValue({ synced: 0, remaining: 0 });
     parseSessionFileMock.mockReturnValue(['user: ship feature', 'assistant: completed']);
     processMessagesMock.mockResolvedValue(undefined);
     flushMock.mockResolvedValue({
@@ -153,7 +146,6 @@ describe('sleep', () => {
       tags: [],
       modified: new Date('2026-02-11T08:15:00.000Z')
     });
-    autoSyncOnHandoffMock.mockResolvedValue({ synced: 0, remaining: 0 });
     parseSessionFileMock.mockReturnValue(['user: from env']);
     processMessagesMock.mockResolvedValue(undefined);
     flushMock.mockResolvedValue({ observations: '', routingSummary: 'Routed 0 observations → none' });
@@ -183,7 +175,6 @@ describe('sleep', () => {
       tags: [],
       modified: new Date('2026-02-11T08:30:00.000Z')
     });
-    autoSyncOnHandoffMock.mockResolvedValue({ synced: 0, remaining: 0 });
     parseSessionFileMock.mockReturnValue(['user: this should fail in observer']);
     processMessagesMock.mockRejectedValue(new Error('observer failed'));
 

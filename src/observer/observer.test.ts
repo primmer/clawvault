@@ -91,6 +91,7 @@ describe('Observer', () => {
     const vaultPath = makeTempVault();
     process.env.ANTHROPIC_API_KEY = '';
     process.env.OPENAI_API_KEY = '';
+    process.env.GEMINI_API_KEY = '';
     const now = withFixedNow('2026-02-11T14:10:00.000Z');
 
     try {

@@ -1,5 +1,118 @@
 # Changelog
 
+## [1.11.2] - 2026-02-12
+
+### Fixed
+- **Entity-slug routing** — People/project observations now route to entity subfolders (`people/pedro/2026-02-12.md` instead of `people/2026-02-12.md`)
+- **Root-level file prevention** — Observations never create files at vault root; always route to category folders
+- **Entity name extraction** — Case-sensitive proper noun matching prevents capturing common words as entity names
+- **Dedup improvements** — Router uses normalized content + Jaccard similarity to prevent duplicate entries
+
+### Changed
+- Router `appendToCategory` now resolves entity-aware file paths for people and projects categories
+- Updated router tests to validate entity-slug subfolder structure
+
+---
+
+## [1.11.1] - 2026-02-11
+
+### Fixed
+- **Compressor priority enforcement** — Post-processes LLM output to upgrade misclassified priorities (decisions→🔴, preferences→🟡)
+- **Temporal decay in reflector** — 🟢 observations older than 7 days auto-pruned; 🔴 always kept
+- **Exec summary in wake** — Wake command now shows richer context with observation summaries
+- **Dedup normalization** — Strips timestamps, wiki-links, and whitespace before comparing for duplicates
+
+---
+
+## [1.11.0] - 2026-02-11
+
+### Removed
+- **Cloud sync** — Removed entire `src/cloud/` module (client, config, queue, service, types)
+- **`clawvault cloud` command** — Removed cloud sync CLI command
+- All cloud-related dependencies and imports stripped
+
+### Philosophy
+- ClawVault is now fully local-first. Zero network calls except optional LLM API for observe compression.
+- Local folder sync (`vault.sync()`) remains for Obsidian cross-platform workflows.
+
+---
+
+## [1.10.2] - 2026-02-10
+
+### Added
+- Auto wiki-links in routed observations for Obsidian graph view
+
+---
+
+## [1.10.1] - 2026-02-10
+
+### Fixed
+- Search docs: clarified memory_search vs clawvault search scope
+
+---
+
+## [1.10.0] - 2026-02-10
+
+### Changed
+- Clean repo: removed internal docs, SEO bloat, dist from git
+
+---
+
+## [1.9.6] - 2026-02-10
+
+### Fixed
+- Stress test fixes: priority calibration, budget enforcement, scoring, watch reliability, wake verbosity
+
+---
+
+## [1.9.5] - 2026-02-10
+
+### Fixed
+- Stronger decision detection in compressor
+
+---
+
+## [1.9.4] - 2026-02-10
+
+### Fixed
+- Enforce priority rules on LLM output, fix people routing patterns
+
+---
+
+## [1.9.3] - 2026-02-10
+
+### Fixed
+- Watch, dedup, budget, classification, people routing fixes
+
+---
+
+## [1.9.2] - 2026-02-10
+
+### Added
+- Gemini support for observer compressor (in addition to Anthropic + OpenAI)
+
+---
+
+## [1.9.1] - 2026-02-10
+
+### Added
+- Auto-observe on sleep/wake
+- Context-aware token budgets for observation injection
+
+---
+
+## [1.9.0] - 2026-02-10
+
+### Added
+- **Observational memory system** — Compresses session transcripts into durable observations
+- Observer, Compressor, Reflector, Router, SessionWatcher, SessionParser modules
+- Priority system (🔴 critical, 🟡 notable, 🟢 info) with automatic classification
+- Vault routing: observations auto-categorize to decisions/, people/, lessons/, etc.
+- File watcher mode for real-time session observation
+- One-shot compression via `--compress` flag
+
+---
+
 ## [1.8.2] - 2026-02-09
 
 ### Fixed

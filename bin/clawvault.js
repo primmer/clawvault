@@ -103,16 +103,6 @@ function printQmdMissing() {
   console.log(chalk.dim(`Install: ${QMD_INSTALL_COMMAND}`));
 }
 
-function cloudSkipReasonText(reason) {
-  const map = {
-    'empty-queue': 'No pending traces to sync.',
-    'cloud-not-configured': 'Cloud not fully configured (need API key and linked vault).',
-    'sync-disabled': 'Cloud sync disabled for this trace emit.',
-    'sync-failed': 'Cloud sync failed; traces remain queued.'
-  };
-  return map[reason] || `Skipped: ${reason}`;
-}
-
 function parseBooleanInput(value, defaultValue = true) {
   const normalized = value.trim().toLowerCase();
   if (!normalized) {
@@ -125,125 +115,6 @@ function parseBooleanInput(value, defaultValue = true) {
     return false;
   }
   return null;
-}
-
-async function promptDecisionTrace(initialSummary) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-
-  const ask = async (label, defaultValue = '') => {
-    const suffix = defaultValue ? ` [${defaultValue}]` : '';
-    const answer = await rl.question(`${label}${suffix}: `);
-    const trimmed = answer.trim();
-    return trimmed || defaultValue;
-  };
-
-  const askRequired = async (label, defaultValue = '') => {
-    while (true) {
-      const value = await ask(label, defaultValue);
-      if (value.trim()) {
-        return value.trim();
-      }
-      console.log(chalk.yellow(`${label} is required.`));
-    }
-  };
-
-  const askBoolean = async (label, defaultValue = true) => {
-    while (true) {
-      const defaultText = defaultValue ? 'Y/n' : 'y/N';
-      const answer = await rl.question(`${label} (${defaultText}): `);
-      const parsed = parseBooleanInput(answer, defaultValue);
-      if (parsed !== null) {
-        return parsed;
-      }
-      console.log(chalk.yellow('Please answer yes or no.'));
-    }
-  };
-
-  const askOptionalObject = async (label) => {
-    while (true) {
-      const raw = await rl.question(`${label} (JSON object, leave blank for none): `);
-      const trimmed = raw.trim();
-      if (!trimmed) {
-        return undefined;
-      }
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          console.log(chalk.yellow('Please enter a JSON object (e.g. {"key":"value"}).'));
-          continue;
-        }
-        return parsed;
-      } catch {
-        console.log(chalk.yellow('Invalid JSON. Try again.'));
-      }
-    }
-  };
-
-  const collectInputs = async () => {
-    const inputs = [];
-    let index = 1;
-    while (await askBoolean(`Add input #${index}?`, index === 1)) {
-      const source = await askRequired('  input.source');
-      const type = await askRequired('  input.type');
-      const id = await askRequired('  input.id');
-      const data = await askOptionalObject('  input.data');
-      inputs.push(data ? { source, type, id, data } : { source, type, id });
-      index += 1;
-    }
-    return inputs;
-  };
-
-  const collectPolicies = async () => {
-    const policies = [];
-    let index = 1;
-    while (await askBoolean(`Add policy #${index}?`, index === 1)) {
-      const id = await askRequired('  policy.id');
-      const name = await askRequired('  policy.name');
-      const version = await askRequired('  policy.version', '1.0');
-      const rule = await askRequired('  policy.rule');
-      const result = await askRequired('  policy.result');
-      policies.push({ id, name, version, rule, result });
-      index += 1;
-    }
-    return policies;
-  };
-
-  const collectExceptions = async () => {
-    const exceptions = [];
-    let index = 1;
-    while (await askBoolean(`Add exception #${index}?`, false)) {
-      const policyId = await askRequired('  exception.policyId');
-      const reason = await askRequired('  exception.reason');
-      const approvedBy = await ask('  exception.approvedBy');
-      exceptions.push(approvedBy ? { policyId, reason, approvedBy } : { policyId, reason });
-      index += 1;
-    }
-    return exceptions;
-  };
-
-  try {
-    console.log(chalk.cyan('\nTrace emit interactive mode\n'));
-    const summary = await askRequired('summary', initialSummary);
-    const inputs = await collectInputs();
-    const policies = await collectPolicies();
-    const exceptions = await collectExceptions();
-
-    console.log(chalk.cyan('\nOutcome\n'));
-    const action = await askRequired('  outcome.action');
-    const target = await askRequired('  outcome.target');
-    const success = await askBoolean('  outcome.success', true);
-    const data = await askOptionalObject('  outcome.data');
-
-    return {
-      summary,
-      inputs,
-      policies,
-      exceptions,
-      outcome: data ? { action, target, success, data } : { action, target, success }
-    };
-  } finally {
-    rl.close();
-  }
 }
 
 program
@@ -308,164 +179,6 @@ program
     try {
       const { setupCommand } = await import('../dist/commands/setup.js');
       await setupCommand();
-    } catch (err) {
-      console.error(chalk.red(`Error: ${err.message}`));
-      process.exit(1);
-    }
-  });
-
-// === CONFIG ===
-program
-  .command('config')
-  .description('Manage ClawVault cloud configuration')
-  .option('--cloud-key <key>', 'Set cloud API key')
-  .option('--cloud-api-url <url>', 'Set cloud API base URL')
-  .option('--json', 'Output as JSON')
-  .action(async (options) => {
-    try {
-      const { cloudConfigCommand } = await import('../dist/commands/cloud.js');
-      const status = await cloudConfigCommand({
-        cloudKey: options.cloudKey,
-        cloudApiUrl: options.cloudApiUrl
-      });
-
-      if (options.json) {
-        console.log(JSON.stringify(status, null, 2));
-        return;
-      }
-
-      console.log(chalk.cyan('\n☁️  Cloud Config\n'));
-      console.log(chalk.dim(`API key: ${status.cloudApiKeyMasked}`));
-      console.log(chalk.dim(`Vault ID: ${status.cloudVaultId || '(not linked)'}`));
-      console.log(chalk.dim(`Org slug: ${status.cloudOrgSlug || '(not set)'}`));
-      console.log(chalk.dim(`Queue depth: ${status.queueDepth}`));
-      console.log(chalk.dim(`Configured: ${status.configured ? 'yes' : 'no'}`));
-      console.log();
-    } catch (err) {
-      console.error(chalk.red(`Error: ${err.message}`));
-      process.exit(1);
-    }
-  });
-
-// === ORG ===
-const org = program
-  .command('org')
-  .description('Manage cloud organization link');
-
-org
-  .command('link')
-  .description('Link this vault to cloud org')
-  .option('-v, --vault <path>', 'Vault path')
-  .option('-a, --agent-id <id>', 'Agent ID (default: OPENCLAW_AGENT_ID or agent-local)')
-  .option('--org-slug <slug>', 'Org slug override')
-  .option('--json', 'Output as JSON')
-  .action(async (options) => {
-    try {
-      const vaultPath = resolveVaultPath(options.vault);
-      const { orgLinkCommand } = await import('../dist/commands/cloud.js');
-      const result = await orgLinkCommand({
-        vaultPath,
-        agentId: options.agentId,
-        orgSlug: options.orgSlug
-      });
-
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
-        return;
-      }
-
-      console.log(chalk.green(`✓ Cloud vault linked: ${result.vaultId}`));
-      console.log(chalk.dim(`  Vault: ${result.vaultName}`));
-      if (result.orgSlug) {
-        console.log(chalk.dim(`  Org: ${result.orgSlug}`));
-      }
-    } catch (err) {
-      console.error(chalk.red(`Error: ${err.message}`));
-      process.exit(1);
-    }
-  });
-
-org
-  .command('status')
-  .description('Show cloud org link status')
-  .option('--json', 'Output as JSON')
-  .action(async (options) => {
-    try {
-      const { orgStatusCommand } = await import('../dist/commands/cloud.js');
-      const status = await orgStatusCommand();
-
-      if (options.json) {
-        console.log(JSON.stringify(status, null, 2));
-        return;
-      }
-
-      console.log(chalk.cyan('\n☁️  Org Status\n'));
-      console.log(chalk.dim(`Configured: ${status.configured ? 'yes' : 'no'}`));
-      console.log(chalk.dim(`API key set: ${status.apiKeySet ? 'yes' : 'no'}`));
-      console.log(chalk.dim(`Vault linked: ${status.vaultIdSet ? 'yes' : 'no'}`));
-      console.log(chalk.dim(`Org slug: ${status.orgSlug || '(not set)'}`));
-      console.log(chalk.dim(`Queue depth: ${status.queueDepth}`));
-      if (status.cloudApiUrl) {
-        console.log(chalk.dim(`API URL: ${status.cloudApiUrl}`));
-      }
-      console.log();
-    } catch (err) {
-      console.error(chalk.red(`Error: ${err.message}`));
-      process.exit(1);
-    }
-  });
-
-// === TRACE ===
-const trace = program
-  .command('trace')
-  .description('Manage decision traces');
-
-trace
-  .command('emit')
-  .description('Emit decision trace (interactive, local + cloud queue)')
-  .option('--summary <text>', 'Decision summary')
-  .option('--trace-json <json>', 'Decision trace JSON payload')
-  .option('--trace-file <path>', 'Path to JSON trace payload')
-  .option('--stdin', 'Read JSON trace payload from stdin')
-  .option('--no-sync', 'Skip immediate cloud sync attempt')
-  .option('--json', 'Output as JSON')
-  .action(async (options) => {
-    try {
-      const { traceEmitCommand } = await import('../dist/commands/cloud.js');
-      const hasPayloadInput = Boolean(options.traceJson || options.traceFile || options.stdin);
-
-      let tracePayload;
-      if (!hasPayloadInput) {
-        if (!process.stdin.isTTY || !process.stdout.isTTY) {
-          throw new Error(
-            'Interactive trace emit requires a TTY. Use --trace-json, --trace-file, or --stdin for non-interactive mode.'
-          );
-        }
-        tracePayload = await promptDecisionTrace(options.summary);
-      }
-
-      const result = await traceEmitCommand({
-        summary: options.summary,
-        traceJson: options.traceJson,
-        traceFile: options.traceFile,
-        stdin: options.stdin,
-        sync: options.sync,
-        trace: tracePayload
-      });
-
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
-        return;
-      }
-
-      console.log(chalk.green(`✓ Trace emitted: ${result.trace.localTraceId}`));
-      console.log(chalk.dim(`  Summary: ${result.trace.summary}`));
-      console.log(chalk.dim(`  Queue depth: ${result.queueDepth}`));
-      if (result.sync.skippedReason) {
-        console.log(chalk.yellow(`  Cloud sync: ${cloudSkipReasonText(result.sync.skippedReason)}`));
-      } else {
-        console.log(chalk.dim(`  Cloud sync: sent ${result.sync.synced}, remaining ${result.sync.remaining}`));
-      }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);
@@ -538,16 +251,6 @@ program
       if (options.index !== false) {
         const collection = vault.getQmdCollection();
         await runQmd(collection ? ['update', '-c', collection] : ['update']);
-      }
-
-      const { autoSyncHandoffCommand } = await import('../dist/commands/cloud.js');
-      const cloudSync = await autoSyncHandoffCommand();
-      if (!options.json) {
-        if (cloudSync.skippedReason) {
-          console.log(chalk.dim(`  Cloud sync: ${cloudSkipReasonText(cloudSync.skippedReason)}`));
-        } else {
-          console.log(chalk.dim(`  Cloud sync: sent ${cloudSync.synced}, remaining ${cloudSync.remaining}`));
-        }
       }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
@@ -882,33 +585,15 @@ program
     }
   });
 
-// === SYNC ===
+// === SYNC (vault file sync only) ===
 program
-  .command('sync [target]')
-  .description('Sync traces to cloud (or vault files to target path)')
+  .command('sync <target>')
+  .description('Sync vault files to target path')
   .option('--delete', 'Delete orphan files in target')
   .option('--dry-run', "Show what would be synced without syncing")
-  .option('--all', 'For cloud sync, send all queued traces')
-  .option('--limit <n>', 'For cloud sync, max traces to send')
   .option('-v, --vault <path>', 'Vault path')
   .action(async (target, options) => {
     try {
-      if (!target) {
-        const { cloudSyncCommand } = await import('../dist/commands/cloud.js');
-        const cloudResult = await cloudSyncCommand({
-          all: options.all,
-          limit: options.limit ? parseInt(options.limit, 10) : undefined
-        });
-
-        if (cloudResult.skippedReason) {
-          console.log(chalk.yellow(cloudSkipReasonText(cloudResult.skippedReason)));
-        } else {
-          console.log(chalk.green(`✓ Synced ${cloudResult.synced} trace(s) to cloud`));
-          console.log(chalk.dim(`  Remaining queued: ${cloudResult.remaining}`));
-        }
-        return;
-      }
-
       const vault = await getVault(options.vault);
 
       console.log(chalk.cyan(`\n🔄 Syncing to ${target}...\n`));
@@ -1128,13 +813,6 @@ program
           console.log(chalk.dim('  Git: commit skipped'));
         }
       }
-      if (result.cloudSync) {
-        if (result.cloudSync.skippedReason) {
-          console.log(chalk.dim(`  Cloud sync: ${cloudSkipReasonText(result.cloudSync.skippedReason)}`));
-        } else {
-          console.log(chalk.dim(`  Cloud sync: sent ${result.cloudSync.synced}, remaining ${result.cloudSync.remaining}`));
-        }
-      }
       if (result.observationRoutingSummary) {
         console.log(chalk.dim(`  Observe: ${result.observationRoutingSummary}`));
       }
@@ -1177,7 +855,6 @@ program
       };
       
       const doc = await vault.createHandoff(handoff);
-      let cloudSync;
       
       if (!options.json) {
         console.log(chalk.green(`✓ Handoff created: ${doc.id}`));
@@ -1190,15 +867,8 @@ program
         await runQmd(collection ? ['update', '-c', collection] : ['update']);
       }
 
-      const { autoSyncHandoffCommand } = await import('../dist/commands/cloud.js');
-      cloudSync = await autoSyncHandoffCommand();
-
       if (options.json) {
-        console.log(JSON.stringify({ id: doc.id, path: doc.path, handoff, cloudSync }, null, 2));
-      } else if (cloudSync.skippedReason) {
-        console.log(chalk.dim(`  Cloud sync: ${cloudSkipReasonText(cloudSync.skippedReason)}`));
-      } else {
-        console.log(chalk.dim(`  Cloud sync: sent ${cloudSync.synced}, remaining ${cloudSync.remaining}`));
+        console.log(JSON.stringify({ id: doc.id, path: doc.path, handoff }, null, 2));
       }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
@@ -1442,11 +1112,9 @@ program
         blocked: options.blocked,
         urgent: options.urgent
       });
-      const { autoSyncCheckpointCommand } = await import('../dist/commands/cloud.js');
-      const cloudSync = await autoSyncCheckpointCommand();
       
       if (options.json) {
-        console.log(JSON.stringify({ ...data, cloudSync }, null, 2));
+        console.log(JSON.stringify(data, null, 2));
       } else {
         console.log(chalk.green('✓ Checkpoint saved'));
         console.log(chalk.dim(`  Timestamp: ${data.timestamp}`));
@@ -1454,11 +1122,6 @@ program
         if (data.focus) console.log(chalk.dim(`  Focus: ${data.focus}`));
         if (data.blocked) console.log(chalk.dim(`  Blocked: ${data.blocked}`));
         if (data.urgent) console.log(chalk.dim('  Urgent: yes'));
-        if (cloudSync.skippedReason) {
-          console.log(chalk.dim(`  Cloud sync: ${cloudSkipReasonText(cloudSync.skippedReason)}`));
-        } else {
-          console.log(chalk.dim(`  Cloud sync: sent ${cloudSync.synced}, remaining ${cloudSync.remaining}`));
-        }
       }
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));

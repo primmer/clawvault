@@ -131,22 +131,106 @@ export class Router {
     return null;
   }
 
-  private appendToCategory(category: string, item: RoutedItem): void {
+  private normalizeForDedup(content: string): string {
+    return content
+      .replace(/^\d{2}:\d{2}\s+/, '')
+      .replace(/\[\[[^\]]*\]\]/g, (m) => m.replace(/\[\[|\]\]/g, ''))
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  /**
+   * Extract entity slug from observation content for people/projects routing.
+   * Returns null if no entity can be identified.
+   */
+  private extractEntitySlug(content: string, category: string): string | null {
+    if (category !== 'people' && category !== 'projects') return null;
+
+    if (category === 'people') {
+      // Match patterns like "talked to Pedro", "met with Maria", "Justin said"
+      // Note: name patterns are case-SENSITIVE to only match capitalized proper nouns
+      const patterns = [
+        /(?:talked to|met with|spoke with|chatted with|discussed with|emailed|called|messaged)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/,
+        /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:said|asked|told|mentioned|from|at)\b/,
+        /\b(?:client|partner|colleague|contact)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match?.[1]) return this.toSlug(match[1]);
+      }
+    }
+
+    if (category === 'projects') {
+      // Match project-like names (capitalized, or in quotes)
+      const patterns = [
+        /(?:deployed|shipped|launched|released|built|created|working on)\s+([A-Z][a-zA-Z0-9-]+)/,
+        /"([^"]+)"\s+(?:project|repo|service)/i,
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match?.[1]) return this.toSlug(match[1]);
+      }
+    }
+
+    return null;
+  }
+
+  private toSlug(name: string): string {
+    return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  }
+
+  /**
+   * Resolve the file path for a routed item.
+   * For people/projects: entity-slug subfolder with date file (e.g., people/pedro/2026-02-12.md)
+   * For other categories: category/date.md
+   */
+  private resolveFilePath(category: string, item: RoutedItem): string {
+    const entitySlug = this.extractEntitySlug(item.content, category);
+    if (entitySlug) {
+      const entityDir = path.join(this.vaultPath, category, entitySlug);
+      fs.mkdirSync(entityDir, { recursive: true });
+      return path.join(entityDir, `${item.date}.md`);
+    }
     const categoryDir = path.join(this.vaultPath, category);
     fs.mkdirSync(categoryDir, { recursive: true });
+    return path.join(categoryDir, `${item.date}.md`);
+  }
 
-    // Append to the date-based category file
-    const filePath = path.join(categoryDir, `${item.date}.md`);
+  private appendToCategory(category: string, item: RoutedItem): void {
+    // Resolve file path (entity-aware for people/projects)
+    const filePath = this.resolveFilePath(category, item);
+    // Ensure parent dir exists (resolveFilePath handles entity dirs, but be safe)
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
     const existing = fs.existsSync(filePath)
       ? fs.readFileSync(filePath, 'utf-8').trim()
       : '';
 
-    // Don't duplicate
-    if (existing.includes(item.content)) return;
+    // Normalized dedup: strip timestamps, wiki-links, whitespace, case
+    const normalizedNew = this.normalizeForDedup(item.content);
+    const existingLines = existing.split(/\r?\n/);
+    for (const line of existingLines) {
+      const lineContent = line.replace(/^-\s*(?:🔴|🟡|🟢)\s*/, '');
+      if (this.normalizeForDedup(lineContent) === normalizedNew) return;
+    }
+
+    // Also check similarity (>80% overlap = likely duplicate)
+    for (const line of existingLines) {
+      const lineContent = line.replace(/^-\s*(?:🔴|🟡|🟢)\s*/, '');
+      const normalizedExisting = this.normalizeForDedup(lineContent);
+      if (normalizedExisting.length > 10 && normalizedNew.length > 10) {
+        const shorter = normalizedNew.length < normalizedExisting.length ? normalizedNew : normalizedExisting;
+        const longer = normalizedNew.length >= normalizedExisting.length ? normalizedNew : normalizedExisting;
+        if (longer.includes(shorter) || this.similarity(normalizedNew, normalizedExisting) > 0.8) return;
+      }
+    }
 
     const linkedContent = this.addWikiLinks(item.content);
     const entry = `- ${item.priority} ${linkedContent}`;
-    const header = existing ? '' : `# ${category} — ${item.date}\n`;
+    const entitySlug = this.extractEntitySlug(item.content, category);
+    const headerLabel = entitySlug ? `${category}/${entitySlug}` : category;
+    const header = existing ? '' : `# ${headerLabel} — ${item.date}\n`;
     const newContent = existing
       ? `${existing}\n${entry}\n`
       : `${header}\n${entry}\n`;
@@ -207,6 +291,24 @@ export class Router {
       }
       return match;
     });
+  }
+
+  /**
+   * Jaccard similarity on word bigrams — cheap approximation.
+   */
+  private similarity(a: string, b: string): number {
+    const bigrams = (s: string): Set<string> => {
+      const words = s.split(' ');
+      const bg = new Set<string>();
+      for (let i = 0; i < words.length - 1; i++) bg.add(`${words[i]} ${words[i + 1]}`);
+      return bg;
+    };
+    const setA = bigrams(a);
+    const setB = bigrams(b);
+    if (setA.size === 0 || setB.size === 0) return 0;
+    let intersection = 0;
+    for (const bg of setA) if (setB.has(bg)) intersection++;
+    return intersection / (setA.size + setB.size - intersection);
   }
 
   private buildSummary(routed: RoutedItem[]): string {

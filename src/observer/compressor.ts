@@ -59,6 +59,7 @@ export class Compressor {
   }
 
   private resolveProvider(): 'anthropic' | 'openai' | 'gemini' | null {
+    if (process.env.CLAWVAULT_NO_LLM) return null;
     if (process.env.ANTHROPIC_API_KEY) {
       return 'anthropic';
     }
@@ -73,21 +74,33 @@ export class Compressor {
 
   private buildPrompt(messages: string[], existingObservations: string): string {
     return [
-      'You are an observer that compresses raw AI session messages into durable observations.',
+      'You are an observer that compresses raw AI session messages into durable, human-meaningful observations.',
       '',
       'Rules:',
       '- Output markdown only.',
       '- Group observations by date heading: ## YYYY-MM-DD',
       '- Each line must follow: <emoji> <HH:MM> <observation>',
       '- Priority emojis: 🔴 critical, 🟡 notable, 🟢 info',
-      '- 🔴 for: decisions between alternatives, errors/failures, blockers, deadlines with explicit dates, breaking changes',
-      '- 🟡 for: preferences, architecture discussions, trade-offs, milestones, people interactions, notable context, routine deadlines',
-      '- 🟢 for: routine updates, deployments, builds, general info',
-      '- Preferences are 🟡 unless they indicate a breaking decision between alternatives.',
-      '- Each distinct error type or failure must be its own observation line; do not merge different errors.',
-      '- If multiple different errors occurred, list each separately with its specific error message.',
-      '- Keep observations concise and factual.',
-      '- Avoid duplicates when possible.',
+      '- 🔴 for: decisions between alternatives, blockers, deadlines with explicit dates, breaking changes, commitments made to people',
+      '- 🟡 for: preferences, architecture discussions, trade-offs, milestones, people interactions, notable context',
+      '- 🟢 for: completed tasks, deployments, builds, general progress',
+      '',
+      'QUALITY FILTERS (important):',
+      '- DO NOT observe: CLI errors, command failures, tool output parsing issues, retry attempts, debug logs.',
+      '  These are transient noise, not memories. Only observe errors if they represent a BLOCKER or an unresolved problem.',
+      '- DO NOT observe: "acknowledged the conversation", "said okay", routine confirmations.',
+      '- MERGE related events into single observations. If 5 images were generated, say "Generated 5 images for X" not 5 separate lines.',
+      '- MERGE retry sequences: "Tried X, failed, tried Y, succeeded" → "Resolved X using Y (after initial failure)"',
+      '- Prefer OUTCOMES over PROCESSES: "Deployed v1.2 to Railway" not "Started deploy... build finished... deploy succeeded"',
+      '',
+      'AGENT ATTRIBUTION:',
+      '- If the transcript shows multiple speakers/agents, prefix observations with who did it: "Pedro asked...", "Clawdious deployed...", "Zeca generated..."',
+      '- If only one agent is acting, attribution is optional.',
+      '',
+      'COMMITMENT FORMAT (when someone promises/agrees to something):',
+      '- Use: "🔴 HH:MM [COMMITMENT] <who> committed to <what> by <when>" (include deadline if mentioned)',
+      '',
+      'Keep observations concise and factual. Aim for signal, not completeness.',
       '',
       'Existing observations (may be empty):',
       existingObservations.trim() || '(none)',

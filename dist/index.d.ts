@@ -333,7 +333,7 @@ declare class Compressor {
     private normalizeLlmOutput;
     /**
      * Post-process LLM output to enforce priority rules.
-     * Lines matching CRITICAL_RE get upgraded to 🔴, NOTABLE_RE to 🟡.
+     * Lines matching critical rules get upgraded to 🔴, notable rules to 🟡.
      */
     private enforcePriorityRules;
     private fallbackCompression;
@@ -343,6 +343,8 @@ declare class Compressor {
     private parseSections;
     private renderSections;
     private inferPriority;
+    private isCriticalContent;
+    private isNotableContent;
     private normalizeText;
     private extractDate;
     private extractTime;
@@ -368,22 +370,28 @@ declare class Reflector {
 interface SessionWatcherOptions {
     ignoreInitial?: boolean;
     debounceMs?: number;
+    flushThresholdChars?: number;
 }
 declare class SessionWatcher {
     private readonly watchPath;
     private readonly observer;
     private readonly ignoreInitial;
     private readonly debounceMs;
+    private readonly flushThresholdChars;
     private watcher;
     private fileOffsets;
     private pendingPaths;
     private debounceTimer;
     private processingQueue;
+    private bufferedChars;
     constructor(watchPath: string, observer: Observer, options?: SessionWatcherOptions);
     start(): Promise<void>;
     stop(): Promise<void>;
     private scheduleDrain;
+    private drainPendingPaths;
     private consumeFile;
+    private primeInitialOffsets;
+    private collectFiles;
 }
 
 declare function parseSessionFile(filePath: string): string[];

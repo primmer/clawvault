@@ -13,7 +13,7 @@ import {
 import {
   Observer,
   parseSessionFile
-} from "../chunk-ITN7XQPX.js";
+} from "../chunk-SIDM2I2C.js";
 
 // src/commands/sleep.ts
 import * as fs from "fs";

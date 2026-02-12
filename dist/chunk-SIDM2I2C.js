@@ -1,8 +1,9 @@
 // src/observer/compressor.ts
 var DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 var OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(.+)$/u;
-var CRITICAL_RE = /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b|\bdeadline\b|\bbreaking\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b)/i;
-var NOTABLE_RE = /\b(context|pattern|architecture|approach|trade[- ]?off|milestone|notable)\b/i;
+var CRITICAL_RE = /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure|ing)?\b|\bblock(?:ed|er)?\b|\bbreaking(?:\s+change)?s?\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b)/i;
+var DEADLINE_WITH_DATE_RE = /(?:(?:\bdeadline\b|\bdue(?:\s+date)?\b|\bcutoff\b).*(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2})|(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}).*(?:\bdeadline\b|\bdue(?:\s+date)?\b|\bcutoff\b))/i;
+var NOTABLE_RE = /\b(prefer(?:ence|s)?|likes?|dislikes?|context|pattern|architecture|approach|trade[- ]?off|milestone|stakeholder|teammate|collaborat(?:e|ed|ion)|discussion|notable|deadline|due|timeline)\b/i;
 var Compressor = class {
   model;
   now;
@@ -53,10 +54,12 @@ var Compressor = class {
       "- Group observations by date heading: ## YYYY-MM-DD",
       "- Each line must follow: <emoji> <HH:MM> <observation>",
       "- Priority emojis: \u{1F534} critical, \u{1F7E1} notable, \u{1F7E2} info",
-      "- \u{1F534} MUST be used for: any decision (chose X, decided Y, selected Z, opted for, switched to), errors/failures, deadlines, blockers, preferences, breaking changes",
-      "- \u{1F7E1} for: architecture discussions, trade-offs, milestones, patterns, notable context",
+      "- \u{1F534} for: decisions between alternatives, errors/failures, blockers, deadlines with explicit dates, breaking changes",
+      "- \u{1F7E1} for: preferences, architecture discussions, trade-offs, milestones, people interactions, notable context, routine deadlines",
       "- \u{1F7E2} for: routine updates, deployments, builds, general info",
-      "- When someone chooses between options, that is ALWAYS \u{1F534} \u2014 even if the choice seems minor",
+      "- Preferences are \u{1F7E1} unless they indicate a breaking decision between alternatives.",
+      "- Each distinct error type or failure must be its own observation line; do not merge different errors.",
+      "- If multiple different errors occurred, list each separately with its specific error message.",
       "- Keep observations concise and factual.",
       "- Avoid duplicates when possible.",
       "",
@@ -161,7 +164,7 @@ ${cleaned}`;
   }
   /**
    * Post-process LLM output to enforce priority rules.
-   * Lines matching CRITICAL_RE get upgraded to 🔴, NOTABLE_RE to 🟡.
+   * Lines matching critical rules get upgraded to 🔴, notable rules to 🟡.
    */
   enforcePriorityRules(markdown) {
     return markdown.split(/\r?\n/).map((line) => {
@@ -169,10 +172,10 @@ ${cleaned}`;
       if (!match) return line;
       const currentPriority = match[1];
       const content = match[2];
-      if (CRITICAL_RE.test(content) && currentPriority !== "\u{1F534}") {
+      if (this.isCriticalContent(content) && currentPriority !== "\u{1F534}") {
         return line.replace(/^🟡|^🟢/u, "\u{1F534}");
       }
-      if (NOTABLE_RE.test(content) && currentPriority === "\u{1F7E2}") {
+      if (this.isNotableContent(content) && currentPriority === "\u{1F7E2}") {
         return line.replace(/^🟢/u, "\u{1F7E1}");
       }
       return line;
@@ -284,9 +287,15 @@ ${cleaned}`;
     return chunks.join("\n").trim();
   }
   inferPriority(text) {
-    if (CRITICAL_RE.test(text)) return "\u{1F534}";
-    if (NOTABLE_RE.test(text)) return "\u{1F7E1}";
+    if (this.isCriticalContent(text)) return "\u{1F534}";
+    if (this.isNotableContent(text)) return "\u{1F7E1}";
     return "\u{1F7E2}";
+  }
+  isCriticalContent(text) {
+    return CRITICAL_RE.test(text) || DEADLINE_WITH_DATE_RE.test(text);
+  }
+  isNotableContent(text) {
+    return NOTABLE_RE.test(text);
   }
   normalizeText(text) {
     return text.replace(/\s+/g, " ").replace(/\[[^\]]+\]/g, "").trim().slice(0, 280);

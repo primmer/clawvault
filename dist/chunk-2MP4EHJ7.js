@@ -1,7 +1,7 @@
 import {
   Observer,
   parseSessionFile
-} from "./chunk-ITN7XQPX.js";
+} from "./chunk-SIDM2I2C.js";
 
 // src/commands/observe.ts
 import * as fs2 from "fs";
@@ -12,21 +12,25 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import chokidar from "chokidar";
+var DEFAULT_FLUSH_THRESHOLD_CHARS = 500;
 var SessionWatcher = class {
   watchPath;
   observer;
   ignoreInitial;
   debounceMs;
+  flushThresholdChars;
   watcher = null;
   fileOffsets = /* @__PURE__ */ new Map();
   pendingPaths = /* @__PURE__ */ new Set();
   debounceTimer = null;
   processingQueue = Promise.resolve();
+  bufferedChars = 0;
   constructor(watchPath, observer, options = {}) {
     this.watchPath = path.resolve(watchPath);
     this.observer = observer;
     this.ignoreInitial = options.ignoreInitial ?? false;
     this.debounceMs = options.debounceMs ?? 500;
+    this.flushThresholdChars = Math.max(1, options.flushThresholdChars ?? DEFAULT_FLUSH_THRESHOLD_CHARS);
   }
   async start() {
     if (!fs.existsSync(this.watchPath)) {
@@ -55,14 +59,22 @@ var SessionWatcher = class {
       this.watcher?.once("ready", () => resolve3());
       this.watcher?.once("error", (error) => reject(error));
     });
+    if (this.ignoreInitial) {
+      this.primeInitialOffsets();
+    }
   }
   async stop() {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
+      this.drainPendingPaths();
+    }
+    await this.processingQueue.catch(() => void 0);
+    if (this.bufferedChars > 0) {
+      await this.observer.flush();
+      this.bufferedChars = 0;
     }
     this.pendingPaths.clear();
-    await this.processingQueue.catch(() => void 0);
     await this.watcher?.close();
     this.watcher = null;
   }
@@ -72,12 +84,15 @@ var SessionWatcher = class {
     }
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
-      const nextPaths = [...this.pendingPaths];
-      this.pendingPaths.clear();
-      for (const changedPath of nextPaths) {
-        this.processingQueue = this.processingQueue.then(() => this.consumeFile(changedPath)).catch(() => void 0);
-      }
+      this.drainPendingPaths();
     }, this.debounceMs);
+  }
+  drainPendingPaths() {
+    const nextPaths = [...this.pendingPaths];
+    this.pendingPaths.clear();
+    for (const changedPath of nextPaths) {
+      this.processingQueue = this.processingQueue.then(() => this.consumeFile(changedPath)).catch(() => void 0);
+    }
   }
   async consumeFile(filePath) {
     const resolved = path.resolve(filePath);
@@ -109,6 +124,45 @@ var SessionWatcher = class {
       return;
     }
     await this.observer.processMessages(messages);
+    this.bufferedChars += chunk.length;
+    if (this.bufferedChars >= this.flushThresholdChars) {
+      await this.observer.flush();
+      this.bufferedChars = 0;
+    }
+  }
+  primeInitialOffsets() {
+    for (const filePath of this.collectFiles(this.watchPath)) {
+      try {
+        const stats = fs.statSync(filePath);
+        if (stats.isFile()) {
+          this.fileOffsets.set(filePath, stats.size);
+        }
+      } catch {
+      }
+    }
+  }
+  collectFiles(targetPath) {
+    if (!fs.existsSync(targetPath)) {
+      return [];
+    }
+    const resolved = path.resolve(targetPath);
+    const stats = fs.statSync(resolved);
+    if (stats.isFile()) {
+      return [resolved];
+    }
+    if (!stats.isDirectory()) {
+      return [];
+    }
+    const collected = [];
+    for (const entry of fs.readdirSync(resolved, { withFileTypes: true })) {
+      const childPath = path.join(resolved, entry.name);
+      if (entry.isDirectory()) {
+        collected.push(...this.collectFiles(childPath));
+      } else if (entry.isFile()) {
+        collected.push(path.resolve(childPath));
+      }
+    }
+    return collected;
   }
 };
 

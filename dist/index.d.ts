@@ -331,6 +331,11 @@ declare class Compressor {
     private callOpenAI;
     private callGemini;
     private normalizeLlmOutput;
+    /**
+     * Post-process LLM output to enforce priority rules.
+     * Lines matching CRITICAL_RE get upgraded to 🔴, NOTABLE_RE to 🟡.
+     */
+    private enforcePriorityRules;
     private fallbackCompression;
     private mergeObservations;
     private deduplicateObservationLines;

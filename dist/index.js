@@ -41,13 +41,13 @@ import {
   SessionWatcher,
   observeCommand,
   registerObserveCommand
-} from "./chunk-JATU7JVY.js";
+} from "./chunk-DII3KLBF.js";
 import {
   Compressor,
   Observer,
   Reflector,
   parseSessionFile
-} from "./chunk-EQ2AZVBX.js";
+} from "./chunk-I3UNVUHJ.js";
 
 // src/index.ts
 import * as fs from "fs";

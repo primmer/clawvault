@@ -1,7 +1,7 @@
 import {
   Observer,
   parseSessionFile
-} from "./chunk-EQ2AZVBX.js";
+} from "./chunk-I3UNVUHJ.js";
 
 // src/commands/observe.ts
 import * as fs2 from "fs";

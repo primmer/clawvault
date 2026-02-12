@@ -14,7 +14,7 @@ interface ObservationLine {
 const DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 const OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(.+)$/u;
 const CRITICAL_RE =
-  /(?:\b(?:decision|decided|chose|selected)\s*:|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b)/i;
+  /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b|\bdeadline\b|\bbreaking\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b)/i;
 const NOTABLE_RE = /\b(context|pattern|architecture|approach|trade[- ]?off|milestone|notable)\b/i;
 
 export class Compressor {
@@ -79,7 +79,10 @@ export class Compressor {
       '- Group observations by date heading: ## YYYY-MM-DD',
       '- Each line must follow: <emoji> <HH:MM> <observation>',
       '- Priority emojis: 🔴 critical, 🟡 notable, 🟢 info',
-      '- Mark decisions, errors, user preferences, and blockers as 🔴',
+      '- 🔴 MUST be used for: any decision (chose X, decided Y, selected Z, opted for, switched to), errors/failures, deadlines, blockers, preferences, breaking changes',
+      '- 🟡 for: architecture discussions, trade-offs, milestones, patterns, notable context',
+      '- 🟢 for: routine updates, deployments, builds, general info',
+      '- When someone chooses between options, that is ALWAYS 🔴 — even if the choice seems minor',
       '- Keep observations concise and factual.',
       '- Avoid duplicates when possible.',
       '',

@@ -1,7 +1,7 @@
 // src/observer/compressor.ts
 var DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 var OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(.+)$/u;
-var CRITICAL_RE = /(?:\b(?:decision|decided|chose|selected)\s*:|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b)/i;
+var CRITICAL_RE = /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b|\bdeadline\b|\bbreaking\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b)/i;
 var NOTABLE_RE = /\b(context|pattern|architecture|approach|trade[- ]?off|milestone|notable)\b/i;
 var Compressor = class {
   model;
@@ -53,7 +53,10 @@ var Compressor = class {
       "- Group observations by date heading: ## YYYY-MM-DD",
       "- Each line must follow: <emoji> <HH:MM> <observation>",
       "- Priority emojis: \u{1F534} critical, \u{1F7E1} notable, \u{1F7E2} info",
-      "- Mark decisions, errors, user preferences, and blockers as \u{1F534}",
+      "- \u{1F534} MUST be used for: any decision (chose X, decided Y, selected Z, opted for, switched to), errors/failures, deadlines, blockers, preferences, breaking changes",
+      "- \u{1F7E1} for: architecture discussions, trade-offs, milestones, patterns, notable context",
+      "- \u{1F7E2} for: routine updates, deployments, builds, general info",
+      "- When someone chooses between options, that is ALWAYS \u{1F534} \u2014 even if the choice seems minor",
       "- Keep observations concise and factual.",
       "- Avoid duplicates when possible.",
       "",

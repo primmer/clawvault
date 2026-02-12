@@ -1064,6 +1064,7 @@ program
   .option('-q, --questions <items>', 'Open questions (comma-separated)')
   .option('-f, --feeling <state>', 'Emotional/energy state')
   .option('-s, --session <key>', 'Session key')
+  .option('--session-transcript <path>', 'Session transcript path for auto-observe')
   .option('--index', 'Update qmd index after handoff')
   .option('--no-git', 'Skip git commit prompt')
   .option('-v, --vault <path>', 'Vault path')
@@ -1079,6 +1080,7 @@ program
         questions: options.questions,
         feeling: options.feeling,
         sessionKey: options.session,
+        sessionTranscript: options.sessionTranscript,
         vaultPath,
         index: options.index,
         git: options.git
@@ -1124,6 +1126,9 @@ program
         } else {
           console.log(chalk.dim(`  Cloud sync: sent ${result.cloudSync.synced}, remaining ${result.cloudSync.remaining}`));
         }
+      }
+      if (result.observationRoutingSummary) {
+        console.log(chalk.dim(`  Observe: ${result.observationRoutingSummary}`));
       }
     } catch (err) {
       if (err instanceof QmdUnavailableError) {

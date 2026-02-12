@@ -1,7 +1,8 @@
 import {
   observeCommand,
   registerObserveCommand
-} from "../chunk-NSPPVMWC.js";
+} from "../chunk-MABF6XTU.js";
+import "../chunk-ZGHOVNRC.js";
 export {
   observeCommand,
   registerObserveCommand

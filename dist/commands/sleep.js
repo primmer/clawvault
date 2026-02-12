@@ -10,6 +10,10 @@ import {
 import {
   qmdUpdate
 } from "../chunk-MIIXBNO3.js";
+import {
+  Observer,
+  parseSessionFile
+} from "../chunk-ZGHOVNRC.js";
 
 // src/commands/sleep.ts
 import * as fs from "fs";
@@ -31,6 +35,22 @@ async function defaultPrompt(question) {
 function parseList(raw) {
   if (!raw) return [];
   return raw.split(",").map((item) => item.trim()).filter(Boolean);
+}
+function resolveSessionTranscriptPath(explicitPath) {
+  const candidates = [
+    explicitPath,
+    process.env.CLAWVAULT_SESSION_TRANSCRIPT,
+    process.env.OPENCLAW_SESSION_FILE,
+    process.env.OPENCLAW_SESSION_TRANSCRIPT
+  ];
+  for (const candidate of candidates) {
+    if (!candidate?.trim()) continue;
+    const resolved = path.resolve(candidate.trim());
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+      return resolved;
+    }
+  }
+  return null;
 }
 function ensureNonEmpty(label, items) {
   if (items.length === 0) {
@@ -154,7 +174,19 @@ async function sleep(options) {
     interactive
   });
   const cloudSync = await autoSyncOnHandoff();
-  return { handoff, document, git, cloudSync };
+  let observationRoutingSummary;
+  try {
+    const transcriptPath = resolveSessionTranscriptPath(options.sessionTranscript);
+    if (transcriptPath) {
+      const observer = new Observer(vault.getPath());
+      const messages = parseSessionFile(transcriptPath);
+      await observer.processMessages(messages);
+      const { routingSummary } = await observer.flush();
+      observationRoutingSummary = routingSummary || void 0;
+    }
+  } catch {
+  }
+  return { handoff, document, git, cloudSync, observationRoutingSummary };
 }
 export {
   sleep

@@ -12,6 +12,7 @@ interface WakeResult {
     recap: SessionRecap;
     recapMarkdown: string;
     summary: string;
+    observations: string;
 }
 declare function buildWakeSummary(recovery: RecoveryInfo, recap: SessionRecap): string;
 declare function wake(options: WakeOptions): Promise<WakeResult>;

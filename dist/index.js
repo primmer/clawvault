@@ -14,8 +14,9 @@ import {
 import {
   buildContext,
   contextCommand,
-  formatContextMarkdown
-} from "./chunk-XPGSEJGY.js";
+  formatContextMarkdown,
+  registerContextCommand
+} from "./chunk-S3TOK4VI.js";
 import {
   ClawVault,
   createVault,
@@ -37,13 +38,16 @@ import {
   qmdUpdate
 } from "./chunk-MIIXBNO3.js";
 import {
-  Compressor,
-  Observer,
-  Reflector,
   SessionWatcher,
   observeCommand,
   registerObserveCommand
-} from "./chunk-NSPPVMWC.js";
+} from "./chunk-MABF6XTU.js";
+import {
+  Compressor,
+  Observer,
+  Reflector,
+  parseSessionFile
+} from "./chunk-ZGHOVNRC.js";
 
 // src/index.ts
 import * as fs from "fs";
@@ -58,6 +62,7 @@ function readPackageVersion() {
 }
 var VERSION = readPackageVersion();
 function registerCommanderCommands(program) {
+  registerContextCommand(program);
   registerObserveCommand(program);
   return program;
 }
@@ -88,9 +93,11 @@ export {
   formatSessionRecapMarkdown,
   hasQmd,
   observeCommand,
+  parseSessionFile,
   qmdEmbed,
   qmdUpdate,
   registerCommanderCommands,
+  registerContextCommand,
   registerObserveCommand,
   renderTemplate,
   sessionRecapCommand,

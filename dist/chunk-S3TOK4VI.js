@@ -1,0 +1,397 @@
+import {
+  ClawVault
+} from "./chunk-3HFB7EMU.js";
+
+// src/commands/context.ts
+import * as path2 from "path";
+
+// src/lib/observation-reader.ts
+import * as fs from "fs";
+import * as path from "path";
+var DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
+var OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(\d{2}:\d{2})?\s*(.+)$/u;
+function readObservations(vaultPath, days = 7) {
+  const resolvedVaultPath = path.resolve(vaultPath);
+  const observationsDir = path.join(resolvedVaultPath, "observations");
+  if (!fs.existsSync(observationsDir)) {
+    return "";
+  }
+  const normalizedDays = Number.isFinite(days) ? Math.max(0, Math.floor(days)) : 0;
+  if (normalizedDays === 0) {
+    return "";
+  }
+  const files = fs.readdirSync(observationsDir).filter((name) => name.endsWith(".md")).sort((a, b) => b.localeCompare(a)).slice(0, normalizedDays);
+  if (files.length === 0) {
+    return "";
+  }
+  return files.map((name) => fs.readFileSync(path.join(observationsDir, name), "utf-8").trim()).filter(Boolean).join("\n\n").trim();
+}
+function parseObservationLines(markdown) {
+  const results = [];
+  let currentDate = "";
+  for (const line of markdown.split(/\r?\n/)) {
+    const dateMatch = line.match(DATE_HEADING_RE);
+    if (dateMatch) {
+      currentDate = dateMatch[1];
+      continue;
+    }
+    const observationMatch = line.match(OBSERVATION_LINE_RE);
+    if (!observationMatch) {
+      continue;
+    }
+    const time = observationMatch[2]?.trim();
+    const content = observationMatch[3].trim();
+    const withTime = time ? `${time} ${content}` : content;
+    results.push({
+      priority: observationMatch[1],
+      content: withTime,
+      date: currentDate
+    });
+  }
+  return results;
+}
+
+// src/lib/token-counter.ts
+function estimateTokens(text) {
+  if (!text) {
+    return 0;
+  }
+  return Math.ceil(text.length / 4);
+}
+function fitWithinBudget(items, budget) {
+  if (!Number.isFinite(budget) || budget <= 0) {
+    return [];
+  }
+  const sorted = items.map((item, index) => ({ ...item, index })).sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    return a.index - b.index;
+  });
+  let remaining = Math.floor(budget);
+  const fitted = [];
+  for (const item of sorted) {
+    if (!item.text.trim()) {
+      continue;
+    }
+    const cost = estimateTokens(item.text);
+    if (cost <= remaining) {
+      fitted.push({ text: item.text, source: item.source });
+      remaining -= cost;
+    }
+    if (remaining <= 0) {
+      break;
+    }
+  }
+  return fitted;
+}
+
+// src/commands/context.ts
+var DEFAULT_LIMIT = 5;
+var MAX_SNIPPET_LENGTH = 320;
+var OBSERVATION_LOOKBACK_DAYS = 7;
+function formatRelativeAge(date, now = Date.now()) {
+  const ageMs = Math.max(0, now - date.getTime());
+  const days = Math.floor(ageMs / (24 * 60 * 60 * 1e3));
+  if (days === 0) return "today";
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+function normalizeSnippet(result) {
+  const source = (result.snippet || result.document.content || "").trim();
+  if (!source) return "No snippet available.";
+  return source.replace(/\s+/g, " ").slice(0, MAX_SNIPPET_LENGTH);
+}
+function formatContextMarkdown(task, entries) {
+  let output = `## Relevant Context for: ${task}
+
+`;
+  if (entries.length === 0) {
+    output += "_No relevant context found._\n";
+    return output;
+  }
+  for (const entry of entries) {
+    output += `### ${entry.title} (${entry.source}, score: ${entry.score.toFixed(2)}, ${entry.age})
+`;
+    output += `${entry.snippet}
+
+`;
+  }
+  return output.trimEnd();
+}
+function estimateSnippet(source) {
+  const normalized = source.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "No snippet available.";
+  }
+  return normalized.slice(0, MAX_SNIPPET_LENGTH);
+}
+function parseIsoDate(value) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+  }
+  if (value instanceof Date) {
+    const time = value.getTime();
+    if (!Number.isNaN(time)) {
+      return value.toISOString().slice(0, 10);
+    }
+  }
+  return null;
+}
+function asDate(value, fallback = /* @__PURE__ */ new Date(0)) {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = /* @__PURE__ */ new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}
+function observationPriorityToRank(priority) {
+  if (priority === "\u{1F534}") return 1;
+  if (priority === "\u{1F7E1}") return 4;
+  return 5;
+}
+function observationPriorityScore(priority) {
+  if (priority === "\u{1F534}") return 1;
+  if (priority === "\u{1F7E1}") return 0.7;
+  return 0.4;
+}
+function isLikelyDailyNote(document) {
+  const normalizedPath = document.path.split(path2.sep).join("/").toLowerCase();
+  if (normalizedPath.includes("/daily/")) {
+    return true;
+  }
+  const category = document.category.toLowerCase();
+  if (category.includes("daily")) {
+    return true;
+  }
+  const type = typeof document.frontmatter.type === "string" ? document.frontmatter.type.toLowerCase() : "";
+  return type === "daily";
+}
+function findDailyDate(document, targetDates) {
+  const frontmatterDate = parseIsoDate(document.frontmatter.date);
+  const titleDate = parseIsoDate(document.title);
+  const fileDate = parseIsoDate(path2.basename(document.path, ".md"));
+  const candidates = [frontmatterDate, titleDate, fileDate].filter((value) => Boolean(value));
+  for (const candidate of candidates) {
+    if (!targetDates.has(candidate)) {
+      continue;
+    }
+    if (isLikelyDailyNote(document) || titleDate === candidate || fileDate === candidate) {
+      return candidate;
+    }
+  }
+  return null;
+}
+function getTargetDailyDates(now = /* @__PURE__ */ new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = yesterdayDate.toISOString().slice(0, 10);
+  return [today, yesterday];
+}
+async function buildDailyContextItems(vault) {
+  const allDocuments = await vault.list();
+  const targetDates = getTargetDailyDates();
+  const targetDateSet = new Set(targetDates);
+  const byDate = /* @__PURE__ */ new Map();
+  for (const document of allDocuments) {
+    const dailyDate = findDailyDate(document, targetDateSet);
+    if (!dailyDate) {
+      continue;
+    }
+    const existing = byDate.get(dailyDate);
+    if (!existing || document.modified.getTime() > existing.modified.getTime()) {
+      byDate.set(dailyDate, document);
+    }
+  }
+  const items = [];
+  for (const date of targetDates) {
+    const document = byDate.get(date);
+    if (!document) {
+      continue;
+    }
+    const relativePath = path2.relative(vault.getPath(), document.path).split(path2.sep).join("/");
+    const snippet = estimateSnippet(document.content);
+    const sourceId = `daily:${date}:${relativePath}`;
+    items.push({
+      priority: 2,
+      source: sourceId,
+      text: `${date}
+${snippet}`,
+      entry: {
+        title: `Daily note ${date}`,
+        path: relativePath,
+        category: document.category,
+        score: 0.9,
+        snippet,
+        modified: document.modified.toISOString(),
+        age: formatRelativeAge(document.modified),
+        source: "daily-note"
+      }
+    });
+  }
+  return items;
+}
+function buildObservationContextItems(vaultPath) {
+  const observationMarkdown = readObservations(vaultPath, OBSERVATION_LOOKBACK_DAYS);
+  const parsed = parseObservationLines(observationMarkdown);
+  const items = [];
+  for (const [index, observation] of parsed.entries()) {
+    const priority = observationPriorityToRank(observation.priority);
+    const modifiedDate = asDate(observation.date, /* @__PURE__ */ new Date());
+    const date = observation.date || modifiedDate.toISOString().slice(0, 10);
+    const snippet = estimateSnippet(observation.content);
+    const sourceId = `observation:${priority}:${date}:${index}`;
+    items.push({
+      priority,
+      source: sourceId,
+      text: `${observation.priority} ${date}
+${snippet}`,
+      entry: {
+        title: `${observation.priority} observation (${date})`,
+        path: `observations/${date}.md`,
+        category: "observations",
+        score: observationPriorityScore(observation.priority),
+        snippet,
+        modified: modifiedDate.toISOString(),
+        age: formatRelativeAge(modifiedDate),
+        source: "observation"
+      }
+    });
+  }
+  return items;
+}
+function buildSearchContextItems(vault, results) {
+  return results.map((result, index) => {
+    const relativePath = path2.relative(vault.getPath(), result.document.path).split(path2.sep).join("/");
+    const entry = {
+      title: result.document.title,
+      path: relativePath,
+      category: result.document.category,
+      score: result.score,
+      snippet: normalizeSnippet(result),
+      modified: result.document.modified.toISOString(),
+      age: formatRelativeAge(result.document.modified),
+      source: "search"
+    };
+    return {
+      priority: 3,
+      source: `search:${index}:${entry.path}`,
+      text: `${entry.title}
+${entry.snippet}`,
+      entry
+    };
+  });
+}
+function applyTokenBudget(items, budget) {
+  if (budget === void 0) {
+    return items.map((item) => item.entry);
+  }
+  const selected = fitWithinBudget(
+    items.map((item) => ({
+      text: item.text,
+      priority: item.priority,
+      source: item.source
+    })),
+    budget
+  );
+  const bySource = new Map(items.map((item) => [item.source, item.entry]));
+  const selectedEntries = [];
+  for (const selectedItem of selected) {
+    const entry = bySource.get(selectedItem.source);
+    if (entry) {
+      selectedEntries.push(entry);
+    }
+  }
+  return selectedEntries;
+}
+async function buildContext(task, options) {
+  const normalizedTask = task.trim();
+  if (!normalizedTask) {
+    throw new Error("Task description is required.");
+  }
+  const vault = new ClawVault(path2.resolve(options.vaultPath));
+  await vault.load();
+  const limit = Math.max(1, options.limit ?? DEFAULT_LIMIT);
+  const recent = options.recent ?? true;
+  const includeObservations = options.includeObservations ?? true;
+  const searchResults = await vault.vsearch(normalizedTask, {
+    limit,
+    temporalBoost: recent
+  });
+  const searchItems = buildSearchContextItems(vault, searchResults);
+  const dailyItems = await buildDailyContextItems(vault);
+  const observationItems = includeObservations ? buildObservationContextItems(vault.getPath()) : [];
+  const redObservations = observationItems.filter((item) => item.priority === 1);
+  const yellowObservations = observationItems.filter((item) => item.priority === 4);
+  const greenObservations = observationItems.filter((item) => item.priority === 5);
+  const ordered = [
+    ...redObservations,
+    ...dailyItems,
+    ...searchItems,
+    ...yellowObservations,
+    ...greenObservations
+  ];
+  const context = applyTokenBudget(ordered, options.budget);
+  return {
+    task: normalizedTask,
+    generated: (/* @__PURE__ */ new Date()).toISOString(),
+    context,
+    markdown: formatContextMarkdown(normalizedTask, context)
+  };
+}
+async function contextCommand(task, options) {
+  const result = await buildContext(task, options);
+  const format = options.format ?? "markdown";
+  if (format === "json") {
+    console.log(JSON.stringify({
+      task: result.task,
+      generated: result.generated,
+      count: result.context.length,
+      context: result.context
+    }, null, 2));
+    return;
+  }
+  console.log(result.markdown);
+}
+function parsePositiveInteger(raw, label) {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${label}: ${raw}`);
+  }
+  return parsed;
+}
+function registerContextCommand(program) {
+  program.command("context <task>").description("Generate task-relevant context for prompt injection").option("-n, --limit <n>", "Max results", "5").option("--format <format>", "Output format (markdown|json)", "markdown").option("--recent", "Boost recent documents (enabled by default)", true).option("--include-observations", "Include observation memories in output", true).option("--budget <number>", "Optional token budget for assembled context").option("-v, --vault <path>", "Vault path").action(async (task, rawOptions) => {
+    const format = rawOptions.format === "json" ? "json" : "markdown";
+    const budget = rawOptions.budget ? parsePositiveInteger(rawOptions.budget, "budget") : void 0;
+    const limit = parsePositiveInteger(rawOptions.limit, "limit");
+    const vaultPath = rawOptions.vault ?? process.env.CLAWVAULT_PATH ?? process.cwd();
+    await contextCommand(task, {
+      vaultPath,
+      limit,
+      format,
+      recent: rawOptions.recent ?? true,
+      includeObservations: rawOptions.includeObservations ?? true,
+      budget
+    });
+  });
+}
+
+export {
+  formatContextMarkdown,
+  buildContext,
+  contextCommand,
+  registerContextCommand
+};

@@ -1,12 +1,3 @@
-// src/commands/observe.ts
-import * as fs4 from "fs";
-import * as path4 from "path";
-import { spawn } from "child_process";
-
-// src/observer/observer.ts
-import * as fs2 from "fs";
-import * as path2 from "path";
-
 // src/observer/compressor.ts
 var DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 var OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(.+)$/u;
@@ -355,6 +346,10 @@ var Reflector = class {
   }
 };
 
+// src/observer/observer.ts
+import * as fs2 from "fs";
+import * as path2 from "path";
+
 // src/observer/router.ts
 import * as fs from "fs";
 import * as path from "path";
@@ -610,232 +605,188 @@ var Observer = class {
   }
 };
 
-// src/observer/watcher.ts
+// src/observer/session-parser.ts
 import * as fs3 from "fs";
 import * as path3 from "path";
-import chokidar from "chokidar";
-var SessionWatcher = class {
-  watchPath;
-  observer;
-  ignoreInitial;
-  watcher = null;
-  fileOffsets = /* @__PURE__ */ new Map();
-  processingQueue = Promise.resolve();
-  constructor(watchPath, observer, options = {}) {
-    this.watchPath = path3.resolve(watchPath);
-    this.observer = observer;
-    this.ignoreInitial = options.ignoreInitial ?? false;
+var JSONL_SAMPLE_LIMIT = 20;
+var MARKDOWN_SIGNAL_RE = /^(#{1,6}\s|[-*+]\s|>\s)/;
+var MARKDOWN_INLINE_RE = /(\[[^\]]+\]\([^)]+\)|[*_`~])/;
+function normalizeText(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
+function extractText(value) {
+  if (typeof value === "string") {
+    return normalizeText(value);
   }
-  async start() {
-    if (!fs3.existsSync(this.watchPath)) {
-      throw new Error(`Watch path does not exist: ${this.watchPath}`);
-    }
-    this.watcher = chokidar.watch(this.watchPath, {
-      persistent: true,
-      ignoreInitial: this.ignoreInitial,
-      awaitWriteFinish: {
-        stabilityThreshold: 120,
-        pollInterval: 30
+  if (Array.isArray(value)) {
+    const parts = [];
+    for (const part of value) {
+      const extracted = extractText(part);
+      if (extracted) {
+        parts.push(extracted);
       }
-    });
-    const enqueue = (changedPath) => {
-      this.processingQueue = this.processingQueue.then(() => this.consumeFile(changedPath)).catch(() => void 0);
-    };
-    this.watcher.on("add", enqueue);
-    this.watcher.on("change", enqueue);
-    this.watcher.on("unlink", (deletedPath) => {
-      this.fileOffsets.delete(path3.resolve(deletedPath));
-    });
+    }
+    return normalizeText(parts.join(" "));
   }
-  async stop() {
-    await this.watcher?.close();
-    this.watcher = null;
+  if (!value || typeof value !== "object") {
+    return "";
   }
-  async consumeFile(filePath) {
-    const resolved = path3.resolve(filePath);
-    if (!fs3.existsSync(resolved)) {
-      return;
+  const record = value;
+  if (typeof record.text === "string") {
+    return normalizeText(record.text);
+  }
+  if (typeof record.content === "string") {
+    return normalizeText(record.content);
+  }
+  return "";
+}
+function normalizeRole(role) {
+  if (typeof role !== "string") {
+    return "";
+  }
+  const normalized = role.trim().toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  return normalized;
+}
+function isLikelyJsonMessage(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const record = value;
+  if ("role" in record && "content" in record) {
+    return true;
+  }
+  if (record.type === "message" && record.message && typeof record.message === "object") {
+    return true;
+  }
+  return false;
+}
+function parseJsonLine(line) {
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return "";
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return "";
+  }
+  const entry = parsed;
+  if ("role" in entry && "content" in entry) {
+    const role = normalizeRole(entry.role);
+    const content = extractText(entry.content);
+    if (!content) return "";
+    return role ? `${role}: ${content}` : content;
+  }
+  if (entry.type === "message" && entry.message && typeof entry.message === "object") {
+    const message = entry.message;
+    const role = normalizeRole(message.role);
+    const content = extractText(message.content);
+    if (!content) return "";
+    return role ? `${role}: ${content}` : content;
+  }
+  return "";
+}
+function parseJsonLines(raw) {
+  const messages = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parsed = parseJsonLine(trimmed);
+    if (parsed) {
+      messages.push(parsed);
     }
-    const stats = fs3.statSync(resolved);
-    if (!stats.isFile()) {
-      return;
+  }
+  return messages;
+}
+function stripMarkdownSyntax(text) {
+  return normalizeText(
+    text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`~]/g, "").replace(/<[^>]+>/g, "")
+  );
+}
+function normalizeMarkdownLine(line) {
+  return stripMarkdownSyntax(
+    line.replace(/^>\s*/, "").replace(/^[-*+]\s+/, "").replace(/^#{1,6}\s+/, "")
+  );
+}
+function parseMarkdown(raw) {
+  const withoutCodeBlocks = raw.replace(/```[\s\S]*?```/g, " ");
+  const blocks = withoutCodeBlocks.split(/\r?\n\s*\r?\n/).map((block) => block.trim()).filter(Boolean);
+  const messages = [];
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).map((line) => normalizeMarkdownLine(line)).filter(Boolean);
+    if (lines.length === 0) {
+      continue;
     }
-    const previousOffset = this.fileOffsets.get(resolved) ?? 0;
-    const startOffset = stats.size < previousOffset ? 0 : previousOffset;
-    if (stats.size <= startOffset) {
-      this.fileOffsets.set(resolved, stats.size);
-      return;
+    const joined = stripMarkdownSyntax(lines.join(" "));
+    if (!joined) continue;
+    const roleMatch = /^(user|assistant|system|tool)\s*:?\s*(.+)$/i.exec(joined);
+    if (roleMatch) {
+      const role = normalizeRole(roleMatch[1]);
+      const content = normalizeText(roleMatch[2]);
+      if (content) {
+        messages.push(`${role}: ${content}`);
+      }
+      continue;
     }
-    const bytesToRead = stats.size - startOffset;
-    const buffer = Buffer.alloc(bytesToRead);
-    const fd = fs3.openSync(resolved, "r");
+    messages.push(joined);
+  }
+  return messages;
+}
+function parsePlainText(raw) {
+  return raw.split(/\r?\n/).map((line) => normalizeText(line)).filter(Boolean);
+}
+function detectSessionFormat(raw, filePath) {
+  const nonEmptyLines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (nonEmptyLines.length === 0) {
+    return "plain";
+  }
+  const sample = nonEmptyLines.slice(0, JSONL_SAMPLE_LIMIT);
+  const jsonHits = sample.filter((line) => {
     try {
-      fs3.readSync(fd, buffer, 0, bytesToRead, startOffset);
-    } finally {
-      fs3.closeSync(fd);
+      const parsed = JSON.parse(line);
+      return isLikelyJsonMessage(parsed);
+    } catch {
+      return false;
     }
-    this.fileOffsets.set(resolved, stats.size);
-    const chunk = buffer.toString("utf-8");
-    const messages = chunk.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    if (messages.length === 0) {
-      return;
-    }
-    await this.observer.processMessages(messages);
+  }).length;
+  if (jsonHits >= Math.max(1, Math.ceil(sample.length * 0.6))) {
+    return "jsonl";
   }
-};
-
-// src/commands/observe.ts
-var VAULT_CONFIG_FILE = ".clawvault.json";
-function findVaultRoot(startPath) {
-  let current = path4.resolve(startPath);
-  while (true) {
-    if (fs4.existsSync(path4.join(current, VAULT_CONFIG_FILE))) {
-      return current;
-    }
-    const parent = path4.dirname(current);
-    if (parent === current) return null;
-    current = parent;
+  const ext = path3.extname(filePath).toLowerCase();
+  if (ext === ".md" || ext === ".markdown") {
+    return "markdown";
   }
+  const markdownSignals = sample.filter((line) => MARKDOWN_SIGNAL_RE.test(line) || MARKDOWN_INLINE_RE.test(line)).length;
+  if (markdownSignals >= Math.max(2, Math.ceil(sample.length * 0.4))) {
+    return "markdown";
+  }
+  return "plain";
 }
-function resolveVaultPath(explicitPath) {
-  if (explicitPath) {
-    return path4.resolve(explicitPath);
-  }
-  if (process.env.CLAWVAULT_PATH) {
-    return path4.resolve(process.env.CLAWVAULT_PATH);
-  }
-  const discovered = findVaultRoot(process.cwd());
-  if (!discovered) {
-    throw new Error("No ClawVault found. Set CLAWVAULT_PATH or use --vault.");
-  }
-  return discovered;
-}
-function parsePositiveInteger(raw, optionName) {
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`Invalid ${optionName}: ${raw}`);
-  }
-  return parsed;
-}
-function buildDaemonArgs(options) {
-  const cliPath = process.argv[1];
-  if (!cliPath) {
-    throw new Error("Unable to resolve CLI script path for daemon mode.");
-  }
-  const args = [cliPath, "observe"];
-  if (options.watch) {
-    args.push("--watch", options.watch);
-  }
-  if (options.threshold) {
-    args.push("--threshold", String(options.threshold));
-  }
-  if (options.reflectThreshold) {
-    args.push("--reflect-threshold", String(options.reflectThreshold));
-  }
-  if (options.model) {
-    args.push("--model", options.model);
-  }
-  if (options.vaultPath) {
-    args.push("--vault", options.vaultPath);
-  }
-  return args;
-}
-async function runOneShotCompression(observer, sourceFile, vaultPath) {
-  const resolved = path4.resolve(sourceFile);
-  if (!fs4.existsSync(resolved) || !fs4.statSync(resolved).isFile()) {
-    throw new Error(`Conversation file not found: ${resolved}`);
-  }
-  const raw = fs4.readFileSync(resolved, "utf-8");
-  const messages = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  await observer.processMessages(messages.length > 0 ? messages : [raw]);
-  const { observations, routingSummary } = await observer.flush();
-  const datePart = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const outputPath = path4.join(vaultPath, "observations", `${datePart}.md`);
-  console.log(`Observations updated: ${outputPath}`);
-  if (routingSummary) {
-    console.log(routingSummary);
-  }
-}
-async function watchSessions(observer, watchPath) {
-  const watcher = new SessionWatcher(watchPath, observer);
-  await watcher.start();
-  console.log(`Watching session updates: ${watchPath}`);
-  await new Promise((resolve5) => {
-    const shutdown = async () => {
-      process.off("SIGINT", onSigInt);
-      process.off("SIGTERM", onSigTerm);
-      await watcher.stop();
-      resolve5();
-    };
-    const onSigInt = () => {
-      void shutdown();
-    };
-    const onSigTerm = () => {
-      void shutdown();
-    };
-    process.once("SIGINT", onSigInt);
-    process.once("SIGTERM", onSigTerm);
-  });
-}
-async function observeCommand(options) {
-  if (options.compress && options.daemon) {
-    throw new Error("--compress cannot be combined with --daemon.");
-  }
-  const vaultPath = resolveVaultPath(options.vaultPath);
-  const observer = new Observer(vaultPath, {
-    tokenThreshold: options.threshold,
-    reflectThreshold: options.reflectThreshold,
-    model: options.model
-  });
-  if (options.compress) {
-    await runOneShotCompression(observer, options.compress, vaultPath);
-    return;
-  }
-  let watchPath = options.watch ? path4.resolve(options.watch) : "";
-  if (!watchPath && options.daemon) {
-    watchPath = path4.join(vaultPath, "sessions");
-  }
-  if (!watchPath) {
-    throw new Error("Either --watch or --compress must be provided.");
-  }
-  if (!fs4.existsSync(watchPath)) {
-    if (options.daemon && !options.watch) {
-      fs4.mkdirSync(watchPath, { recursive: true });
-    } else {
-      throw new Error(`Watch path does not exist: ${watchPath}`);
+function parseSessionFile(filePath) {
+  const resolved = path3.resolve(filePath);
+  const raw = fs3.readFileSync(resolved, "utf-8");
+  const format = detectSessionFormat(raw, resolved);
+  if (format === "jsonl") {
+    const parsed = parseJsonLines(raw);
+    if (parsed.length > 0) {
+      return parsed;
     }
   }
-  if (options.daemon) {
-    const daemonArgs = buildDaemonArgs({ ...options, watch: watchPath, vaultPath });
-    const child = spawn(process.execPath, daemonArgs, {
-      detached: true,
-      stdio: "ignore"
-    });
-    child.unref();
-    console.log(`Observer daemon started (pid: ${child.pid})`);
-    return;
+  if (format === "markdown") {
+    const parsed = parseMarkdown(raw);
+    if (parsed.length > 0) {
+      return parsed;
+    }
   }
-  await watchSessions(observer, watchPath);
-}
-function registerObserveCommand(program) {
-  program.command("observe").description("Observe session files and build observational memory").option("--watch <path>", "Watch session file or directory").option("--threshold <n>", "Compression token threshold", "30000").option("--reflect-threshold <n>", "Reflection token threshold", "40000").option("--model <model>", "LLM model override").option("--compress <file>", "One-shot compression for a conversation file").option("--daemon", "Run in detached background mode").option("-v, --vault <path>", "Vault path").action(async (rawOptions) => {
-    await observeCommand({
-      watch: rawOptions.watch,
-      threshold: parsePositiveInteger(rawOptions.threshold, "threshold"),
-      reflectThreshold: parsePositiveInteger(rawOptions.reflectThreshold, "reflect-threshold"),
-      model: rawOptions.model,
-      compress: rawOptions.compress,
-      daemon: rawOptions.daemon,
-      vaultPath: rawOptions.vault
-    });
-  });
+  return parsePlainText(raw);
 }
 
 export {
   Compressor,
   Reflector,
   Observer,
-  SessionWatcher,
-  observeCommand,
-  registerObserveCommand
+  parseSessionFile
 };

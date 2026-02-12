@@ -13,6 +13,7 @@ interface SleepOptions {
     vaultPath: string;
     index?: boolean;
     git?: boolean;
+    sessionTranscript?: string;
     prompt?: PromptFn;
     cwd?: string;
 }
@@ -28,6 +29,7 @@ interface SleepResult {
     document: Document;
     git?: GitCommitResult;
     cloudSync?: CloudSyncResult;
+    observationRoutingSummary?: string;
 }
 declare function sleep(options: SleepOptions): Promise<SleepResult>;
 

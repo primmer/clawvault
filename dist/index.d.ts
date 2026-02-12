@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { V as VaultConfig, S as StoreOptions, D as Document, a as SearchOptions, b as SearchResult, c as SyncOptions, d as SyncResult, C as Category, M as MemoryType, H as HandoffDocument, e as SessionRecap } from './types-DMU3SuAV.js';
 export { f as DEFAULT_CATEGORIES, g as DEFAULT_CONFIG, h as MEMORY_TYPES, T as TYPE_TO_CATEGORY, i as VaultMeta } from './types-DMU3SuAV.js';
 export { setupCommand } from './commands/setup.js';
-export { ContextEntry, ContextFormat, ContextOptions, ContextResult, buildContext, contextCommand, formatContextMarkdown } from './commands/context.js';
+export { ContextEntry, ContextFormat, ContextOptions, ContextResult, buildContext, contextCommand, formatContextMarkdown, registerContextCommand } from './commands/context.js';
 export { ObserveCommandOptions, observeCommand, registerObserveCommand } from './commands/observe.js';
 export { SessionRecapFormat, SessionRecapOptions, SessionRecapResult, SessionTurn, buildSessionRecap, formatSessionRecapMarkdown, sessionRecapCommand } from './commands/session-recap.js';
 export { TemplateVariables, buildTemplateVariables, renderTemplate } from './lib/template-engine.js';
@@ -369,6 +369,8 @@ declare class SessionWatcher {
     private consumeFile;
 }
 
+declare function parseSessionFile(filePath: string): string[];
+
 /**
  * ClawVault 🐘 — An Elephant Never Forgets
  *
@@ -398,4 +400,4 @@ declare class SessionWatcher {
 declare const VERSION: string;
 declare function registerCommanderCommands(program: Command): Command;
 
-export { Category, ClawVault, Compressor, type CompressorOptions, Document, HandoffDocument, MemoryType, Observer, type ObserverCompressor, type ObserverOptions, type ObserverReflector, QMD_INSTALL_COMMAND, QMD_INSTALL_URL, QmdUnavailableError, Reflector, type ReflectorOptions, SearchEngine, SearchOptions, SearchResult, SessionRecap, SessionWatcher, type SessionWatcherOptions, StoreOptions, SyncOptions, SyncResult, VERSION, VaultConfig, createVault, extractTags, extractWikiLinks, findVault, hasQmd, qmdEmbed, qmdUpdate, registerCommanderCommands };
+export { Category, ClawVault, Compressor, type CompressorOptions, Document, HandoffDocument, MemoryType, Observer, type ObserverCompressor, type ObserverOptions, type ObserverReflector, QMD_INSTALL_COMMAND, QMD_INSTALL_URL, QmdUnavailableError, Reflector, type ReflectorOptions, SearchEngine, SearchOptions, SearchResult, SessionRecap, SessionWatcher, type SessionWatcherOptions, StoreOptions, SyncOptions, SyncResult, VERSION, VaultConfig, createVault, extractTags, extractWikiLinks, findVault, hasQmd, parseSessionFile, qmdEmbed, qmdUpdate, registerCommanderCommands };

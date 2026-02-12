@@ -151,13 +151,29 @@ var Compressor = class {
       return "";
     }
     const hasDateHeading = lines.some((line) => DATE_HEADING_RE.test(line));
-    if (hasDateHeading) {
-      return cleaned;
-    }
-    const today = this.formatDate(this.now());
-    return `## ${today}
+    const result = hasDateHeading ? cleaned : `## ${this.formatDate(this.now())}
 
 ${cleaned}`;
+    return this.enforcePriorityRules(result);
+  }
+  /**
+   * Post-process LLM output to enforce priority rules.
+   * Lines matching CRITICAL_RE get upgraded to 🔴, NOTABLE_RE to 🟡.
+   */
+  enforcePriorityRules(markdown) {
+    return markdown.split(/\r?\n/).map((line) => {
+      const match = line.match(OBSERVATION_LINE_RE);
+      if (!match) return line;
+      const currentPriority = match[1];
+      const content = match[2];
+      if (CRITICAL_RE.test(content) && currentPriority !== "\u{1F534}") {
+        return line.replace(/^🟡|^🟢/u, "\u{1F534}");
+      }
+      if (NOTABLE_RE.test(content) && currentPriority === "\u{1F7E2}") {
+        return line.replace(/^🟢/u, "\u{1F7E1}");
+      }
+      return line;
+    }).join("\n");
   }
   fallbackCompression(messages) {
     const sections = /* @__PURE__ */ new Map();
@@ -427,7 +443,8 @@ var CATEGORY_PATTERNS = [
       /\b(said|asked|told|mentioned|emailed|called|messaged|met with)\b/i,
       /\b(client|partner|team|colleague|contact)\b/i,
       /\b(?:Pedro|Justin|Maria|Sarah|[A-Z][a-z]+ (?:said|asked|told|mentioned))\b/,
-      /\b(?:talked to|met with)\s+[A-Z][a-z]+\b/i,
+      /\b(?:talked to|met with|spoke with|chatted with|discussed with)\s+[A-Z][a-z]+\b/i,
+      /\b[A-Z][a-z]+\s+(?:from|at)\s+[A-Z]/,
       /\b[A-Z][a-z]+\s+from\b/
     ]
   },

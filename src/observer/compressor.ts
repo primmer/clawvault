@@ -207,12 +207,34 @@ export class Compressor {
     }
 
     const hasDateHeading = lines.some((line) => DATE_HEADING_RE.test(line));
-    if (hasDateHeading) {
-      return cleaned;
-    }
+    const result = hasDateHeading ? cleaned : `## ${this.formatDate(this.now())}\n\n${cleaned}`;
 
-    const today = this.formatDate(this.now());
-    return `## ${today}\n\n${cleaned}`;
+    // Post-process: force-upgrade priorities based on keyword patterns
+    // LLM may under-classify decisions/errors as 🟢 — override that
+    return this.enforcePriorityRules(result);
+  }
+
+  /**
+   * Post-process LLM output to enforce priority rules.
+   * Lines matching CRITICAL_RE get upgraded to 🔴, NOTABLE_RE to 🟡.
+   */
+  private enforcePriorityRules(markdown: string): string {
+    return markdown.split(/\r?\n/).map((line) => {
+      const match = line.match(OBSERVATION_LINE_RE);
+      if (!match) return line;
+
+      const currentPriority = match[1] as Priority;
+      const content = match[2];
+
+      if (CRITICAL_RE.test(content) && currentPriority !== '🔴') {
+        return line.replace(/^🟡|^🟢/u, '🔴');
+      }
+      if (NOTABLE_RE.test(content) && currentPriority === '🟢') {
+        return line.replace(/^🟢/u, '🟡');
+      }
+
+      return line;
+    }).join('\n');
   }
 
   private fallbackCompression(messages: string[]): string {

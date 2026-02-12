@@ -673,18 +673,26 @@ program
   .option('-n, --limit <n>', 'Max results', '5')
   .option('--format <format>', 'Output format (markdown|json)', 'markdown')
   .option('--recent', 'Boost recent documents (enabled by default)', true)
+  .option('--include-observations', 'Include observation memories in output', true)
+  .option('--budget <number>', 'Optional token budget for assembled context')
   .option('-v, --vault <path>', 'Vault path')
   .action(async (task, options) => {
     try {
       const vaultPath = resolveVaultPath(options.vault);
       const format = options.format === 'json' ? 'json' : 'markdown';
+      const parsedBudget = options.budget ? Number.parseInt(options.budget, 10) : undefined;
+      if (options.budget && (!Number.isFinite(parsedBudget) || parsedBudget <= 0)) {
+        throw new Error(`Invalid --budget value: ${options.budget}`);
+      }
 
       const { contextCommand } = await import('../dist/commands/context.js');
       await contextCommand(task, {
         vaultPath,
         limit: parseInt(options.limit),
         format,
-        recent: options.recent
+        recent: options.recent,
+        includeObservations: options.includeObservations,
+        budget: parsedBudget
       });
     } catch (err) {
       if (err instanceof QmdUnavailableError) {

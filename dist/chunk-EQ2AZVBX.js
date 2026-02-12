@@ -1,7 +1,7 @@
 // src/observer/compressor.ts
 var DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 var OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(.+)$/u;
-var CRITICAL_RE = /\b(decid(?:e|ed|ing|ion)|error|fail(?:ed|ure)?|prefer(?:ence)?|block(?:ed|er)?|must|required?|urgent)\b/i;
+var CRITICAL_RE = /(?:\b(?:decision|decided|chose|selected)\s*:|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b)/i;
 var NOTABLE_RE = /\b(context|pattern|architecture|approach|trade[- ]?off|milestone|notable)\b/i;
 var Compressor = class {
   model;
@@ -191,12 +191,39 @@ ${cleaned}`;
     if (existingSections.size === 0) {
       return this.renderSections(incomingSections);
     }
+    for (const [date, lines] of existingSections.entries()) {
+      existingSections.set(date, this.deduplicateObservationLines(lines));
+    }
     for (const [date, lines] of incomingSections.entries()) {
-      const current = existingSections.get(date) ?? [];
-      current.push(...lines);
+      const current = this.deduplicateObservationLines(existingSections.get(date) ?? []);
+      const seen = new Set(current.map((line) => this.normalizeObservationContent(line.content)));
+      for (const line of lines) {
+        const normalized = this.normalizeObservationContent(line.content);
+        if (!normalized || seen.has(normalized)) {
+          continue;
+        }
+        seen.add(normalized);
+        current.push(line);
+      }
       existingSections.set(date, current);
     }
     return this.renderSections(existingSections);
+  }
+  deduplicateObservationLines(lines) {
+    const deduped = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const line of lines) {
+      const normalized = this.normalizeObservationContent(line.content);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      deduped.push(line);
+    }
+    return deduped;
+  }
+  normalizeObservationContent(content) {
+    return content.replace(/^\d{2}:\d{2}\s+/, "").replace(/\s+/g, " ").trim().toLowerCase();
   }
   parseSections(markdown) {
     const sections = /* @__PURE__ */ new Map();
@@ -398,7 +425,10 @@ var CATEGORY_PATTERNS = [
     category: "people",
     patterns: [
       /\b(said|asked|told|mentioned|emailed|called|messaged|met with)\b/i,
-      /\b(client|partner|team|colleague|contact)\b/i
+      /\b(client|partner|team|colleague|contact)\b/i,
+      /\b(?:Pedro|Justin|Maria|Sarah|[A-Z][a-z]+ (?:said|asked|told|mentioned))\b/,
+      /\b(?:talked to|met with)\s+[A-Z][a-z]+\b/i,
+      /\b[A-Z][a-z]+\s+from\b/
     ]
   },
   {
@@ -503,6 +533,8 @@ ${entry}
 };
 
 // src/observer/observer.ts
+var DATE_HEADING_RE4 = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
+var OBSERVATION_LINE_RE4 = /^(🔴|🟡|🟢)\s+(.+)$/u;
 var Observer = class {
   vaultPath;
   observationsDir;
@@ -538,9 +570,14 @@ var Observer = class {
       return;
     }
     const todayPath = this.getObservationPath(this.now());
-    const existing = this.readObservationFile(todayPath);
-    const compressed = (await this.compressor.compress(this.pendingMessages, existing)).trim();
+    const existingRaw = this.readObservationFile(todayPath);
+    const existing = this.deduplicateObservationMarkdown(existingRaw);
+    if (existingRaw.trim() !== existing) {
+      this.writeObservationFile(todayPath, existing);
+    }
+    const compressedRaw = (await this.compressor.compress(this.pendingMessages, existing)).trim();
     this.pendingMessages = [];
+    const compressed = this.deduplicateObservationMarkdown(compressedRaw);
     if (!compressed) {
       return;
     }
@@ -561,9 +598,14 @@ var Observer = class {
       return { observations: this.observationsCache, routingSummary: this.lastRoutingSummary };
     }
     const todayPath = this.getObservationPath(this.now());
-    const existing = this.readObservationFile(todayPath);
-    const compressed = (await this.compressor.compress(this.pendingMessages, existing)).trim();
+    const existingRaw = this.readObservationFile(todayPath);
+    const existing = this.deduplicateObservationMarkdown(existingRaw);
+    if (existingRaw.trim() !== existing) {
+      this.writeObservationFile(todayPath, existing);
+    }
+    const compressedRaw = (await this.compressor.compress(this.pendingMessages, existing)).trim();
     this.pendingMessages = [];
+    const compressed = this.deduplicateObservationMarkdown(compressedRaw);
     if (compressed) {
       this.writeObservationFile(todayPath, compressed);
       this.observationsCache = compressed;
@@ -611,6 +653,74 @@ var Observer = class {
       return "";
     }
     return files.map((filePath) => this.readObservationFile(filePath)).filter(Boolean).join("\n\n");
+  }
+  deduplicateObservationMarkdown(markdown) {
+    const parsed = this.parseSections(markdown);
+    if (parsed.size === 0) {
+      return markdown.trim();
+    }
+    for (const [date, lines] of parsed.entries()) {
+      const seen = /* @__PURE__ */ new Set();
+      const deduped = [];
+      for (const line of lines) {
+        const normalized = this.normalizeObservationContent(line.content);
+        if (!normalized || seen.has(normalized)) {
+          continue;
+        }
+        seen.add(normalized);
+        deduped.push(line);
+      }
+      parsed.set(date, deduped);
+    }
+    return this.renderSections(parsed);
+  }
+  parseSections(markdown) {
+    const sections = /* @__PURE__ */ new Map();
+    let currentDate = null;
+    for (const rawLine of markdown.split(/\r?\n/)) {
+      const dateMatch = rawLine.match(DATE_HEADING_RE4);
+      if (dateMatch) {
+        currentDate = dateMatch[1];
+        if (!sections.has(currentDate)) {
+          sections.set(currentDate, []);
+        }
+        continue;
+      }
+      if (!currentDate) {
+        continue;
+      }
+      const lineMatch = rawLine.match(OBSERVATION_LINE_RE4);
+      if (!lineMatch) {
+        continue;
+      }
+      const current = sections.get(currentDate) ?? [];
+      current.push({
+        priority: lineMatch[1],
+        content: lineMatch[2].trim()
+      });
+      sections.set(currentDate, current);
+    }
+    return sections;
+  }
+  renderSections(sections) {
+    const chunks = [];
+    const dates = [...sections.keys()].sort((a, b) => a.localeCompare(b));
+    for (const date of dates) {
+      const lines = sections.get(date) ?? [];
+      if (lines.length === 0) {
+        continue;
+      }
+      chunks.push(`## ${date}`);
+      chunks.push("");
+      for (const line of lines) {
+        chunks.push(`${line.priority} ${line.content}`);
+      }
+      chunks.push("");
+    }
+    return chunks.join("\n").trim();
+  }
+  normalizeObservationContent(content) {
+    return content.replace(/^\d{2}:\d{2}\s+/, "").replace(/\s+/g, " ").trim().toLowerCase();
   }
   async reflectIfNeeded() {
     const corpus = this.readObservationCorpus();

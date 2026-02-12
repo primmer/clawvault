@@ -307,6 +307,10 @@ declare class Observer {
     private writeObservationFile;
     private getObservationFiles;
     private readObservationCorpus;
+    private deduplicateObservationMarkdown;
+    private parseSections;
+    private renderSections;
+    private normalizeObservationContent;
     private reflectIfNeeded;
 }
 
@@ -329,6 +333,8 @@ declare class Compressor {
     private normalizeLlmOutput;
     private fallbackCompression;
     private mergeObservations;
+    private deduplicateObservationLines;
+    private normalizeObservationContent;
     private parseSections;
     private renderSections;
     private inferPriority;
@@ -356,17 +362,22 @@ declare class Reflector {
 
 interface SessionWatcherOptions {
     ignoreInitial?: boolean;
+    debounceMs?: number;
 }
 declare class SessionWatcher {
     private readonly watchPath;
     private readonly observer;
     private readonly ignoreInitial;
+    private readonly debounceMs;
     private watcher;
     private fileOffsets;
+    private pendingPaths;
+    private debounceTimer;
     private processingQueue;
     constructor(watchPath: string, observer: Observer, options?: SessionWatcherOptions);
     start(): Promise<void>;
     stop(): Promise<void>;
+    private scheduleDrain;
     private consumeFile;
 }
 

@@ -58,33 +58,6 @@ function estimateTokens(text) {
   }
   return Math.ceil(text.length / 4);
 }
-function fitWithinBudget(items, budget) {
-  if (!Number.isFinite(budget) || budget <= 0) {
-    return [];
-  }
-  const sorted = items.map((item, index) => ({ ...item, index })).sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return a.priority - b.priority;
-    }
-    return a.index - b.index;
-  });
-  let remaining = Math.floor(budget);
-  const fitted = [];
-  for (const item of sorted) {
-    if (!item.text.trim()) {
-      continue;
-    }
-    const cost = estimateTokens(item.text);
-    if (cost <= remaining) {
-      fitted.push({ text: item.text, source: item.source });
-      remaining -= cost;
-    }
-    if (remaining <= 0) {
-      break;
-    }
-  }
-  return fitted;
-}
 
 // src/commands/context.ts
 var DEFAULT_LIMIT = 5;
@@ -223,12 +196,8 @@ async function buildDailyContextItems(vault) {
     }
     const relativePath = path2.relative(vault.getPath(), document.path).split(path2.sep).join("/");
     const snippet = estimateSnippet(document.content);
-    const sourceId = `daily:${date}:${relativePath}`;
     items.push({
       priority: 2,
-      source: sourceId,
-      text: `${date}
-${snippet}`,
       entry: {
         title: `Daily note ${date}`,
         path: relativePath,
@@ -247,17 +216,13 @@ function buildObservationContextItems(vaultPath) {
   const observationMarkdown = readObservations(vaultPath, OBSERVATION_LOOKBACK_DAYS);
   const parsed = parseObservationLines(observationMarkdown);
   const items = [];
-  for (const [index, observation] of parsed.entries()) {
+  for (const observation of parsed) {
     const priority = observationPriorityToRank(observation.priority);
     const modifiedDate = asDate(observation.date, /* @__PURE__ */ new Date());
     const date = observation.date || modifiedDate.toISOString().slice(0, 10);
     const snippet = estimateSnippet(observation.content);
-    const sourceId = `observation:${priority}:${date}:${index}`;
     items.push({
       priority,
-      source: sourceId,
-      text: `${observation.priority} ${date}
-${snippet}`,
       entry: {
         title: `${observation.priority} observation (${date})`,
         path: `observations/${date}.md`,
@@ -273,7 +238,7 @@ ${snippet}`,
   return items;
 }
 function buildSearchContextItems(vault, results) {
-  return results.map((result, index) => {
+  return results.map((result) => {
     const relativePath = path2.relative(vault.getPath(), result.document.path).split(path2.sep).join("/");
     const entry = {
       title: result.document.title,
@@ -287,34 +252,53 @@ function buildSearchContextItems(vault, results) {
     };
     return {
       priority: 3,
-      source: `search:${index}:${entry.path}`,
-      text: `${entry.title}
-${entry.snippet}`,
       entry
     };
   });
 }
-function applyTokenBudget(items, budget) {
-  if (budget === void 0) {
-    return items.map((item) => item.entry);
+function renderEntryBlock(entry) {
+  return `### ${entry.title} (${entry.source}, score: ${entry.score.toFixed(2)}, ${entry.age})
+${entry.snippet}
+
+`;
+}
+function truncateToBudget(text, budget) {
+  if (!Number.isFinite(budget) || budget <= 0) {
+    return "";
   }
-  const selected = fitWithinBudget(
-    items.map((item) => ({
-      text: item.text,
-      priority: item.priority,
-      source: item.source
-    })),
-    budget
-  );
-  const bySource = new Map(items.map((item) => [item.source, item.entry]));
+  const maxChars = Math.max(0, Math.floor(budget) * 4);
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return text.slice(0, maxChars).trimEnd();
+}
+function applyTokenBudget(items, task, budget) {
+  const fullContext = items.map((item) => item.entry);
+  const fullMarkdown = formatContextMarkdown(task, fullContext);
+  if (budget === void 0) {
+    return { context: fullContext, markdown: fullMarkdown };
+  }
+  const normalizedBudget = Math.max(1, Math.floor(budget));
+  const header = `## Relevant Context for: ${task}
+
+`;
+  let remaining = normalizedBudget - estimateTokens(header);
   const selectedEntries = [];
-  for (const selectedItem of selected) {
-    const entry = bySource.get(selectedItem.source);
-    if (entry) {
-      selectedEntries.push(entry);
+  for (const item of [...items].sort((a, b) => a.priority - b.priority)) {
+    if (remaining <= 0) {
+      break;
+    }
+    const cost = estimateTokens(renderEntryBlock(item.entry));
+    if (cost <= remaining) {
+      selectedEntries.push(item.entry);
+      remaining -= cost;
     }
   }
-  return selectedEntries;
+  const markdown = truncateToBudget(formatContextMarkdown(task, selectedEntries), normalizedBudget);
+  return {
+    context: selectedEntries,
+    markdown
+  };
 }
 async function buildContext(task, options) {
   const normalizedTask = task.trim();
@@ -343,12 +327,12 @@ async function buildContext(task, options) {
     ...yellowObservations,
     ...greenObservations
   ];
-  const context = applyTokenBudget(ordered, options.budget);
+  const { context, markdown } = applyTokenBudget(ordered, normalizedTask, options.budget);
   return {
     task: normalizedTask,
     generated: (/* @__PURE__ */ new Date()).toISOString(),
     context,
-    markdown: formatContextMarkdown(normalizedTask, context)
+    markdown
   };
 }
 async function contextCommand(task, options) {

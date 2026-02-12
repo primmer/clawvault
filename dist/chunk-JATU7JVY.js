@@ -1,7 +1,7 @@
 import {
   Observer,
   parseSessionFile
-} from "./chunk-PBLNXOPM.js";
+} from "./chunk-EQ2AZVBX.js";
 
 // src/commands/observe.ts
 import * as fs2 from "fs";
@@ -16,13 +16,17 @@ var SessionWatcher = class {
   watchPath;
   observer;
   ignoreInitial;
+  debounceMs;
   watcher = null;
   fileOffsets = /* @__PURE__ */ new Map();
+  pendingPaths = /* @__PURE__ */ new Set();
+  debounceTimer = null;
   processingQueue = Promise.resolve();
   constructor(watchPath, observer, options = {}) {
     this.watchPath = path.resolve(watchPath);
     this.observer = observer;
     this.ignoreInitial = options.ignoreInitial ?? false;
+    this.debounceMs = options.debounceMs ?? 500;
   }
   async start() {
     if (!fs.existsSync(this.watchPath)) {
@@ -37,17 +41,43 @@ var SessionWatcher = class {
       }
     });
     const enqueue = (changedPath) => {
-      this.processingQueue = this.processingQueue.then(() => this.consumeFile(changedPath)).catch(() => void 0);
+      this.pendingPaths.add(path.resolve(changedPath));
+      this.scheduleDrain();
     };
     this.watcher.on("add", enqueue);
     this.watcher.on("change", enqueue);
     this.watcher.on("unlink", (deletedPath) => {
-      this.fileOffsets.delete(path.resolve(deletedPath));
+      const resolved = path.resolve(deletedPath);
+      this.fileOffsets.delete(resolved);
+      this.pendingPaths.delete(resolved);
+    });
+    await new Promise((resolve3, reject) => {
+      this.watcher?.once("ready", () => resolve3());
+      this.watcher?.once("error", (error) => reject(error));
     });
   }
   async stop() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.pendingPaths.clear();
+    await this.processingQueue.catch(() => void 0);
     await this.watcher?.close();
     this.watcher = null;
+  }
+  scheduleDrain() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      const nextPaths = [...this.pendingPaths];
+      this.pendingPaths.clear();
+      for (const changedPath of nextPaths) {
+        this.processingQueue = this.processingQueue.then(() => this.consumeFile(changedPath)).catch(() => void 0);
+      }
+    }, this.debounceMs);
   }
   async consumeFile(filePath) {
     const resolved = path.resolve(filePath);

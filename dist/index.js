@@ -16,7 +16,7 @@ import {
   contextCommand,
   formatContextMarkdown,
   registerContextCommand
-} from "./chunk-S3TOK4VI.js";
+} from "./chunk-AVPHNEDB.js";
 import {
   ClawVault,
   createVault,
@@ -41,13 +41,13 @@ import {
   SessionWatcher,
   observeCommand,
   registerObserveCommand
-} from "./chunk-P3KFRS2W.js";
+} from "./chunk-JATU7JVY.js";
 import {
   Compressor,
   Observer,
   Reflector,
   parseSessionFile
-} from "./chunk-PBLNXOPM.js";
+} from "./chunk-EQ2AZVBX.js";
 
 // src/index.ts
 import * as fs from "fs";

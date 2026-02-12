@@ -1,9 +1,13 @@
 import * as path from 'path';
+import type { Command } from 'commander';
 import { ClawVault } from '../lib/vault.js';
-import type { SearchResult } from '../types.js';
+import { parseObservationLines, readObservations } from '../lib/observation-reader.js';
+import { fitWithinBudget } from '../lib/token-counter.js';
+import type { Document, SearchResult } from '../types.js';
 
 const DEFAULT_LIMIT = 5;
 const MAX_SNIPPET_LENGTH = 320;
+const OBSERVATION_LOOKBACK_DAYS = 7;
 
 export type ContextFormat = 'markdown' | 'json';
 
@@ -12,6 +16,8 @@ export interface ContextOptions {
   limit?: number;
   format?: ContextFormat;
   recent?: boolean;
+  includeObservations?: boolean;
+  budget?: number;
 }
 
 export interface ContextEntry {
@@ -22,6 +28,7 @@ export interface ContextEntry {
   snippet: string;
   modified: string;
   age: string;
+  source: 'observation' | 'daily-note' | 'search';
 }
 
 export interface ContextResult {
@@ -65,11 +72,238 @@ export function formatContextMarkdown(task: string, entries: ContextEntry[]): st
   }
 
   for (const entry of entries) {
-    output += `### ${entry.title} (score: ${entry.score.toFixed(2)}, ${entry.age})\n`;
+    output += `### ${entry.title} (${entry.source}, score: ${entry.score.toFixed(2)}, ${entry.age})\n`;
     output += `${entry.snippet}\n\n`;
   }
 
   return output.trimEnd();
+}
+
+interface PrioritizedContextItem {
+  entry: ContextEntry;
+  text: string;
+  priority: number;
+  source: string;
+}
+
+function estimateSnippet(source: string): string {
+  const normalized = source.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return 'No snippet available.';
+  }
+  return normalized.slice(0, MAX_SNIPPET_LENGTH);
+}
+
+function parseIsoDate(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+  }
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    if (!Number.isNaN(time)) {
+      return value.toISOString().slice(0, 10);
+    }
+  }
+
+  return null;
+}
+
+function asDate(value: string | null, fallback: Date = new Date(0)): Date {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
+function observationPriorityToRank(priority: string): number {
+  if (priority === '🔴') return 1;
+  if (priority === '🟡') return 4;
+  return 5;
+}
+
+function observationPriorityScore(priority: string): number {
+  if (priority === '🔴') return 1.0;
+  if (priority === '🟡') return 0.7;
+  return 0.4;
+}
+
+function isLikelyDailyNote(document: Document): boolean {
+  const normalizedPath = document.path.split(path.sep).join('/').toLowerCase();
+  if (normalizedPath.includes('/daily/')) {
+    return true;
+  }
+
+  const category = document.category.toLowerCase();
+  if (category.includes('daily')) {
+    return true;
+  }
+
+  const type = typeof document.frontmatter.type === 'string'
+    ? document.frontmatter.type.toLowerCase()
+    : '';
+  return type === 'daily';
+}
+
+function findDailyDate(document: Document, targetDates: Set<string>): string | null {
+  const frontmatterDate = parseIsoDate(document.frontmatter.date);
+  const titleDate = parseIsoDate(document.title);
+  const fileDate = parseIsoDate(path.basename(document.path, '.md'));
+  const candidates = [frontmatterDate, titleDate, fileDate].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    if (!targetDates.has(candidate)) {
+      continue;
+    }
+    if (isLikelyDailyNote(document) || titleDate === candidate || fileDate === candidate) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function getTargetDailyDates(now: Date = new Date()): string[] {
+  const today = now.toISOString().slice(0, 10);
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = yesterdayDate.toISOString().slice(0, 10);
+  return [today, yesterday];
+}
+
+async function buildDailyContextItems(vault: ClawVault): Promise<PrioritizedContextItem[]> {
+  const allDocuments = await vault.list();
+  const targetDates = getTargetDailyDates();
+  const targetDateSet = new Set(targetDates);
+  const byDate = new Map<string, Document>();
+
+  for (const document of allDocuments) {
+    const dailyDate = findDailyDate(document, targetDateSet);
+    if (!dailyDate) {
+      continue;
+    }
+
+    const existing = byDate.get(dailyDate);
+    if (!existing || document.modified.getTime() > existing.modified.getTime()) {
+      byDate.set(dailyDate, document);
+    }
+  }
+
+  const items: PrioritizedContextItem[] = [];
+  for (const date of targetDates) {
+    const document = byDate.get(date);
+    if (!document) {
+      continue;
+    }
+
+    const relativePath = path.relative(vault.getPath(), document.path).split(path.sep).join('/');
+    const snippet = estimateSnippet(document.content);
+    const sourceId = `daily:${date}:${relativePath}`;
+    items.push({
+      priority: 2,
+      source: sourceId,
+      text: `${date}\n${snippet}`,
+      entry: {
+        title: `Daily note ${date}`,
+        path: relativePath,
+        category: document.category,
+        score: 0.9,
+        snippet,
+        modified: document.modified.toISOString(),
+        age: formatRelativeAge(document.modified),
+        source: 'daily-note'
+      }
+    });
+  }
+
+  return items;
+}
+
+function buildObservationContextItems(vaultPath: string): PrioritizedContextItem[] {
+  const observationMarkdown = readObservations(vaultPath, OBSERVATION_LOOKBACK_DAYS);
+  const parsed = parseObservationLines(observationMarkdown);
+  const items: PrioritizedContextItem[] = [];
+
+  for (const [index, observation] of parsed.entries()) {
+    const priority = observationPriorityToRank(observation.priority);
+    const modifiedDate = asDate(observation.date, new Date());
+    const date = observation.date || modifiedDate.toISOString().slice(0, 10);
+    const snippet = estimateSnippet(observation.content);
+    const sourceId = `observation:${priority}:${date}:${index}`;
+
+    items.push({
+      priority,
+      source: sourceId,
+      text: `${observation.priority} ${date}\n${snippet}`,
+      entry: {
+        title: `${observation.priority} observation (${date})`,
+        path: `observations/${date}.md`,
+        category: 'observations',
+        score: observationPriorityScore(observation.priority),
+        snippet,
+        modified: modifiedDate.toISOString(),
+        age: formatRelativeAge(modifiedDate),
+        source: 'observation'
+      }
+    });
+  }
+
+  return items;
+}
+
+function buildSearchContextItems(vault: ClawVault, results: SearchResult[]): PrioritizedContextItem[] {
+  return results.map((result, index): PrioritizedContextItem => {
+    const relativePath = path.relative(vault.getPath(), result.document.path).split(path.sep).join('/');
+    const entry: ContextEntry = {
+      title: result.document.title,
+      path: relativePath,
+      category: result.document.category,
+      score: result.score,
+      snippet: normalizeSnippet(result),
+      modified: result.document.modified.toISOString(),
+      age: formatRelativeAge(result.document.modified),
+      source: 'search'
+    };
+
+    return {
+      priority: 3,
+      source: `search:${index}:${entry.path}`,
+      text: `${entry.title}\n${entry.snippet}`,
+      entry
+    };
+  });
+}
+
+function applyTokenBudget(items: PrioritizedContextItem[], budget?: number): ContextEntry[] {
+  if (budget === undefined) {
+    return items.map((item) => item.entry);
+  }
+
+  const selected = fitWithinBudget(
+    items.map((item) => ({
+      text: item.text,
+      priority: item.priority,
+      source: item.source
+    })),
+    budget
+  );
+
+  const bySource = new Map(items.map((item) => [item.source, item.entry]));
+  const selectedEntries: ContextEntry[] = [];
+  for (const selectedItem of selected) {
+    const entry = bySource.get(selectedItem.source);
+    if (entry) {
+      selectedEntries.push(entry);
+    }
+  }
+  return selectedEntries;
 }
 
 export async function buildContext(task: string, options: ContextOptions): Promise<ContextResult> {
@@ -83,21 +317,32 @@ export async function buildContext(task: string, options: ContextOptions): Promi
 
   const limit = Math.max(1, options.limit ?? DEFAULT_LIMIT);
   const recent = options.recent ?? true;
+  const includeObservations = options.includeObservations ?? true;
 
-  const results = await vault.vsearch(normalizedTask, {
+  const searchResults = await vault.vsearch(normalizedTask, {
     limit,
     temporalBoost: recent
   });
 
-  const context = results.map((result): ContextEntry => ({
-    title: result.document.title,
-    path: path.relative(vault.getPath(), result.document.path).split(path.sep).join('/'),
-    category: result.document.category,
-    score: result.score,
-    snippet: normalizeSnippet(result),
-    modified: result.document.modified.toISOString(),
-    age: formatRelativeAge(result.document.modified)
-  }));
+  const searchItems = buildSearchContextItems(vault, searchResults);
+  const dailyItems = await buildDailyContextItems(vault);
+  const observationItems = includeObservations
+    ? buildObservationContextItems(vault.getPath())
+    : [];
+
+  const redObservations = observationItems.filter((item) => item.priority === 1);
+  const yellowObservations = observationItems.filter((item) => item.priority === 4);
+  const greenObservations = observationItems.filter((item) => item.priority === 5);
+
+  const ordered = [
+    ...redObservations,
+    ...dailyItems,
+    ...searchItems,
+    ...yellowObservations,
+    ...greenObservations
+  ];
+
+  const context = applyTokenBudget(ordered, options.budget);
 
   return {
     task: normalizedTask,
@@ -122,4 +367,53 @@ export async function contextCommand(task: string, options: ContextOptions): Pro
   }
 
   console.log(result.markdown);
+}
+
+function parsePositiveInteger(raw: string, label: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${label}: ${raw}`);
+  }
+  return parsed;
+}
+
+export function registerContextCommand(program: Command): void {
+  program
+    .command('context <task>')
+    .description('Generate task-relevant context for prompt injection')
+    .option('-n, --limit <n>', 'Max results', '5')
+    .option('--format <format>', 'Output format (markdown|json)', 'markdown')
+    .option('--recent', 'Boost recent documents (enabled by default)', true)
+    .option('--include-observations', 'Include observation memories in output', true)
+    .option('--budget <number>', 'Optional token budget for assembled context')
+    .option('-v, --vault <path>', 'Vault path')
+    .action(async (
+      task: string,
+      rawOptions: {
+        limit: string;
+        format: string;
+        recent?: boolean;
+        includeObservations?: boolean;
+        budget?: string;
+        vault?: string;
+      }
+    ) => {
+      const format = rawOptions.format === 'json' ? 'json' : 'markdown';
+      const budget = rawOptions.budget
+        ? parsePositiveInteger(rawOptions.budget, 'budget')
+        : undefined;
+      const limit = parsePositiveInteger(rawOptions.limit, 'limit');
+      const vaultPath = rawOptions.vault
+        ?? process.env.CLAWVAULT_PATH
+        ?? process.cwd();
+
+      await contextCommand(task, {
+        vaultPath,
+        limit,
+        format,
+        recent: rawOptions.recent ?? true,
+        includeObservations: rawOptions.includeObservations ?? true,
+        budget
+      });
+    });
 }

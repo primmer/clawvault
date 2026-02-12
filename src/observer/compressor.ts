@@ -14,8 +14,9 @@ interface ObservationLine {
 const DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 const OBSERVATION_LINE_RE = /^(🔴|🟡|🟢)\s+(.+)$/u;
 const CRITICAL_RE =
-  /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure)?\b|\bprefer(?:ence)?\b|\bblock(?:ed|er)?\b|\bmust\b|\brequired?\b|\burgent\b|\bdeadline\b|\bbreaking\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b)/i;
-const NOTABLE_RE = /\b(context|pattern|architecture|approach|trade[- ]?off|milestone|notable)\b/i;
+  /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure|ing)?\b|\bblock(?:ed|er)?\b|\bbreaking(?:\s+change)?s?\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b)/i;
+const DEADLINE_WITH_DATE_RE = /(?:(?:\bdeadline\b|\bdue(?:\s+date)?\b|\bcutoff\b).*(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2})|(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}).*(?:\bdeadline\b|\bdue(?:\s+date)?\b|\bcutoff\b))/i;
+const NOTABLE_RE = /\b(prefer(?:ence|s)?|likes?|dislikes?|context|pattern|architecture|approach|trade[- ]?off|milestone|stakeholder|teammate|collaborat(?:e|ed|ion)|discussion|notable|deadline|due|timeline)\b/i;
 
 export class Compressor {
   private readonly model?: string;
@@ -79,10 +80,12 @@ export class Compressor {
       '- Group observations by date heading: ## YYYY-MM-DD',
       '- Each line must follow: <emoji> <HH:MM> <observation>',
       '- Priority emojis: 🔴 critical, 🟡 notable, 🟢 info',
-      '- 🔴 MUST be used for: any decision (chose X, decided Y, selected Z, opted for, switched to), errors/failures, deadlines, blockers, preferences, breaking changes',
-      '- 🟡 for: architecture discussions, trade-offs, milestones, patterns, notable context',
+      '- 🔴 for: decisions between alternatives, errors/failures, blockers, deadlines with explicit dates, breaking changes',
+      '- 🟡 for: preferences, architecture discussions, trade-offs, milestones, people interactions, notable context, routine deadlines',
       '- 🟢 for: routine updates, deployments, builds, general info',
-      '- When someone chooses between options, that is ALWAYS 🔴 — even if the choice seems minor',
+      '- Preferences are 🟡 unless they indicate a breaking decision between alternatives.',
+      '- Each distinct error type or failure must be its own observation line; do not merge different errors.',
+      '- If multiple different errors occurred, list each separately with its specific error message.',
       '- Keep observations concise and factual.',
       '- Avoid duplicates when possible.',
       '',
@@ -219,7 +222,7 @@ export class Compressor {
 
   /**
    * Post-process LLM output to enforce priority rules.
-   * Lines matching CRITICAL_RE get upgraded to 🔴, NOTABLE_RE to 🟡.
+   * Lines matching critical rules get upgraded to 🔴, notable rules to 🟡.
    */
   private enforcePriorityRules(markdown: string): string {
     return markdown.split(/\r?\n/).map((line) => {
@@ -229,10 +232,10 @@ export class Compressor {
       const currentPriority = match[1] as Priority;
       const content = match[2];
 
-      if (CRITICAL_RE.test(content) && currentPriority !== '🔴') {
+      if (this.isCriticalContent(content) && currentPriority !== '🔴') {
         return line.replace(/^🟡|^🟢/u, '🔴');
       }
-      if (NOTABLE_RE.test(content) && currentPriority === '🟢') {
+      if (this.isNotableContent(content) && currentPriority === '🟢') {
         return line.replace(/^🟢/u, '🟡');
       }
 
@@ -372,9 +375,17 @@ export class Compressor {
   }
 
   private inferPriority(text: string): Priority {
-    if (CRITICAL_RE.test(text)) return '🔴';
-    if (NOTABLE_RE.test(text)) return '🟡';
+    if (this.isCriticalContent(text)) return '🔴';
+    if (this.isNotableContent(text)) return '🟡';
     return '🟢';
+  }
+
+  private isCriticalContent(text: string): boolean {
+    return CRITICAL_RE.test(text) || DEADLINE_WITH_DATE_RE.test(text);
+  }
+
+  private isNotableContent(text: string): boolean {
+    return NOTABLE_RE.test(text);
   }
 
   private normalizeText(text: string): string {

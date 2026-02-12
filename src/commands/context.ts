@@ -2,12 +2,17 @@ import * as path from 'path';
 import type { Command } from 'commander';
 import { ClawVault } from '../lib/vault.js';
 import { parseObservationLines, readObservations } from '../lib/observation-reader.js';
-import { estimateTokens } from '../lib/token-counter.js';
+import { estimateTokens, fitWithinBudget } from '../lib/token-counter.js';
 import type { Document, SearchResult } from '../types.js';
 
 const DEFAULT_LIMIT = 5;
 const MAX_SNIPPET_LENGTH = 320;
 const OBSERVATION_LOOKBACK_DAYS = 7;
+const STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'how', 'in', 'is',
+  'it', 'of', 'on', 'or', 'that', 'the', 'this', 'to', 'was', 'were', 'what', 'when',
+  'where', 'who', 'why', 'with', 'you', 'your'
+]);
 
 export type ContextFormat = 'markdown' | 'json';
 
@@ -84,6 +89,42 @@ interface PrioritizedContextItem {
   priority: number;
 }
 
+function extractKeywords(text: string): string[] {
+  const raw = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+
+  for (const token of raw) {
+    if (token.length < 2 || STOP_WORDS.has(token) || seen.has(token)) {
+      continue;
+    }
+    seen.add(token);
+    keywords.push(token);
+  }
+
+  return keywords;
+}
+
+function computeKeywordOverlapScore(queryKeywords: string[], text: string): number {
+  if (queryKeywords.length === 0) {
+    return 1;
+  }
+
+  const haystack = new Set(extractKeywords(text));
+  let matches = 0;
+  for (const keyword of queryKeywords) {
+    if (haystack.has(keyword)) {
+      matches += 1;
+    }
+  }
+
+  if (matches === 0) {
+    return 0.1;
+  }
+
+  return matches / queryKeywords.length;
+}
+
 function estimateSnippet(source: string): string {
   const normalized = source.replace(/\s+/g, ' ').trim();
   if (!normalized) {
@@ -125,12 +166,6 @@ function observationPriorityToRank(priority: string): number {
   if (priority === '🔴') return 1;
   if (priority === '🟡') return 4;
   return 5;
-}
-
-function observationPriorityScore(priority: string): number {
-  if (priority === '🔴') return 1.0;
-  if (priority === '🟡') return 0.7;
-  return 0.4;
 }
 
 function isLikelyDailyNote(document: Document): boolean {
@@ -221,7 +256,7 @@ async function buildDailyContextItems(vault: ClawVault): Promise<PrioritizedCont
   return items;
 }
 
-function buildObservationContextItems(vaultPath: string): PrioritizedContextItem[] {
+function buildObservationContextItems(vaultPath: string, queryKeywords: string[]): PrioritizedContextItem[] {
   const observationMarkdown = readObservations(vaultPath, OBSERVATION_LOOKBACK_DAYS);
   const parsed = parseObservationLines(observationMarkdown);
   const items: PrioritizedContextItem[] = [];
@@ -238,7 +273,7 @@ function buildObservationContextItems(vaultPath: string): PrioritizedContextItem
         title: `${observation.priority} observation (${date})`,
         path: `observations/${date}.md`,
         category: 'observations',
-        score: observationPriorityScore(observation.priority),
+        score: computeKeywordOverlapScore(queryKeywords, observation.content),
         snippet,
         modified: modifiedDate.toISOString(),
         age: formatRelativeAge(modifiedDate),
@@ -296,20 +331,34 @@ function applyTokenBudget(items: PrioritizedContextItem[], task: string, budget?
   }
 
   const normalizedBudget = Math.max(1, Math.floor(budget));
-  const header = `## Relevant Context for: ${task}\n\n`;
-  let remaining = normalizedBudget - estimateTokens(header);
-  const selectedEntries: ContextEntry[] = [];
-
-  for (const item of [...items].sort((a, b) => a.priority - b.priority)) {
-    if (remaining <= 0) {
-      break;
-    }
-    const cost = estimateTokens(renderEntryBlock(item.entry));
-    if (cost <= remaining) {
-      selectedEntries.push(item.entry);
-      remaining -= cost;
-    }
+  if (estimateTokens(fullMarkdown) <= normalizedBudget) {
+    return { context: fullContext, markdown: fullMarkdown };
   }
+
+  const header = `## Relevant Context for: ${task}\n\n`;
+  const headerCost = estimateTokens(header);
+  if (headerCost >= normalizedBudget) {
+    return {
+      context: [],
+      markdown: truncateToBudget(header.trimEnd(), normalizedBudget)
+    };
+  }
+
+  const fitted = fitWithinBudget(
+    items.map((item, index) => ({
+      text: renderEntryBlock(item.entry),
+      priority: item.priority,
+      source: String(index)
+    })),
+    normalizedBudget - headerCost
+  );
+
+  const selectedEntries = fitted
+    .map((item) => {
+      const index = Number.parseInt(item.source, 10);
+      return Number.isNaN(index) ? null : items[index]?.entry ?? null;
+    })
+    .filter((entry): entry is ContextEntry => Boolean(entry));
 
   const markdown = truncateToBudget(formatContextMarkdown(task, selectedEntries), normalizedBudget);
   return {
@@ -330,6 +379,7 @@ export async function buildContext(task: string, options: ContextOptions): Promi
   const limit = Math.max(1, options.limit ?? DEFAULT_LIMIT);
   const recent = options.recent ?? true;
   const includeObservations = options.includeObservations ?? true;
+  const queryKeywords = extractKeywords(normalizedTask);
 
   const searchResults = await vault.vsearch(normalizedTask, {
     limit,
@@ -339,17 +389,22 @@ export async function buildContext(task: string, options: ContextOptions): Promi
   const searchItems = buildSearchContextItems(vault, searchResults);
   const dailyItems = await buildDailyContextItems(vault);
   const observationItems = includeObservations
-    ? buildObservationContextItems(vault.getPath())
+    ? buildObservationContextItems(vault.getPath(), queryKeywords)
     : [];
 
-  const redObservations = observationItems.filter((item) => item.priority === 1);
-  const yellowObservations = observationItems.filter((item) => item.priority === 4);
-  const greenObservations = observationItems.filter((item) => item.priority === 5);
+  const byScoreDesc = (left: PrioritizedContextItem, right: PrioritizedContextItem): number =>
+    right.entry.score - left.entry.score;
+
+  const redObservations = observationItems.filter((item) => item.priority === 1).sort(byScoreDesc);
+  const yellowObservations = observationItems.filter((item) => item.priority === 4).sort(byScoreDesc);
+  const greenObservations = observationItems.filter((item) => item.priority === 5).sort(byScoreDesc);
+  const sortedDailyItems = [...dailyItems].sort(byScoreDesc);
+  const sortedSearchItems = [...searchItems].sort(byScoreDesc);
 
   const ordered = [
     ...redObservations,
-    ...dailyItems,
-    ...searchItems,
+    ...sortedDailyItems,
+    ...sortedSearchItems,
     ...yellowObservations,
     ...greenObservations
   ];

@@ -696,6 +696,44 @@ program
     }
   });
 
+// === OBSERVE ===
+program
+  .command('observe')
+  .description('Observe session files and build observational memory')
+  .option('--watch <path>', 'Watch session file or directory')
+  .option('--threshold <n>', 'Compression token threshold', '30000')
+  .option('--reflect-threshold <n>', 'Reflection token threshold', '40000')
+  .option('--model <model>', 'LLM model override')
+  .option('--compress <file>', 'One-shot compression for a conversation file')
+  .option('--daemon', 'Run in detached background mode')
+  .option('-v, --vault <path>', 'Vault path')
+  .action(async (options) => {
+    try {
+      const { observeCommand } = await import('../dist/commands/observe.js');
+      const threshold = Number.parseInt(options.threshold, 10);
+      const reflectThreshold = Number.parseInt(options.reflectThreshold, 10);
+      if (Number.isNaN(threshold) || threshold <= 0) {
+        throw new Error(`Invalid --threshold value: ${options.threshold}`);
+      }
+      if (Number.isNaN(reflectThreshold) || reflectThreshold <= 0) {
+        throw new Error(`Invalid --reflect-threshold value: ${options.reflectThreshold}`);
+      }
+
+      await observeCommand({
+        watch: options.watch,
+        threshold,
+        reflectThreshold,
+        model: options.model,
+        compress: options.compress,
+        daemon: options.daemon,
+        vaultPath: resolveVaultPath(options.vault)
+      });
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // === SESSION-RECAP ===
 program
   .command('session-recap <sessionKey>')

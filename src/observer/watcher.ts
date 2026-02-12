@@ -6,24 +6,30 @@ import type { Observer } from './observer.js';
 export interface SessionWatcherOptions {
   ignoreInitial?: boolean;
   debounceMs?: number;
+  flushThresholdChars?: number;
 }
+
+const DEFAULT_FLUSH_THRESHOLD_CHARS = 500;
 
 export class SessionWatcher {
   private readonly watchPath: string;
   private readonly observer: Observer;
   private readonly ignoreInitial: boolean;
   private readonly debounceMs: number;
+  private readonly flushThresholdChars: number;
   private watcher: FSWatcher | null = null;
   private fileOffsets = new Map<string, number>();
   private pendingPaths = new Set<string>();
   private debounceTimer: NodeJS.Timeout | null = null;
   private processingQueue: Promise<void> = Promise.resolve();
+  private bufferedChars = 0;
 
   constructor(watchPath: string, observer: Observer, options: SessionWatcherOptions = {}) {
     this.watchPath = path.resolve(watchPath);
     this.observer = observer;
     this.ignoreInitial = options.ignoreInitial ?? false;
     this.debounceMs = options.debounceMs ?? 500;
+    this.flushThresholdChars = Math.max(1, options.flushThresholdChars ?? DEFAULT_FLUSH_THRESHOLD_CHARS);
   }
 
   async start(): Promise<void> {
@@ -57,15 +63,25 @@ export class SessionWatcher {
       this.watcher?.once('ready', () => resolve());
       this.watcher?.once('error', (error) => reject(error));
     });
+
+    if (this.ignoreInitial) {
+      // Prime offsets so existing files only stream new bytes after watch starts.
+      this.primeInitialOffsets();
+    }
   }
 
   async stop(): Promise<void> {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
+      this.drainPendingPaths();
+    }
+    await this.processingQueue.catch(() => undefined);
+    if (this.bufferedChars > 0) {
+      await this.observer.flush();
+      this.bufferedChars = 0;
     }
     this.pendingPaths.clear();
-    await this.processingQueue.catch(() => undefined);
     await this.watcher?.close();
     this.watcher = null;
   }
@@ -77,15 +93,19 @@ export class SessionWatcher {
 
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
-      const nextPaths = [...this.pendingPaths];
-      this.pendingPaths.clear();
-
-      for (const changedPath of nextPaths) {
-        this.processingQueue = this.processingQueue
-          .then(() => this.consumeFile(changedPath))
-          .catch(() => undefined);
-      }
+      this.drainPendingPaths();
     }, this.debounceMs);
+  }
+
+  private drainPendingPaths(): void {
+    const nextPaths = [...this.pendingPaths];
+    this.pendingPaths.clear();
+
+    for (const changedPath of nextPaths) {
+      this.processingQueue = this.processingQueue
+        .then(() => this.consumeFile(changedPath))
+        .catch(() => undefined);
+    }
   }
 
   private async consumeFile(filePath: string): Promise<void> {
@@ -128,5 +148,49 @@ export class SessionWatcher {
     }
 
     await this.observer.processMessages(messages);
+    this.bufferedChars += chunk.length;
+    if (this.bufferedChars >= this.flushThresholdChars) {
+      await this.observer.flush();
+      this.bufferedChars = 0;
+    }
+  }
+
+  private primeInitialOffsets(): void {
+    for (const filePath of this.collectFiles(this.watchPath)) {
+      try {
+        const stats = fs.statSync(filePath);
+        if (stats.isFile()) {
+          this.fileOffsets.set(filePath, stats.size);
+        }
+      } catch {
+        // Best-effort priming: watcher events still keep offsets accurate.
+      }
+    }
+  }
+
+  private collectFiles(targetPath: string): string[] {
+    if (!fs.existsSync(targetPath)) {
+      return [];
+    }
+
+    const resolved = path.resolve(targetPath);
+    const stats = fs.statSync(resolved);
+    if (stats.isFile()) {
+      return [resolved];
+    }
+    if (!stats.isDirectory()) {
+      return [];
+    }
+
+    const collected: string[] = [];
+    for (const entry of fs.readdirSync(resolved, { withFileTypes: true })) {
+      const childPath = path.join(resolved, entry.name);
+      if (entry.isDirectory()) {
+        collected.push(...this.collectFiles(childPath));
+      } else if (entry.isFile()) {
+        collected.push(path.resolve(childPath));
+      }
+    }
+    return collected;
   }
 }

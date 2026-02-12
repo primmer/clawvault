@@ -96,3 +96,27 @@ describe('buildContext budget handling', () => {
     expect(result.markdown).not.toContain('Low priority chatter');
   });
 });
+
+describe('buildContext observation scoring', () => {
+  it('scores observations by keyword overlap and sorts by relevance within priority', async () => {
+    loadMock.mockResolvedValue(undefined);
+    listMock.mockResolvedValue([]);
+    vsearchMock.mockResolvedValue([]);
+    readObservationsMock.mockReturnValue('## 2026-02-11');
+    parseObservationLinesMock.mockReturnValue([
+      { priority: '🔴', content: '09:10 Postgres migration rollback failed', date: '2026-02-11' },
+      { priority: '🔴', content: '09:20 Team synced on release timeline', date: '2026-02-11' }
+    ]);
+
+    const result = await buildContext('postgres migration', {
+      vaultPath: '/vault',
+      includeObservations: true
+    });
+
+    const observations = result.context.filter((item) => item.source === 'observation');
+    expect(observations).toHaveLength(2);
+    expect(observations[0].snippet).toContain('Postgres migration rollback failed');
+    expect(observations[0].score).toBeGreaterThan(observations[1].score);
+    expect(observations[1].score).toBe(0.1);
+  });
+});

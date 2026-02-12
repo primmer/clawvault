@@ -21,6 +21,9 @@ export interface WakeResult {
 
 const DEFAULT_HANDOFF_LIMIT = 3;
 const OBSERVATION_HIGHLIGHT_RE = /^(🔴|🟡)\s+(.+)$/u;
+const MAX_WAKE_RED_OBSERVATIONS = 20;
+const MAX_WAKE_YELLOW_OBSERVATIONS = 10;
+const MAX_WAKE_OUTPUT_LINES = 100;
 
 interface ObservationHighlight {
   date: string;
@@ -82,25 +85,61 @@ function readRecentObservationHighlights(vaultPath: string): ObservationHighligh
   return highlights;
 }
 
+function timeFromObservationText(text: string): number {
+  const match = text.match(/^([01]\d|2[0-3]):([0-5]\d)\b/);
+  if (!match) {
+    return -1;
+  }
+  return (Number.parseInt(match[1], 10) * 60) + Number.parseInt(match[2], 10);
+}
+
+function compareByRecency(left: ObservationHighlight, right: ObservationHighlight): number {
+  if (left.date !== right.date) {
+    return right.date.localeCompare(left.date);
+  }
+  return timeFromObservationText(right.text) - timeFromObservationText(left.text);
+}
+
 function formatRecentObservations(highlights: ObservationHighlight[]): string {
   if (highlights.length === 0) {
     return '_No critical or notable observations from today or yesterday._';
   }
 
+  const sorted = [...highlights].sort(compareByRecency);
+  const red = sorted.filter((item) => item.priority === '🔴').slice(0, MAX_WAKE_RED_OBSERVATIONS);
+  const yellow = sorted.filter((item) => item.priority === '🟡').slice(0, MAX_WAKE_YELLOW_OBSERVATIONS);
+  const visible = [...red, ...yellow].sort(compareByRecency);
+  const omittedCount = Math.max(0, highlights.length - visible.length);
+
   const byDate = new Map<string, ObservationHighlight[]>();
-  for (const item of highlights) {
+  for (const item of visible) {
     const bucket = byDate.get(item.date) ?? [];
     bucket.push(item);
     byDate.set(item.date, bucket);
   }
 
   const lines: string[] = [];
+  const bodyLineBudget = Math.max(1, MAX_WAKE_OUTPUT_LINES - (omittedCount > 0 ? 1 : 0));
+
   for (const [date, items] of byDate.entries()) {
+    if (lines.length >= bodyLineBudget) {
+      break;
+    }
+
     lines.push(`### ${date}`);
     for (const item of items) {
+      if (lines.length >= bodyLineBudget) {
+        break;
+      }
       lines.push(`- ${item.priority} ${item.text}`);
     }
-    lines.push('');
+    if (lines.length < bodyLineBudget) {
+      lines.push('');
+    }
+  }
+
+  if (omittedCount > 0) {
+    lines.push(`... and ${omittedCount} more observations (use \`clawvault context\` to query)`);
   }
 
   return lines.join('\n').trim();

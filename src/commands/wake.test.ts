@@ -139,4 +139,45 @@ describe('wake', () => {
 
     fs.rmSync(vaultPath, { recursive: true, force: true });
   });
+
+  it('limits wake observation output and appends overflow hint', async () => {
+    const vaultPath = makeTempVaultDir();
+    const today = new Date();
+    const todayKey = toDateKey(today);
+    const redLines = Array.from({ length: 25 }, (_, index) => `🔴 09:${String(index).padStart(2, '0')} Critical issue ${index + 1}`);
+    const yellowLines = Array.from({ length: 15 }, (_, index) => `🟡 10:${String(index).padStart(2, '0')} Notable context ${index + 1}`);
+
+    fs.writeFileSync(
+      path.join(vaultPath, 'observations', `${todayKey}.md`),
+      [`## ${todayKey}`, '', ...redLines, ...yellowLines].join('\n'),
+      'utf-8'
+    );
+
+    recoverMock.mockResolvedValue({
+      died: false,
+      checkpoint: null,
+      deathTime: null,
+      recoveryMessage: 'ok'
+    });
+    generateRecapMock.mockResolvedValue({
+      generated: new Date().toISOString(),
+      recentHandoffs: [],
+      activeProjects: [],
+      pendingCommitments: [],
+      recentDecisions: [],
+      recentLessons: [],
+      keyRelationships: []
+    });
+    formatRecapMock.mockReturnValue('# Who I Was\n\nBase recap');
+
+    const result = await wake({ vaultPath, brief: true, handoffLimit: 2 });
+    const renderedRed = (result.observations.match(/^- 🔴 /gm) ?? []).length;
+    const renderedYellow = (result.observations.match(/^- 🟡 /gm) ?? []).length;
+
+    expect(renderedRed).toBe(20);
+    expect(renderedYellow).toBe(10);
+    expect(result.observations).toContain('... and 10 more observations (use `clawvault context` to query)');
+
+    fs.rmSync(vaultPath, { recursive: true, force: true });
+  });
 });

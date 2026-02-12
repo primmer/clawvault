@@ -134,11 +134,17 @@ clawvault sync
 
 ## Search
 
-ClawVault provides local search via qmd (BM25 + semantic). Works alongside OpenClaw's built-in `memory_search`.
+Use `clawvault search` / `qmd` for vault search — it indexes the **entire vault** (decisions/, people/, lessons/, observations/, etc.).
+
+OpenClaw's built-in `memory_search` only indexes `MEMORY.md` + `memory/**/*.md`. If your vault lives inside `memory/`, it'll work. If your vault is elsewhere, `memory_search` won't find your ClawVault categories.
 
 ```bash
-clawvault search "query"           # BM25 keyword search
-clawvault vsearch "what did I decide" # Semantic search (local embeddings)
+# Full vault search (recommended)
+clawvault search "query"              # BM25 keyword
+clawvault vsearch "what did I decide" # Semantic (local embeddings)
+
+# OpenClaw memory search (only MEMORY.md + memory/*.md)
+# Works if vault is inside memory/, misses vault categories otherwise
 ```
 
 ## Vault Structure

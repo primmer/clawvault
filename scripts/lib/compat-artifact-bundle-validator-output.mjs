@@ -95,6 +95,33 @@ export function ensureCompatArtifactBundleValidatorPayloadShape(payload) {
     if (duplicateArtifactNames.length > 0) {
       throw new Error(`compat artifact bundle validator payload artifactContracts contains duplicates: ${duplicateArtifactNames.join(', ')}`);
     }
+    if (payload.verifiedArtifacts.length !== payload.artifactContracts.length) {
+      throw new Error('compat artifact bundle validator payload verifiedArtifacts must have one entry per artifactContracts item');
+    }
+    if (payload.verifiedArtifacts.some((value, index) => value !== payload.artifactContracts[index].artifactName)) {
+      throw new Error('compat artifact bundle validator payload verifiedArtifacts must match artifactContracts artifactName order');
+    }
+    const artifactContractsByName = new Map(payload.artifactContracts.map((entry) => [entry.artifactName, entry]));
+    const artifactPathContracts = [
+      ['summaryPath', 'summary.json'],
+      ['validatorResultPath', 'validator-result.json'],
+      ['reportSchemaValidatorResultPath', 'report-schema-validator-result.json'],
+      ['schemaValidatorResultPath', 'schema-validator-result.json'],
+      ['validatorResultVerifierResultPath', 'validator-result-verifier-result.json'],
+      ['artifactBundleManifestValidatorResultPath', 'artifact-bundle-manifest-validator-result.json']
+    ];
+    for (const [fieldName, artifactName] of artifactPathContracts) {
+      const entry = artifactContractsByName.get(artifactName);
+      if (!entry) {
+        throw new Error(`compat artifact bundle validator payload artifactContracts missing required artifact: ${artifactName}`);
+      }
+      if (payload[fieldName] !== entry.artifactPath) {
+        throw new Error(
+          `compat artifact bundle validator payload ${fieldName} must match artifactContracts path for ${artifactName} `
+          + `(expected ${entry.artifactPath}, received ${payload[fieldName]})`
+        );
+      }
+    }
     return;
   }
 

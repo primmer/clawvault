@@ -143,12 +143,8 @@ describe('compat ci workflow contracts constants', () => {
       REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES,
       REQUIRED_COMPAT_CI_STEP_NAMES,
       'REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES',
-      { requireExactKeyDomain: true }
+      { requireExactKeyDomain: true, requiredFirstValue: 'name' }
     );
-    for (const fieldNameSequence of Object.values(REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES)) {
-      expectNonEmptyUniqueStringArray(fieldNameSequence, 'step field-name sequence');
-      expect(fieldNameSequence[0]).toBe('name');
-    }
     expectKeyedStringArrayDomains(
       REQUIRED_COMPAT_CI_STEP_WITH_FIELD_NAME_SEQUENCES,
       REQUIRED_COMPAT_CI_STEP_NAMES,

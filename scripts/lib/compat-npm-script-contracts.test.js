@@ -220,13 +220,8 @@ describe('compat npm script contracts constants', () => {
       REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES,
       REQUIRED_COMPAT_CI_STEP_NAMES,
       'REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES',
-      { requireExactKeyDomain: true }
+      { requireExactKeyDomain: true, requiredFirstValue: 'name' }
     );
-    for (const [stepName, fieldNameSequence] of Object.entries(REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES)) {
-      expect(stepName.length).toBeGreaterThan(0);
-      expectNonEmptyUniqueStringArray(fieldNameSequence, `REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES[${stepName}]`);
-      expect(fieldNameSequence[0]).toBe('name');
-    }
     expectKeyedStringArrayDomains(
       REQUIRED_COMPAT_CI_STEP_WITH_FIELD_NAME_SEQUENCES,
       REQUIRED_COMPAT_CI_STEP_NAMES,

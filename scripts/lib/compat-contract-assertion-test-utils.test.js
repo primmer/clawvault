@@ -244,6 +244,15 @@ describe('compat contract assertion test utils', () => {
     );
     expectKeyedStringArrayDomains(
       {
+        alpha: ['first', 'second'],
+        beta: ['first']
+      },
+      ['alpha', 'beta'],
+      'keyed string-array first-value domain',
+      { requireExactKeyDomain: true, requiredFirstValue: 'first' }
+    );
+    expectKeyedStringArrayDomains(
+      {
         alpha: ['a1'],
         beta: []
       },
@@ -271,6 +280,16 @@ describe('compat contract assertion test utils', () => {
         },
         ['alpha'],
         'empty-not-allowed keyed string-array domain'
+      );
+    }).toThrow();
+    expect(() => {
+      expectKeyedStringArrayDomains(
+        {
+          alpha: ['wrong']
+        },
+        ['alpha'],
+        'first-value mismatch keyed string-array domain',
+        { requiredFirstValue: 'first' }
       );
     }).toThrow();
     expect(() => {

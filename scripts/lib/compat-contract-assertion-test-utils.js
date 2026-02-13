@@ -58,12 +58,16 @@ export function expectObjectKeyDomainParity(valuesByKey, expectedKeys, label) {
 export function expectKeyedStringArrayDomains(valuesByKey, keyDomain, label, options = {}) {
   const {
     requireExactKeyDomain = false,
-    allowEmptyKeys = []
+    allowEmptyKeys = [],
+    requiredFirstValue
   } = options;
   expect(valuesByKey && typeof valuesByKey === 'object', `${label} must be an object`).toBe(true);
   expect(Array.isArray(valuesByKey), `${label} must not be an array`).toBe(false);
   expectNonEmptyUniqueStringArray(keyDomain, `${label} key domain`);
   expectNonEmptyUniqueStringArray(allowEmptyKeys, `${label} allow-empty key domain`, { requireNonEmpty: false });
+  if (requiredFirstValue !== undefined) {
+    expectNonEmptyString(requiredFirstValue, `${label} required first value`);
+  }
   const keyDomainSet = new Set(keyDomain);
   for (const allowEmptyKey of allowEmptyKeys) {
     expect(keyDomainSet.has(allowEmptyKey), `${label} allow-empty key must belong to key domain: ${allowEmptyKey}`).toBe(true);
@@ -76,6 +80,9 @@ export function expectKeyedStringArrayDomains(valuesByKey, keyDomain, label, opt
     expectNonEmptyUniqueStringArray(values, `${label}[${domainKey}]`, {
       requireNonEmpty: !allowEmptyKeys.includes(domainKey)
     });
+    if (requiredFirstValue !== undefined && values.length > 0) {
+      expect(values[0], `${label}[${domainKey}] must start with ${requiredFirstValue}`).toBe(requiredFirstValue);
+    }
   }
 }
 

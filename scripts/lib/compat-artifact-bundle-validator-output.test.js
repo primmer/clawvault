@@ -21,9 +21,17 @@ describe('compat artifact bundle validator output payload contracts', () => {
       reportSchemaValidatorResultPath: '/tmp/reports/report-schema-validator-result.json',
       schemaValidatorResultPath: '/tmp/reports/schema-validator-result.json',
       validatorResultVerifierResultPath: '/tmp/reports/validator-result-verifier-result.json',
-      verifiedArtifacts: [
-        'summary.json',
-        'validator-result.json'
+      verifiedArtifacts: ['summary.json', 'validator-result.json'],
+      artifactContracts: [
+        {
+          artifactName: 'summary.json',
+          artifactPath: '/tmp/reports/summary.json',
+          schemaPath: '/tmp/schemas/compat-summary.schema.json',
+          schemaId: 'https://clawvault.dev/schemas/compat-summary.schema.json',
+          versionField: 'summarySchemaVersion',
+          expectedSchemaVersion: 1,
+          actualSchemaVersion: 1
+        }
       ]
     });
     expect(payload.outputSchemaVersion).toBe(COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION);
@@ -46,6 +54,21 @@ describe('compat artifact bundle validator output payload contracts', () => {
       status: 'ok',
       reportDir: '/tmp'
     })).toThrow('summaryMode');
+
+    expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
+      outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'ok',
+      reportDir: '/tmp/reports',
+      summaryMode: 'fixtures',
+      requireOk: true,
+      summaryPath: '/tmp/reports/summary.json',
+      validatorResultPath: '/tmp/reports/validator-result.json',
+      reportSchemaValidatorResultPath: '/tmp/reports/report-schema-validator-result.json',
+      schemaValidatorResultPath: '/tmp/reports/schema-validator-result.json',
+      validatorResultVerifierResultPath: '/tmp/reports/validator-result-verifier-result.json',
+      verifiedArtifacts: ['summary.json'],
+      artifactContracts: []
+    })).toThrow('artifactContracts');
 
     expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
       outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,

@@ -138,6 +138,27 @@ function validateWithCompiledSchema(validate, schemaPath, payload, label) {
   }
 }
 
+function getSchemaConst(schema, fieldPath, label) {
+  let cursor = schema;
+  for (const segment of fieldPath) {
+    if (!cursor || typeof cursor !== 'object' || !(segment in cursor)) {
+      throw new Error(`Schema ${label} is missing field path ${fieldPath.join('.')}`);
+    }
+    cursor = cursor[segment];
+  }
+  if (!Number.isInteger(cursor) || cursor < 0) {
+    throw new Error(`Schema ${label} has invalid non-integer const at ${fieldPath.join('.')}`);
+  }
+  return cursor;
+}
+
+function getSchemaId(schema, label) {
+  if (!schema || typeof schema !== 'object' || typeof schema.$id !== 'string' || schema.$id.length === 0) {
+    throw new Error(`Schema ${label} missing non-empty $id`);
+  }
+  return schema.$id;
+}
+
 function main() {
   const args = parseCliArgs(process.argv.slice(2));
   if (args.help) {
@@ -172,13 +193,20 @@ function main() {
   );
   ensureValidatorResultVerifierPayloadShape(validatorResultVerifierPayload);
 
+  const schemas = {
+    summary: loadJsonObject(schemaPaths.summarySchemaPath, 'compat summary schema'),
+    reportSchemaValidatorOutput: loadJsonObject(schemaPaths.reportSchemaValidatorOutputSchemaPath, 'report-schema validator output schema'),
+    summaryValidatorOutput: loadJsonObject(schemaPaths.summaryValidatorOutputSchemaPath, 'summary validator output schema'),
+    jsonSchemaValidatorOutput: loadJsonObject(schemaPaths.jsonSchemaValidatorOutputSchemaPath, 'json-schema validator output schema'),
+    validatorResultVerifierOutput: loadJsonObject(schemaPaths.validatorResultVerifierOutputSchemaPath, 'validator-result verifier output schema')
+  };
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   const validators = {
-    summary: ajv.compile(loadJsonObject(schemaPaths.summarySchemaPath, 'compat summary schema')),
-    reportSchemaValidatorOutput: ajv.compile(loadJsonObject(schemaPaths.reportSchemaValidatorOutputSchemaPath, 'report-schema validator output schema')),
-    summaryValidatorOutput: ajv.compile(loadJsonObject(schemaPaths.summaryValidatorOutputSchemaPath, 'summary validator output schema')),
-    jsonSchemaValidatorOutput: ajv.compile(loadJsonObject(schemaPaths.jsonSchemaValidatorOutputSchemaPath, 'json-schema validator output schema')),
-    validatorResultVerifierOutput: ajv.compile(loadJsonObject(schemaPaths.validatorResultVerifierOutputSchemaPath, 'validator-result verifier output schema'))
+    summary: ajv.compile(schemas.summary),
+    reportSchemaValidatorOutput: ajv.compile(schemas.reportSchemaValidatorOutput),
+    summaryValidatorOutput: ajv.compile(schemas.summaryValidatorOutput),
+    jsonSchemaValidatorOutput: ajv.compile(schemas.jsonSchemaValidatorOutput),
+    validatorResultVerifierOutput: ajv.compile(schemas.validatorResultVerifierOutput)
   };
 
   validateWithCompiledSchema(validators.summary, schemaPaths.summarySchemaPath, summary, 'summary artifact');
@@ -253,6 +281,77 @@ function main() {
     }
   }
 
+  const artifactContracts = [
+    {
+      artifactName: 'summary.json',
+      artifactPath: artifactPaths.summaryPath,
+      schemaPath: schemaPaths.summarySchemaPath,
+      schemaId: getSchemaId(schemas.summary, 'compat-summary'),
+      versionField: 'summarySchemaVersion',
+      expectedSchemaVersion: getSchemaConst(schemas.summary, ['properties', 'summarySchemaVersion', 'const'], 'compat-summary'),
+      actualSchemaVersion: summary.summarySchemaVersion
+    },
+    {
+      artifactName: 'report-schema-validator-result.json',
+      artifactPath: artifactPaths.reportSchemaValidatorResultPath,
+      schemaPath: schemaPaths.reportSchemaValidatorOutputSchemaPath,
+      schemaId: getSchemaId(schemas.reportSchemaValidatorOutput, 'compat-report-schema-validator-output'),
+      versionField: 'outputSchemaVersion',
+      expectedSchemaVersion: getSchemaConst(
+        schemas.reportSchemaValidatorOutput,
+        ['properties', 'outputSchemaVersion', 'const'],
+        'compat-report-schema-validator-output'
+      ),
+      actualSchemaVersion: reportSchemaValidatorPayload.outputSchemaVersion
+    },
+    {
+      artifactName: 'validator-result.json',
+      artifactPath: artifactPaths.validatorResultPath,
+      schemaPath: schemaPaths.summaryValidatorOutputSchemaPath,
+      schemaId: getSchemaId(schemas.summaryValidatorOutput, 'compat-summary-validator-output'),
+      versionField: 'outputSchemaVersion',
+      expectedSchemaVersion: getSchemaConst(
+        schemas.summaryValidatorOutput,
+        ['properties', 'outputSchemaVersion', 'const'],
+        'compat-summary-validator-output'
+      ),
+      actualSchemaVersion: summaryValidatorPayload.outputSchemaVersion
+    },
+    {
+      artifactName: 'schema-validator-result.json',
+      artifactPath: artifactPaths.schemaValidatorResultPath,
+      schemaPath: schemaPaths.jsonSchemaValidatorOutputSchemaPath,
+      schemaId: getSchemaId(schemas.jsonSchemaValidatorOutput, 'json-schema-validator-output'),
+      versionField: 'outputSchemaVersion',
+      expectedSchemaVersion: getSchemaConst(
+        schemas.jsonSchemaValidatorOutput,
+        ['properties', 'outputSchemaVersion', 'const'],
+        'json-schema-validator-output'
+      ),
+      actualSchemaVersion: schemaValidatorPayload.outputSchemaVersion
+    },
+    {
+      artifactName: 'validator-result-verifier-result.json',
+      artifactPath: artifactPaths.validatorResultVerifierResultPath,
+      schemaPath: schemaPaths.validatorResultVerifierOutputSchemaPath,
+      schemaId: getSchemaId(schemas.validatorResultVerifierOutput, 'compat-validator-result-verifier-output'),
+      versionField: 'outputSchemaVersion',
+      expectedSchemaVersion: getSchemaConst(
+        schemas.validatorResultVerifierOutput,
+        ['properties', 'outputSchemaVersion', 'const'],
+        'compat-validator-result-verifier-output'
+      ),
+      actualSchemaVersion: validatorResultVerifierPayload.outputSchemaVersion
+    }
+  ];
+  for (const contract of artifactContracts) {
+    if (contract.actualSchemaVersion !== contract.expectedSchemaVersion) {
+      throw new Error(
+        `artifact contract version mismatch for ${contract.artifactName} (${contract.versionField} expected ${contract.expectedSchemaVersion}, received ${contract.actualSchemaVersion})`
+      );
+    }
+  }
+
   const payload = buildCompatArtifactBundleValidatorSuccessPayload({
     reportDir,
     summaryMode: summary.mode,
@@ -262,6 +361,7 @@ function main() {
     reportSchemaValidatorResultPath: artifactPaths.reportSchemaValidatorResultPath,
     schemaValidatorResultPath: artifactPaths.schemaValidatorResultPath,
     validatorResultVerifierResultPath: artifactPaths.validatorResultVerifierResultPath,
+    artifactContracts,
     verifiedArtifacts: [
       'summary.json',
       'report-schema-validator-result.json',

@@ -140,6 +140,53 @@ describe('validate-compat-artifact-bundle script', () => {
           'validator-result.json',
           'schema-validator-result.json',
           'validator-result-verifier-result.json'
+        ],
+        artifactContracts: [
+          {
+            artifactName: 'summary.json',
+            artifactPath: path.join(root, 'summary.json'),
+            schemaPath: path.resolve(process.cwd(), 'schemas', 'compat-summary.schema.json'),
+            schemaId: 'https://clawvault.dev/schemas/compat-summary.schema.json',
+            versionField: 'summarySchemaVersion',
+            expectedSchemaVersion: 1,
+            actualSchemaVersion: 1
+          },
+          {
+            artifactName: 'report-schema-validator-result.json',
+            artifactPath: path.join(root, 'report-schema-validator-result.json'),
+            schemaPath: path.resolve(process.cwd(), 'schemas', 'compat-report-schema-validator-output.schema.json'),
+            schemaId: 'https://clawvault.dev/schemas/compat-report-schema-validator-output.schema.json',
+            versionField: 'outputSchemaVersion',
+            expectedSchemaVersion: 1,
+            actualSchemaVersion: 1
+          },
+          {
+            artifactName: 'validator-result.json',
+            artifactPath: path.join(root, 'validator-result.json'),
+            schemaPath: path.resolve(process.cwd(), 'schemas', 'compat-summary-validator-output.schema.json'),
+            schemaId: 'https://clawvault.dev/schemas/compat-summary-validator-output.schema.json',
+            versionField: 'outputSchemaVersion',
+            expectedSchemaVersion: 1,
+            actualSchemaVersion: 1
+          },
+          {
+            artifactName: 'schema-validator-result.json',
+            artifactPath: path.join(root, 'schema-validator-result.json'),
+            schemaPath: path.resolve(process.cwd(), 'schemas', 'json-schema-validator-output.schema.json'),
+            schemaId: 'https://clawvault.dev/schemas/json-schema-validator-output.schema.json',
+            versionField: 'outputSchemaVersion',
+            expectedSchemaVersion: 1,
+            actualSchemaVersion: 1
+          },
+          {
+            artifactName: 'validator-result-verifier-result.json',
+            artifactPath: path.join(root, 'validator-result-verifier-result.json'),
+            schemaPath: path.resolve(process.cwd(), 'schemas', 'compat-validator-result-verifier-output.schema.json'),
+            schemaId: 'https://clawvault.dev/schemas/compat-validator-result-verifier-output.schema.json',
+            versionField: 'outputSchemaVersion',
+            expectedSchemaVersion: 1,
+            actualSchemaVersion: 1
+          }
         ]
       });
       expect(JSON.parse(fs.readFileSync(outputPath, 'utf-8'))).toEqual(payload);

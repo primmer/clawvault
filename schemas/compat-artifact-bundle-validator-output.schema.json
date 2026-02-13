@@ -53,6 +53,53 @@
       "minItems": 1,
       "uniqueItems": true
     },
+    "artifactContracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "artifactName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifactPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "schemaPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "schemaId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionField": {
+            "type": "string",
+            "enum": ["summarySchemaVersion", "outputSchemaVersion"]
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "actualSchemaVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "artifactName",
+          "artifactPath",
+          "schemaPath",
+          "schemaId",
+          "versionField",
+          "expectedSchemaVersion",
+          "actualSchemaVersion"
+        ],
+        "additionalProperties": false
+      }
+    },
     "error": {
       "type": "string",
       "minLength": 1
@@ -75,7 +122,8 @@
           "reportSchemaValidatorResultPath",
           "schemaValidatorResultPath",
           "validatorResultVerifierResultPath",
-          "verifiedArtifacts"
+          "verifiedArtifacts",
+          "artifactContracts"
         ]
       }
     },

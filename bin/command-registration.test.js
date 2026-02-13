@@ -3,18 +3,35 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
 import { registerCoreCommands } from './register-core-commands.js';
+import { registerMaintenanceCommands } from './register-maintenance-commands.js';
 import { registerQueryCommands } from './register-query-commands.js';
+import { registerResilienceCommands } from './register-resilience-commands.js';
+import { registerSessionLifecycleCommands } from './register-session-lifecycle-commands.js';
+import { registerTemplateCommands } from './register-template-commands.js';
 import { registerVaultOperationsCommands } from './register-vault-operations-commands.js';
 
 function listCommandNames(program) {
   return program.commands.map((command) => command.name()).sort((a, b) => a.localeCompare(b));
 }
 
+const chalkStub = {
+  cyan: (value) => value,
+  green: (value) => value,
+  red: (value) => value,
+  dim: (value) => value,
+  yellow: (value) => value,
+  white: (value) => value
+};
+
+function stubResolveVaultPath(value) {
+  return value ?? '/vault';
+}
+
 describe('CLI command registration modules', () => {
   it('registers core lifecycle commands', () => {
     const program = new Command();
     registerCoreCommands(program, {
-      chalk: { cyan: (s) => s, green: (s) => s, red: (s) => s, dim: (s) => s, yellow: (s) => s },
+      chalk: chalkStub,
       path,
       fs,
       createVault: async () => ({ getCategories: () => [], getQmdRoot: () => '', getQmdCollection: () => '' }),
@@ -29,9 +46,9 @@ describe('CLI command registration modules', () => {
   it('registers query commands with profile option', () => {
     const program = new Command();
     registerQueryCommands(program, {
-      chalk: { cyan: (s) => s, green: (s) => s, red: (s) => s, dim: (s) => s, yellow: (s) => s, white: (s) => s },
+      chalk: chalkStub,
       getVault: async () => ({ find: async () => [], vsearch: async () => [] }),
-      resolveVaultPath: (value) => value ?? '/vault',
+      resolveVaultPath: stubResolveVaultPath,
       QmdUnavailableError: class extends Error {},
       printQmdMissing: () => {}
     });
@@ -47,11 +64,11 @@ describe('CLI command registration modules', () => {
   it('registers vault operation commands', () => {
     const program = new Command();
     registerVaultOperationsCommands(program, {
-      chalk: { cyan: (s) => s, green: (s) => s, red: (s) => s, dim: (s) => s, yellow: (s) => s },
+      chalk: chalkStub,
       fs,
       getVault: async () => ({ list: async () => [], get: async () => null, stats: async () => ({ tags: [], categories: {} }), sync: async () => ({ copied: [], deleted: [], unchanged: [], errors: [] }), reindex: async () => 0, remember: async () => ({ id: '' }), getQmdCollection: () => '' }),
       runQmd: async () => {},
-      resolveVaultPath: (value) => value ?? '/vault',
+      resolveVaultPath: stubResolveVaultPath,
       path
     });
 
@@ -66,5 +83,116 @@ describe('CLI command registration modules', () => {
       'shell-init',
       'dashboard'
     ]));
+  });
+
+  it('registers maintenance, resilience, session-lifecycle and template commands', () => {
+    const program = new Command();
+    registerMaintenanceCommands(program, { chalk: chalkStub });
+    registerResilienceCommands(program, {
+      chalk: chalkStub,
+      resolveVaultPath: stubResolveVaultPath
+    });
+    registerSessionLifecycleCommands(program, {
+      chalk: chalkStub,
+      resolveVaultPath: stubResolveVaultPath,
+      QmdUnavailableError: class extends Error {},
+      printQmdMissing: () => {},
+      getVault: async () => ({
+        createHandoff: async () => ({ id: '', path: '' }),
+        getQmdCollection: () => '',
+        generateRecap: async () => ({}),
+        formatRecap: () => ''
+      }),
+      runQmd: async () => {}
+    });
+    registerTemplateCommands(program, { chalk: chalkStub });
+
+    const names = listCommandNames(program);
+    expect(names).toEqual(expect.arrayContaining([
+      'doctor',
+      'compat',
+      'graph',
+      'entities',
+      'link',
+      'checkpoint',
+      'recover',
+      'status',
+      'clean-exit',
+      'repair-session',
+      'wake',
+      'sleep',
+      'handoff',
+      'recap',
+      'template'
+    ]));
+
+    const templateCommand = program.commands.find((command) => command.name() === 'template');
+    const templateSubcommands = templateCommand?.commands.map((command) => command.name()) ?? [];
+    expect(templateSubcommands).toEqual(expect.arrayContaining(['list', 'create', 'add']));
+  });
+
+  it('keeps top-level command names unique when modules are combined', () => {
+    const program = new Command();
+    registerCoreCommands(program, {
+      chalk: chalkStub,
+      path,
+      fs,
+      createVault: async () => ({ getCategories: () => [], getQmdRoot: () => '', getQmdCollection: () => '' }),
+      getVault: async () => ({
+        store: async () => ({}),
+        capture: async () => ({}),
+        find: async () => [],
+        vsearch: async () => [],
+        list: async () => [],
+        get: async () => null,
+        stats: async () => ({ tags: [], categories: {} }),
+        sync: async () => ({ copied: [], deleted: [], unchanged: [], errors: [] }),
+        reindex: async () => 0,
+        remember: async () => ({ id: '' }),
+        getQmdCollection: () => '',
+        createHandoff: async () => ({ id: '', path: '' }),
+        generateRecap: async () => ({}),
+        formatRecap: () => ''
+      }),
+      runQmd: async () => {}
+    });
+    registerQueryCommands(program, {
+      chalk: chalkStub,
+      getVault: async () => ({ find: async () => [], vsearch: async () => [] }),
+      resolveVaultPath: stubResolveVaultPath,
+      QmdUnavailableError: class extends Error {},
+      printQmdMissing: () => {}
+    });
+    registerVaultOperationsCommands(program, {
+      chalk: chalkStub,
+      fs,
+      getVault: async () => ({ list: async () => [], get: async () => null, stats: async () => ({ tags: [], categories: {} }), sync: async () => ({ copied: [], deleted: [], unchanged: [], errors: [] }), reindex: async () => 0, remember: async () => ({ id: '' }), getQmdCollection: () => '' }),
+      runQmd: async () => {},
+      resolveVaultPath: stubResolveVaultPath,
+      path
+    });
+    registerMaintenanceCommands(program, { chalk: chalkStub });
+    registerResilienceCommands(program, {
+      chalk: chalkStub,
+      resolveVaultPath: stubResolveVaultPath
+    });
+    registerSessionLifecycleCommands(program, {
+      chalk: chalkStub,
+      resolveVaultPath: stubResolveVaultPath,
+      QmdUnavailableError: class extends Error {},
+      printQmdMissing: () => {},
+      getVault: async () => ({
+        createHandoff: async () => ({ id: '', path: '' }),
+        getQmdCollection: () => '',
+        generateRecap: async () => ({}),
+        formatRecap: () => ''
+      }),
+      runQmd: async () => {}
+    });
+    registerTemplateCommands(program, { chalk: chalkStub });
+
+    const names = program.commands.map((command) => command.name());
+    const unique = new Set(names);
+    expect(unique.size).toBe(names.length);
   });
 });

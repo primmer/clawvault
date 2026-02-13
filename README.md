@@ -262,6 +262,8 @@ COMPAT_REPORT_DIR=/tmp/clawvault-compat-reports npm run test:compat-fixtures
 
 # Optional: validate an existing compatibility summary artifact set
 node scripts/validate-compat-summary.mjs /tmp/clawvault-compat-reports/summary.json
+# equivalent npm wrapper (supports arg passthrough, env fallback)
+npm run test:compat-summary:verify -- /tmp/clawvault-compat-reports/summary.json
 # or run fixture generation + standalone summary validation together
 npm run test:compat-summary:fast
 # script behavior is covered by dedicated unit tests (success + failure + env fallback)

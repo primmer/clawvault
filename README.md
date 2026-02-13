@@ -225,6 +225,7 @@ npm run test:compat-fixtures
 # Quick smoke check (healthy fixture only)
 npm run test:compat-smoke
 # runs fast contract validation + healthy fixture check (requires existing dist build)
+# fails fast if build artifacts are stale
 
 # Validate compatibility fixture contract only (no full matrix execution)
 npm run test:compat-contract
@@ -232,6 +233,7 @@ npm run test:compat-contract
 
 # Fast contract-only validation (requires existing dist build)
 npm run test:compat-contract:fast
+# fails fast if compat source is newer than dist build artifacts
 
 # Run full local CI gate (typecheck + tests + compat fixtures)
 npm run ci

@@ -30,6 +30,7 @@
 - Hook `session:start` context injection now infers `context --profile` from prompt intent (incident/planning/handoff/default).
 - `context --profile auto` now uses centralized intent inference, and hooks delegate profile selection through this shared path.
 - Library API now exports context profile inference helpers for external integrations (`inferContextProfile`, `resolveContextProfile`).
+- Main CLI now uses shared vault path resolution from the config library, reducing drift between command entrypoint and command modules.
 
 ## [1.11.2] - 2026-02-12
 

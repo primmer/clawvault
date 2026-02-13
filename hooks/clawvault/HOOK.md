@@ -58,6 +58,10 @@ Injection format:
 - <title> (<age>): <snippet>
 ```
 
+### Event Compatibility
+
+The hook accepts canonical OpenClaw events (`gateway:startup`, `command:new`, `session:start`) and tolerates alias payload shapes (`event`, `eventName`, `name`, `hook`, `trigger`) to remain robust across runtime wrappers.
+
 ## No Configuration Needed
 
 Just enable the hook. It auto-detects vault path via:

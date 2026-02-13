@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  REQUIRED_COMPAT_CI_JOB_NAME,
+  REQUIRED_COMPAT_CI_JOB_RUNS_ON,
+  REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES,
   REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME,
   REQUIRED_COMPAT_CI_CHECKOUT_USES,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_ARTIFACT_NAME,
@@ -28,6 +31,7 @@ import {
 } from './compat-npm-script-contracts.mjs';
 import {
   extractEnvField,
+  extractJobBlock,
   extractRunCommand,
   extractScalarField,
   extractStepBlock,
@@ -42,11 +46,21 @@ function loadCiWorkflowYaml() {
 }
 
 describe('compat ci workflow contract', () => {
+  it('keeps CI job identity and runtime envelope aligned with contracts', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    expect(extractScalarField(ciJobBlock, 'runs-on')).toBe(REQUIRED_COMPAT_CI_JOB_RUNS_ON);
+    expect(extractScalarField(ciJobBlock, 'timeout-minutes')).toBe(REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES);
+  });
+
   it('keeps core CI step sequence ordered', () => {
     const workflowYaml = loadCiWorkflowYaml();
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
     let previousStepStartIndex = -1;
     for (const stepName of REQUIRED_COMPAT_CI_STEP_SEQUENCE) {
-      const stepMetadata = extractStepMetadata(workflowYaml, stepName);
+      const stepMetadata = extractStepMetadata(ciJobBlock, stepName);
       expect(stepMetadata, `missing CI workflow step: ${stepName}`).toBeTruthy();
       const { startIndex } = stepMetadata;
       expect(
@@ -59,9 +73,11 @@ describe('compat ci workflow contract', () => {
 
   it('keeps checkout/setup/install steps aligned with canonical CI environment contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    const checkoutStepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME);
-    const setupNodeStepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME);
-    const installStepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_INSTALL_STEP_NAME);
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    const checkoutStepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME);
+    const setupNodeStepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME);
+    const installStepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_INSTALL_STEP_NAME);
     expect(checkoutStepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME}`).toBeTruthy();
     expect(setupNodeStepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME}`).toBeTruthy();
     expect(installStepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_INSTALL_STEP_NAME}`).toBeTruthy();
@@ -78,7 +94,9 @@ describe('compat ci workflow contract', () => {
 
   it('runs canonical ci command from primary run step', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    const stepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME);
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    const stepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME);
     expect(stepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME}`).toBeTruthy();
     const runCommand = extractRunCommand(stepBlock);
     const reportDirValue = extractEnvField(stepBlock, REQUIRED_COMPAT_CI_REPORT_DIR_ENV_KEY);
@@ -88,7 +106,9 @@ describe('compat ci workflow contract', () => {
 
   it('uploads required compatibility artifact files in canonical order', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    const stepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    const stepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
     expect(stepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME}`).toBeTruthy();
     const artifactName = extractScalarField(stepBlock, 'name');
     const ifNoFilesFoundValue = extractScalarField(stepBlock, 'if-no-files-found');
@@ -104,7 +124,9 @@ describe('compat ci workflow contract', () => {
 
   it('keeps failure artifact upload step aligned with compat report directory contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    const stepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    const stepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
     expect(stepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME}`).toBeTruthy();
     const ifCondition = extractScalarField(stepBlock, 'if');
     const artifactName = extractScalarField(stepBlock, 'name');

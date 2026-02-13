@@ -7,6 +7,9 @@ import {
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME,
+  REQUIRED_COMPAT_CI_JOB_NAME,
+  REQUIRED_COMPAT_CI_JOB_RUNS_ON,
+  REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES,
   REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME,
   REQUIRED_COMPAT_CI_CHECKOUT_USES,
   REQUIRED_COMPAT_CI_INSTALL_COMMAND,
@@ -87,6 +90,12 @@ describe('compat npm script contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_CHECKOUT_USES).toBe('string');
     expect(REQUIRED_COMPAT_CI_CHECKOUT_USES.length).toBeGreaterThan(0);
+    expect(typeof REQUIRED_COMPAT_CI_JOB_NAME).toBe('string');
+    expect(REQUIRED_COMPAT_CI_JOB_NAME.length).toBeGreaterThan(0);
+    expect(typeof REQUIRED_COMPAT_CI_JOB_RUNS_ON).toBe('string');
+    expect(REQUIRED_COMPAT_CI_JOB_RUNS_ON.length).toBeGreaterThan(0);
+    expect(typeof REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES).toBe('string');
+    expect(REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_SETUP_NODE_USES).toBe('string');

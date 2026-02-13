@@ -14,7 +14,8 @@ function parseCliArgs(argv) {
     payloadPath: '',
     help: false,
     json: false,
-    outPath: ''
+    outPath: '',
+    requireOk: false
   };
   const positional = [];
 
@@ -26,6 +27,10 @@ function parseCliArgs(argv) {
     }
     if (value === '--json') {
       parsed.json = true;
+      continue;
+    }
+    if (value === '--require-ok') {
+      parsed.requireOk = true;
       continue;
     }
     if (value === '--out') {
@@ -67,6 +72,7 @@ function printHelp() {
   console.log('Resolution order:');
   console.log('  validator-result path: --validator-result | positional arg | COMPAT_VALIDATOR_RESULT_PATH | COMPAT_REPORT_DIR/validator-result.json');
   console.log('  flags               : --json (emit machine-readable payload), --out <file> (persist result payload)');
+  console.log('                        --require-ok (fail when payload.status is "error")');
 }
 
 function isJsonModeRequestedFromArgv(argv) {
@@ -110,6 +116,9 @@ function main() {
 
   const payloadPath = resolveValidatorResultPath(args);
   const payload = loadSummaryValidatorPayload(payloadPath);
+  if (args.requireOk && payload.status !== 'ok') {
+    throw new Error(`validator-result payload status is "${payload.status}" but --require-ok was set`);
+  }
   const resultPayload = buildValidatorResultVerifierSuccessPayload({
     payloadPath,
     payloadStatus: payload.status,

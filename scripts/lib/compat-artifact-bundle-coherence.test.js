@@ -90,6 +90,7 @@ function buildBaseFixtureState() {
       summaryPath: path.join(reportDir, 'summary.json'),
       reportDir,
       summarySchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-summary.schema.json'),
+      caseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json'),
       caseReportMode: 'validated-case-reports',
       validatedCaseReports: 1
     },
@@ -172,7 +173,8 @@ describe('compat artifact bundle coherence helpers', () => {
       reportSchemaValidatorPayload: fixture.reportSchemaValidatorPayload,
       validatorResultVerifierPayload: fixture.validatorResultVerifierPayload,
       schemaValidatorPayload: fixture.schemaValidatorPayload,
-      artifactContracts: fixture.artifactContracts
+      artifactContracts: fixture.artifactContracts,
+      expectedCaseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json')
     })).not.toThrow();
 
     fixture.summaryValidatorPayload.selectedTotal = 99;
@@ -182,7 +184,8 @@ describe('compat artifact bundle coherence helpers', () => {
       reportSchemaValidatorPayload: fixture.reportSchemaValidatorPayload,
       validatorResultVerifierPayload: fixture.validatorResultVerifierPayload,
       schemaValidatorPayload: fixture.schemaValidatorPayload,
-      artifactContracts: fixture.artifactContracts
+      artifactContracts: fixture.artifactContracts,
+      expectedCaseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json')
     })).toThrow('selected total mismatch between summary and validator-result payload');
   });
 
@@ -195,8 +198,23 @@ describe('compat artifact bundle coherence helpers', () => {
       reportSchemaValidatorPayload: fixture.reportSchemaValidatorPayload,
       validatorResultVerifierPayload: fixture.validatorResultVerifierPayload,
       schemaValidatorPayload: fixture.schemaValidatorPayload,
-      artifactContracts: fixture.artifactContracts
+      artifactContracts: fixture.artifactContracts,
+      expectedCaseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json')
     })).toThrow('report-schema-validator summarySchemaPath mismatch for summary artifact contract');
+  });
+
+  it('detects report-schema case-schema path drift from active case contract', () => {
+    const fixture = buildBaseFixtureState();
+    fixture.reportSchemaValidatorPayload.caseSchemaPath = '/tmp/drifted-case.schema.json';
+    expect(() => ensureCrossPayloadCoherence({
+      summary: fixture.summary,
+      summaryValidatorPayload: fixture.summaryValidatorPayload,
+      reportSchemaValidatorPayload: fixture.reportSchemaValidatorPayload,
+      validatorResultVerifierPayload: fixture.validatorResultVerifierPayload,
+      schemaValidatorPayload: fixture.schemaValidatorPayload,
+      artifactContracts: fixture.artifactContracts,
+      expectedCaseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json')
+    })).toThrow('report-schema-validator caseSchemaPath mismatch for active case-report contract');
   });
 
   it('enforces require-ok status gate', () => {

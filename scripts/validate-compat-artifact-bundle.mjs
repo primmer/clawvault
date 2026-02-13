@@ -193,7 +193,8 @@ function main() {
     reportSchemaValidatorPayload,
     validatorResultVerifierPayload,
     schemaValidatorPayload,
-    artifactContracts
+    artifactContracts,
+    expectedCaseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json')
   });
   ensureRequireOkStatuses({
     requireOk,

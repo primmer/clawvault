@@ -408,6 +408,30 @@ describe('validate-compat-artifact-bundle script', () => {
     }
   });
 
+  it('fails when report-schema-validator case-schema path drifts from active case contract', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'compat-artifact-bundle-'));
+    try {
+      const validatorResultPath = path.join(root, 'validator-result.json');
+      writeArtifacts(root, {
+        verifierPayload: buildValidatorResultVerifierSuccessPayload({
+          payloadPath: validatorResultPath,
+          payloadStatus: 'ok',
+          validatorPayloadOutputSchemaVersion: 1
+        })
+      });
+      const reportSchemaValidatorResultPath = path.join(root, 'report-schema-validator-result.json');
+      const reportSchemaValidatorPayload = JSON.parse(fs.readFileSync(reportSchemaValidatorResultPath, 'utf-8'));
+      reportSchemaValidatorPayload.caseSchemaPath = '/tmp/drifted-case.schema.json';
+      fs.writeFileSync(reportSchemaValidatorResultPath, JSON.stringify(reportSchemaValidatorPayload, null, 2), 'utf-8');
+
+      const result = runArtifactBundleValidator([], { COMPAT_REPORT_DIR: root });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('report-schema-validator caseSchemaPath mismatch for active case-report contract');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('prints help and writes structured parse-error payloads', () => {
     const helpResult = runArtifactBundleValidator(['--help']);
     expect(helpResult.status).toBe(0);

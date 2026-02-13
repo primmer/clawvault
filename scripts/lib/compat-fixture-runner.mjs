@@ -266,6 +266,20 @@ export function validateDeclaredCheckLabels(expectedLabels, availableLabels) {
   }
 }
 
+export function validateCheckStatusCoverage(cases, expectedLabels) {
+  const covered = new Set();
+  for (const testCase of cases) {
+    for (const label of Object.keys(testCase.expectedCheckStatuses ?? {})) {
+      covered.add(label);
+    }
+  }
+
+  const uncovered = expectedLabels.filter((label) => !covered.has(label));
+  if (uncovered.length > 0) {
+    throw new Error(`compat fixture expectedCheckStatuses do not cover labels: ${uncovered.join(', ')}`);
+  }
+}
+
 export function ensureReportDir(compatReportDir) {
   if (!compatReportDir) return;
   fs.mkdirSync(compatReportDir, { recursive: true });

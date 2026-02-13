@@ -11,6 +11,7 @@ import {
   parseCompatReport,
   selectCases,
   validateDeclaredCheckLabels,
+  validateCheckStatusCoverage,
   validateExpectedCheckLabels,
   validateFixtureDirectoryCoverage,
   validateFixtureReadmeCoverage,
@@ -135,6 +136,7 @@ function main() {
     const availableLabels = discoverCompatCheckLabels(env);
     validateDeclaredCheckLabels(manifest.expectedCheckLabels, availableLabels);
     validateExpectedCheckLabels(allCases, manifest.expectedCheckLabels);
+    validateCheckStatusCoverage(allCases, manifest.expectedCheckLabels);
     if (validateOnly) {
       writeSummaryReport(compatReportDir, {
         generatedAt: new Date().toISOString(),

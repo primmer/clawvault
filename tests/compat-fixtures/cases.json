@@ -16,9 +16,12 @@
     "expectedWarnings": 0,
     "expectedErrors": 0,
     "expectedCheckStatuses": {
+      "openclaw CLI available": "ok",
+      "package hook registration": "ok",
       "hook manifest events": "ok",
       "hook manifest requirements": "ok",
-      "hook handler safety": "ok"
+      "hook handler safety": "ok",
+      "skill metadata": "ok"
     }
   },
   {

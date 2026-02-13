@@ -12,6 +12,7 @@ import {
   loadCases,
   parseCompatReport,
   selectCases,
+  validateCheckStatusCoverage,
   validateDeclaredCheckLabels,
   validateExpectedCheckLabels,
   validateFixtureDirectoryCoverage,
@@ -230,6 +231,28 @@ describe('compat fixture runner utilities', () => {
       ['openclaw CLI available', 'hook handler safety'],
       ['hook handler safety', 'openclaw CLI available']
     )).toThrow('order mismatch');
+  });
+
+  it('validates status coverage across expected check labels', () => {
+    const expectedLabels = ['openclaw CLI available', 'hook handler safety'];
+    expect(() => validateCheckStatusCoverage([
+      {
+        name: 'healthy',
+        expectedCheckStatuses: {
+          'openclaw CLI available': 'ok',
+          'hook handler safety': 'ok'
+        }
+      }
+    ], expectedLabels)).not.toThrow();
+
+    expect(() => validateCheckStatusCoverage([
+      {
+        name: 'healthy',
+        expectedCheckStatuses: {
+          'hook handler safety': 'ok'
+        }
+      }
+    ], expectedLabels)).toThrow('do not cover labels');
   });
 
   it('writes optional compat report artifacts when report directory is provided', () => {

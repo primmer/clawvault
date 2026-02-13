@@ -218,6 +218,9 @@ npm run test:compat-fixtures
 
 # Run full local CI gate (typecheck + tests + compat fixtures)
 npm run ci
+
+# Optional: run only specific compatibility fixtures
+COMPAT_CASES=healthy,missing-events npm run test:compat-fixtures
 ```
 
 

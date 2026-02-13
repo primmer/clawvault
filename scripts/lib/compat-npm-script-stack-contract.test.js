@@ -32,6 +32,34 @@ function collectNpmRunTargets(scriptCommand) {
   return [...matches].map((match) => match[1]);
 }
 
+function buildReachableScriptGraph(scripts, sourceScripts) {
+  const unresolvedScripts = new Set();
+  const adjacencyByScript = new Map();
+  const queuedScripts = [...sourceScripts];
+  const visitedScripts = new Set();
+  while (queuedScripts.length > 0) {
+    const scriptName = queuedScripts.shift();
+    if (visitedScripts.has(scriptName)) {
+      continue;
+    }
+    visitedScripts.add(scriptName);
+    const scriptCommand = scripts[scriptName];
+    if (typeof scriptCommand !== 'string') {
+      unresolvedScripts.add(scriptName);
+      adjacencyByScript.set(scriptName, []);
+      continue;
+    }
+    const targetScripts = collectNpmRunTargets(scriptCommand);
+    adjacencyByScript.set(scriptName, targetScripts);
+    for (const targetScriptName of targetScripts) {
+      if (!visitedScripts.has(targetScriptName)) {
+        queuedScripts.push(targetScriptName);
+      }
+    }
+  }
+  return { unresolvedScripts, adjacencyByScript };
+}
+
 function hasCycleFromNode(node, adjacencyByNode, visiting, visited) {
   if (visiting.has(node)) {
     return true;
@@ -60,35 +88,26 @@ describe('compat npm script stack contracts', () => {
 
   it('keeps npm-run references resolvable across required stack sources', () => {
     const scripts = loadPackageScripts();
-    for (const sourceScriptName of REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES) {
-      const command = scripts[sourceScriptName];
-      expect(typeof command, `missing required script: ${sourceScriptName}`).toBe('string');
-      const targets = collectNpmRunTargets(command);
-      for (const targetName of targets) {
-        expect(
-          typeof scripts[targetName],
-          `${sourceScriptName} references missing npm script target: ${targetName}`
-        ).toBe('string');
-      }
-    }
+    const { unresolvedScripts } = buildReachableScriptGraph(scripts, REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES);
+    expect(
+      [...unresolvedScripts],
+      'missing npm-run targets detected in reachable compat stack graph'
+    ).toEqual([]);
   });
 
-  it('keeps required stack-source npm-run graph acyclic', () => {
+  it('keeps reachable compat npm-run graph acyclic', () => {
     const scripts = loadPackageScripts();
-    const sourceSet = new Set(REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES);
-    const adjacencyByNode = new Map(
-      REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES.map((sourceScriptName) => {
-        const command = scripts[sourceScriptName];
-        const targetScripts = collectNpmRunTargets(command).filter((targetName) => sourceSet.has(targetName));
-        return [sourceScriptName, targetScripts];
-      })
-    );
+    const { unresolvedScripts, adjacencyByScript } = buildReachableScriptGraph(scripts, REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES);
+    expect(
+      [...unresolvedScripts],
+      'cannot evaluate cycle contracts with unresolved npm-run targets'
+    ).toEqual([]);
     const visiting = new Set();
     const visited = new Set();
-    for (const node of REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES) {
+    for (const node of adjacencyByScript.keys()) {
       expect(
-        hasCycleFromNode(node, adjacencyByNode, visiting, visited),
-        `cycle detected in required compat npm-run graph at ${node}`
+        hasCycleFromNode(node, adjacencyByScript, visiting, visited),
+        `cycle detected in reachable compat npm-run graph at ${node}`
       ).toBe(false);
     }
   });

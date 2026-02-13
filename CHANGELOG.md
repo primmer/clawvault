@@ -46,6 +46,7 @@
 - Scalar/job/step occurrence counting in CI workflow utilities now routes through shared parsed count-map helpers (including `extractScalarFieldNameCounts`, `extractJobNameCounts`, and `extractStepNameCounts`), and contract/test suites assert additional count-map parity invariants for required workflow/job/step domains.
 - Count-map extraction in CI workflow utilities now uses a shared internal reducer helper to keep field/job/step counting logic consistent and reduce maintenance overhead across parser domains.
 - Added shared contract test helpers for unit count-map construction (`buildUnitCountMap`, `buildUnitCountMapByKey`) with dedicated tests, and wired the helper suite into `test:compat-script-stack-contract:fast` to keep count-domain assertions concise and governance-ready as contracts expand.
+- Added reusable count-map assertion helpers (`expectUnitCountMapParity`, `expectUnitCountMapByKeyParity`) plus positive/negative helper tests, and refactored CI workflow utility/contract suites to use these assertions for clearer parity intent and standardized failure semantics.
 - Dashboard edge diffing now includes edge type/label, enabling reliable live updates when relation type changes.
 - Hook event matching now supports alias payload shapes (`event`, `eventName`, etc.) for better OpenClaw compatibility.
 - `link` and `entities` commands now consistently respect `--vault` without requiring `CLAWVAULT_PATH`.

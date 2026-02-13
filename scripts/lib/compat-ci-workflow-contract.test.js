@@ -84,6 +84,10 @@ import {
   extractWorkflowName,
   hasPullRequestTrigger
 } from './compat-ci-workflow-test-utils.js';
+import {
+  buildUnitCountMap,
+  buildUnitCountMapByKey
+} from './compat-contract-test-utils.js';
 
 function loadCiWorkflowYaml() {
   const workflowPath = path.resolve(process.cwd(), '.github', 'workflows', 'ci.yml');
@@ -119,9 +123,7 @@ describe('compat ci workflow contract', () => {
 
   it('keeps workflow top-level field count map aligned with uniqueness contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    const expectedFieldNameCounts = Object.fromEntries(
-      REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.map((fieldName) => [fieldName, 1])
-    );
+    const expectedFieldNameCounts = buildUnitCountMap(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES);
     expect(extractTopLevelFieldNameCounts(workflowYaml)).toEqual(expectedFieldNameCounts);
   });
 
@@ -131,18 +133,9 @@ describe('compat ci workflow contract', () => {
       workflowYaml,
       jobNames: REQUIRED_COMPAT_CI_JOB_NAMES
     });
-    const expectedTopLevelFieldNameCounts = Object.fromEntries(
-      REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.map((fieldName) => [fieldName, 1])
-    );
-    const expectedJobNameCounts = Object.fromEntries(
-      REQUIRED_COMPAT_CI_JOB_NAMES.map((jobName) => [jobName, 1])
-    );
-    const expectedStepNameCountsByJobName = Object.fromEntries(
-      Object.entries(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES).map(([jobName, stepNames]) => [
-        jobName,
-        Object.fromEntries(stepNames.map((stepName) => [stepName, 1]))
-      ])
-    );
+    const expectedTopLevelFieldNameCounts = buildUnitCountMap(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES);
+    const expectedJobNameCounts = buildUnitCountMap(REQUIRED_COMPAT_CI_JOB_NAMES);
+    const expectedStepNameCountsByJobName = buildUnitCountMapByKey(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES);
 
     expect(consistencySnapshot.topLevelFieldNameCounts).toEqual(expectedTopLevelFieldNameCounts);
     expect(consistencySnapshot.jobNameCounts).toEqual(expectedJobNameCounts);
@@ -307,9 +300,7 @@ describe('compat ci workflow contract', () => {
 
   it('keeps CI job count map aligned with required job uniqueness contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    const expectedJobNameCounts = Object.fromEntries(
-      REQUIRED_COMPAT_CI_JOB_NAMES.map((jobName) => [jobName, 1])
-    );
+    const expectedJobNameCounts = buildUnitCountMap(REQUIRED_COMPAT_CI_JOB_NAMES);
     expect(extractJobNameCounts(workflowYaml)).toEqual(expectedJobNameCounts);
   });
 
@@ -379,9 +370,7 @@ describe('compat ci workflow contract', () => {
     for (const [jobName, requiredStepNames] of Object.entries(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES)) {
       const jobBlock = extractJobBlock(workflowYaml, jobName);
       expect(jobBlock, `missing CI workflow job: ${jobName}`).toBeTruthy();
-      const expectedStepNameCounts = Object.fromEntries(
-        requiredStepNames.map((stepName) => [stepName, 1])
-      );
+      const expectedStepNameCounts = buildUnitCountMap(requiredStepNames);
       expect(extractStepNameCounts(jobBlock)).toEqual(expectedStepNameCounts);
     }
   });

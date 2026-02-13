@@ -37,6 +37,10 @@ import {
   extractWorkflowName,
   hasPullRequestTrigger
 } from './compat-ci-workflow-test-utils.js';
+import {
+  buildUnitCountMap,
+  buildUnitCountMapByKey
+} from './compat-contract-test-utils.js';
 
 const SAMPLE_WORKFLOW_YAML = `
 name: CI
@@ -175,11 +179,9 @@ describe('compat ci workflow test utils', () => {
   });
 
   it('builds top-level field-name counts for uniqueness-domain checks', () => {
-    expect(extractTopLevelFieldNameCounts(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual({
-      name: 1,
-      on: 1,
-      jobs: 1
-    });
+    expect(extractTopLevelFieldNameCounts(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(
+      buildUnitCountMap(['name', 'on', 'jobs'])
+    );
     expect(extractTopLevelFieldNameCounts(`\n${DUPLICATE_TOP_LEVEL_FIELDS_WORKFLOW_YAML}\n`)).toEqual({
       name: 2,
       jobs: 1
@@ -200,6 +202,7 @@ describe('compat ci workflow test utils', () => {
 
     const jobNames = extractTopLevelJobNames(workflowYaml);
     const jobNameCounts = extractJobNameCounts(workflowYaml);
+    expect(jobNameCounts).toEqual(buildUnitCountMap(jobNames));
     for (const jobName of jobNames) {
       expect(countJobNameOccurrences(workflowYaml, jobName)).toBe(
         jobNames.filter((candidateJobName) => candidateJobName === jobName).length
@@ -211,6 +214,7 @@ describe('compat ci workflow test utils', () => {
 
     const stepNames = extractStepNames(workflowYaml);
     const stepNameCounts = extractStepNameCounts(workflowYaml);
+    expect(stepNameCounts).toEqual(buildUnitCountMap(stepNames));
     for (const stepName of stepNames) {
       expect(countStepNameOccurrences(workflowYaml, stepName)).toBe(
         stepNames.filter((candidateStepName) => candidateStepName === stepName).length
@@ -222,35 +226,20 @@ describe('compat ci workflow test utils', () => {
   });
 
   it('builds workflow domain consistency snapshots for reusable invariants', () => {
+    const expectedStepNamesByJobName = {
+      'test-and-compat': ['First Step', 'Build', 'Upload'],
+      'second-job': ['Done']
+    };
     const snapshot = buildWorkflowDomainConsistencySnapshot({
       workflowYaml: `\n${SAMPLE_WORKFLOW_YAML}\n`
     });
     expect(snapshot).toEqual({
       topLevelFieldNames: ['name', 'on', 'jobs'],
-      topLevelFieldNameCounts: {
-        name: 1,
-        on: 1,
-        jobs: 1
-      },
+      topLevelFieldNameCounts: buildUnitCountMap(['name', 'on', 'jobs']),
       jobNames: ['test-and-compat', 'second-job'],
-      jobNameCounts: {
-        'test-and-compat': 1,
-        'second-job': 1
-      },
-      stepNamesByJobName: {
-        'test-and-compat': ['First Step', 'Build', 'Upload'],
-        'second-job': ['Done']
-      },
-      stepNameCountsByJobName: {
-        'test-and-compat': {
-          'First Step': 1,
-          Build: 1,
-          Upload: 1
-        },
-        'second-job': {
-          Done: 1
-        }
-      }
+      jobNameCounts: buildUnitCountMap(['test-and-compat', 'second-job']),
+      stepNamesByJobName: expectedStepNamesByJobName,
+      stepNameCountsByJobName: buildUnitCountMapByKey(expectedStepNamesByJobName)
     });
   });
 

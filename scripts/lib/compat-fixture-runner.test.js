@@ -829,6 +829,36 @@ describe('compat fixture runner utilities', () => {
         mismatches: ['unexpected mismatch']
       }]
     })).toThrow('passed cases must not include mismatches');
+    expect(() => ensureCompatSummaryShape({
+      ...summary,
+      slowestCases: []
+    })).toThrow('slowestCases length must equal min(3, total)');
+    expect(() => ensureCompatSummaryShape({
+      ...summary,
+      slowestCases: [{ name: 'healthy', durationMs: 999 }]
+    })).toThrow('slowestCases duration mismatch');
+    expect(() => ensureCompatSummaryShape({
+      ...summary,
+      selectedCases: ['healthy', 'missing-events'],
+      selectedTotal: 2,
+      total: 2,
+      passedCases: ['healthy', 'missing-events'],
+      results: [
+        { ...summary.results[0] },
+        {
+          name: 'missing-events',
+          expectedExitCode: 1,
+          actualExitCode: 1,
+          passed: true,
+          durationMs: 10,
+          mismatches: []
+        }
+      ],
+      slowestCases: [
+        { name: 'missing-events', durationMs: 10 },
+        { name: 'healthy', durationMs: 20 }
+      ]
+    })).toThrow('slowestCases must be sorted by descending durationMs');
 
     const contractSummary = {
       ...buildCompatSummaryHeader({

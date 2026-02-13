@@ -616,8 +616,24 @@ export function ensureCompatSummaryShape(summary) {
     if (orderMismatch) {
       throw new Error('fixtures summary results order must match selectedCases order');
     }
-    if (summary.slowestCases.length > Math.min(3, summary.total)) {
-      throw new Error('fixtures summary slowestCases length exceeds allowed limit');
+    const expectedSlowestCount = Math.min(3, summary.total);
+    if (summary.slowestCases.length !== expectedSlowestCount) {
+      throw new Error('fixtures summary slowestCases length must equal min(3, total)');
+    }
+    const durationByCase = new Map(summary.results.map((result) => [result.name, result.durationMs]));
+    let previousDurationMs = Number.POSITIVE_INFINITY;
+    for (const entry of summary.slowestCases) {
+      const resultDurationMs = durationByCase.get(entry.name);
+      if (resultDurationMs === undefined) {
+        throw new Error(`fixtures summary slowestCases references unknown case: ${entry.name}`);
+      }
+      if (entry.durationMs !== resultDurationMs) {
+        throw new Error(`fixtures summary slowestCases duration mismatch for case: ${entry.name}`);
+      }
+      if (entry.durationMs > previousDurationMs) {
+        throw new Error('fixtures summary slowestCases must be sorted by descending durationMs');
+      }
+      previousDurationMs = entry.durationMs;
     }
   }
 }

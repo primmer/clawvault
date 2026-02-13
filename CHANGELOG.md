@@ -212,6 +212,8 @@
 - CI workflow parser utilities now also support job-level extraction (`extractJobMetadata`/`extractJobBlock`) with dedicated unit coverage for job boundary handling, enabling contract checks to be scoped to explicit workflow jobs rather than global YAML scans.
 - CI workflow contracts now enforce canonical job-level runtime envelope for the compat job (`test-and-compat`, `runs-on: ubuntu-latest`, `timeout-minutes: 15`), reducing drift risk in foundational CI execution characteristics.
 - Step-order and step-content contract assertions now evaluate within the canonical compat job block, tightening guarantees that required steps are present and ordered in the intended job context (not merely elsewhere in workflow YAML).
+- CI workflow contracts now also enforce uniqueness for each required compat-job step, catching duplicate-step regressions that could previously pass presence/order-only checks.
+- CI workflow upload-step governance now also validates canonical `if` expressions and `uses` action pins for both summary and failure upload steps (`always()`/`failure()`, `actions/upload-artifact@v4`), tightening artifact-publication contract integrity.
 - `test:compat-script-stack-contract:fast` now also runs CI workflow utility tests, so parser/helper regressions fail at the same early workflow-contract gate as stack/CI wiring drift checks.
 - `test:compat-script-stack-contract:fast` now also runs dedicated CI workflow contract suites, ensuring workflow drift is caught by the earliest compatibility gate (including local `npm run ci` execution).
 - `npm run ci` now runs `test:compat-script-stack-contract:fast` as its first gate, enabling immediate workflow-wiring contract failures before heavier typecheck/test/build stages.

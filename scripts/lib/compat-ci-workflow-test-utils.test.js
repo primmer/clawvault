@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countStepNameOccurrences,
   extractEnvField,
   extractJobBlock,
   extractJobMetadata,
@@ -58,6 +59,8 @@ describe('compat ci workflow test utils', () => {
     expect(extractStepBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Build')).toContain('run: npm run build');
     expect(extractRunCommand(metadata.block)).toBe('npm run build');
     expect(extractEnvField(metadata.block, 'SAMPLE_ENV')).toBe('hello');
+    expect(countStepNameOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Build')).toBe(1);
+    expect(countStepNameOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step')).toBe(0);
   });
 
   it('extracts uses/scalar fields and multiline upload paths', () => {

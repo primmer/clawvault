@@ -4,8 +4,11 @@ import {
   loadCompatSummary,
   validateCompatSummaryCaseReports
 } from './lib/compat-fixture-runner.mjs';
-
-const COMPAT_SUMMARY_VALIDATION_OUTPUT_SCHEMA_VERSION = 1;
+import {
+  buildSummaryValidatorErrorPayload,
+  buildSummaryValidatorSuccessPayload,
+  ensureSummaryValidatorPayloadShape
+} from './lib/compat-summary-validator-output.mjs';
 
 function parseCliArgs(argv) {
   const parsed = {
@@ -135,6 +138,7 @@ function resolvePaths(args) {
 }
 
 function writeResultPayload(outPath, payload) {
+  ensureSummaryValidatorPayloadShape(payload);
   const resolvedPath = path.resolve(process.cwd(), outPath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
   fs.writeFileSync(resolvedPath, JSON.stringify(payload, null, 2), 'utf-8');
@@ -154,18 +158,16 @@ function main() {
 
   const resultCount = Array.isArray(summary.results) ? summary.results.length : 0;
   const caseReportMode = args.allowMissingCaseReports ? 'skipped-case-reports' : 'validated-case-reports';
-  const payload = {
-    outputSchemaVersion: COMPAT_SUMMARY_VALIDATION_OUTPUT_SCHEMA_VERSION,
-    status: 'ok',
+  const payload = buildSummaryValidatorSuccessPayload({
+    mode: summary.mode,
     summarySchemaVersion: summary.summarySchemaVersion,
     fixtureSchemaVersion: summary.schemaVersion,
-    mode: summary.mode,
     selectedTotal: summary.selectedTotal,
     resultCount,
     summaryPath,
     reportDir,
     caseReportMode
-  };
+  });
   if (args.outPath) {
     writeResultPayload(args.outPath, payload);
   }
@@ -190,11 +192,7 @@ try {
       return bestEffortOutPath(argv);
     }
   })();
-  const payload = {
-    outputSchemaVersion: COMPAT_SUMMARY_VALIDATION_OUTPUT_SCHEMA_VERSION,
-    status: 'error',
-    error: message
-  };
+  const payload = buildSummaryValidatorErrorPayload(message);
   if (outPath) {
     writeResultPayload(outPath, payload);
   }

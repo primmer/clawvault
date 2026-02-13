@@ -119,11 +119,42 @@ describe('clawvault hook handler', () => {
 
     await handler(event);
 
+    const contextCall = execFileSyncMock.mock.calls.find((call) => call[1]?.[0] === 'context');
+    expect(contextCall?.[1]).toEqual(expect.arrayContaining(['--profile', 'planning']));
+
     const injected = event.messages.find((message) => message.role === 'system');
     expect(injected?.content).toContain('Session context restored');
     expect(injected?.content).toContain('Recent conversation');
     expect(injected?.content).toContain('Relevant memories');
     expect(injected?.content).toContain('Use Postgres');
+
+    fs.rmSync(vaultPath, { recursive: true, force: true });
+  });
+
+  it('uses incident profile for urgent outage prompts', async () => {
+    const vaultPath = makeVaultFixture();
+    process.env.CLAWVAULT_PATH = vaultPath;
+
+    execFileSyncMock.mockImplementation((_command, args) => {
+      if (args[0] === 'session-recap') {
+        return JSON.stringify({ messages: [] });
+      }
+      if (args[0] === 'context') {
+        return JSON.stringify({ context: [] });
+      }
+      return '';
+    });
+
+    const handler = await loadHandler();
+    await handler({
+      eventName: 'session:start',
+      sessionKey: 'agent:clawdious:main',
+      context: { initialPrompt: 'URGENT outage: rollback failed in production' },
+      messages: [{ role: 'user', content: 'URGENT outage: rollback failed in production' }]
+    });
+
+    const contextCall = execFileSyncMock.mock.calls.find((call) => call[1]?.[0] === 'context');
+    expect(contextCall?.[1]).toEqual(expect.arrayContaining(['--profile', 'incident']));
 
     fs.rmSync(vaultPath, { recursive: true, force: true });
   });

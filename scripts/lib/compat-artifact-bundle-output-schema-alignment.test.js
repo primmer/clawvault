@@ -1,37 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
 import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
 } from './compat-artifact-bundle-contracts.mjs';
-
-function readSchema(fileName) {
-  const schemaPath = path.resolve(process.cwd(), 'schemas', fileName);
-  return JSON.parse(fs.readFileSync(schemaPath, 'utf-8'));
-}
-
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function expectBundlePrefixEntry(entry, definition) {
-  expect(entry?.properties?.artifactName?.const).toBe(definition.artifactName);
-  expect(entry?.properties?.schemaId?.const).toBe(definition.schemaId);
-  expect(entry?.properties?.versionField?.const).toBe(definition.versionField);
-  expect(entry?.properties?.schemaPath?.pattern).toBe(`${escapeRegex(definition.schemaPath)}$`);
-  expect(entry?.required).toEqual(['artifactName', 'schemaPath', 'schemaId', 'versionField']);
-}
-
-function expectManifestValidatorPrefixEntry(entry, definition) {
-  expect(entry?.properties?.artifactName?.const).toBe(definition.artifactName);
-  expect(entry?.properties?.artifactFile?.const).toBe(definition.artifactFile);
-  expect(entry?.properties?.schemaId?.const).toBe(definition.schemaId);
-  expect(entry?.properties?.versionField?.const).toBe(definition.versionField);
-  expect(entry?.properties?.schemaPath?.pattern).toBe(`${escapeRegex(definition.schemaPath)}$`);
-  expect(entry?.required).toEqual(['artifactName', 'artifactFile', 'schemaPath', 'schemaId', 'versionField']);
-}
+import {
+  expectConstPrefixItems,
+  expectResolvedSchemaContractEntry,
+  readSchema
+} from './compat-artifact-bundle-schema-alignment-test-utils.js';
 
 describe('compat artifact bundle output schema alignment', () => {
   it('keeps bundle-validator output schema aligned with canonical artifact definitions', () => {
@@ -48,12 +25,12 @@ describe('compat artifact bundle output schema alignment', () => {
     expect(Array.isArray(prefixItems)).toBe(true);
     expect(prefixItems.length).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT);
     for (const [index, definition] of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS.entries()) {
-      expectBundlePrefixEntry(prefixItems[index], definition);
+      expectResolvedSchemaContractEntry(prefixItems[index], definition, { includeArtifactFile: false });
     }
     expect(artifactContracts?.allOf?.[0]?.items).toBe(false);
 
     const verifiedPrefixItems = verifiedArtifacts?.allOf?.[0]?.prefixItems ?? [];
-    expect(verifiedPrefixItems.map((entry) => entry?.const)).toEqual(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
+    expectConstPrefixItems(verifiedPrefixItems, REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
     expect(verifiedArtifacts?.allOf?.[0]?.items).toBe(false);
 
     const okBranch = schema?.allOf?.find((entry) => entry?.if?.properties?.status?.const === 'ok')?.then;
@@ -83,14 +60,14 @@ describe('compat artifact bundle output schema alignment', () => {
     expect(schemaContracts?.items?.properties?.artifactName?.enum).toEqual(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
 
     const artifactPrefixItems = artifacts?.allOf?.[0]?.prefixItems ?? [];
-    expect(artifactPrefixItems.map((entry) => entry?.const)).toEqual(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
+    expectConstPrefixItems(artifactPrefixItems, REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
     expect(artifacts?.allOf?.[0]?.items).toBe(false);
 
     const schemaContractPrefixItems = schemaContracts?.allOf?.[0]?.prefixItems;
     expect(Array.isArray(schemaContractPrefixItems)).toBe(true);
     expect(schemaContractPrefixItems.length).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT);
     for (const [index, definition] of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS.entries()) {
-      expectManifestValidatorPrefixEntry(schemaContractPrefixItems[index], definition);
+      expectResolvedSchemaContractEntry(schemaContractPrefixItems[index], definition, { includeArtifactFile: true });
     }
     expect(schemaContracts?.allOf?.[0]?.items).toBe(false);
 

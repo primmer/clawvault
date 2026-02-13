@@ -301,7 +301,9 @@ npm run test:compat-validator-result:verify:schema
 npm run test:compat-artifact-bundle:verify
 npm run test:compat-artifact-bundle:verify:report
 npm run test:compat-artifact-bundle:verify:schema
+npm run test:compat-artifact-bundle:manifest:schema
 # bundle result now includes an artifactContracts manifest (artifact path + schema id + expected/actual schema version)
+# bundle validator supports --manifest <path> to override the default contract manifest
 # explicit verifier CLI options:
 node scripts/validate-compat-validator-result.mjs --validator-result /tmp/clawvault-compat-reports/validator-result.json --json --out /tmp/verifier-result.json
 # enforce success-only validator-result status in strict automation paths

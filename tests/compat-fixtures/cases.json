@@ -42,6 +42,23 @@
     }
   },
   {
+    "name": "broken-openclaw-signal",
+    "description": "warning when openclaw CLI invocation is terminated by signal.",
+    "openclawSignal": "SIGTERM",
+    "expectedExitCode": 1,
+    "expectedWarnings": 1,
+    "expectedErrors": 0,
+    "expectedCheckStatuses": {
+      "openclaw CLI available": "warn"
+    },
+    "expectedDetailIncludes": {
+      "openclaw CLI available": "terminated by signal SIGTERM"
+    },
+    "expectedHintIncludes": {
+      "openclaw CLI available": "execute normally in PATH"
+    }
+  },
+  {
     "name": "missing-requires-bin",
     "description": "warning for missing metadata.openclaw.requires.bins.",
     "expectedExitCode": 1,

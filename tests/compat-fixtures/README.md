@@ -21,6 +21,7 @@ Current fixture scenarios:
 - `healthy` — expected strict pass.
   - also asserts `ok` status for every declared compatibility check label.
 - `broken-openclaw-cli` — warning when openclaw CLI exists but is not runnable.
+- `broken-openclaw-signal` — warning when openclaw CLI invocation is terminated by signal.
 - `missing-requires-bin` — warning for missing metadata.openclaw.requires.bins.
 - `non-auto-profile` — warning for missing --profile auto delegation.
 - `missing-events` — error for missing required hook events.

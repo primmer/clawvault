@@ -40,6 +40,9 @@ function createOpenClawShim() {
     shimPath,
     [
       '#!/usr/bin/env bash',
+      'if [ -n "${OPENCLAW_SHIM_SIGNAL:-}" ]; then',
+      '  kill -s "${OPENCLAW_SHIM_SIGNAL}" "$$"',
+      'fi',
       'code="${OPENCLAW_SHIM_EXIT_CODE:-0}"',
       'exit "$code"'
     ].join('\n') + '\n',
@@ -55,7 +58,8 @@ function runCase(testCase, env) {
   assertFixtureFiles(testCase.name, fixturePath, undefined, testCase.allowMissingFiles ?? []);
   const caseEnv = {
     ...env,
-    OPENCLAW_SHIM_EXIT_CODE: String(testCase.openclawExitCode ?? 0)
+    OPENCLAW_SHIM_EXIT_CODE: String(testCase.openclawExitCode ?? 0),
+    OPENCLAW_SHIM_SIGNAL: testCase.openclawSignal ?? ''
   };
   const result = spawnSync(
     process.execPath,

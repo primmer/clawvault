@@ -206,14 +206,17 @@ describe('checkOpenClawCompatibility', () => {
         expectedDetailIncludes?: Record<string, string>;
         expectedHintIncludes?: Record<string, string>;
         openclawExitCode?: number;
+        openclawSignal?: string;
       }>;
     };
     const cases = manifest.cases;
 
     for (const testCase of cases) {
-      const spawnResult = testCase.openclawExitCode === undefined
-        ? { error: undefined, status: 0 }
-        : { error: undefined, status: testCase.openclawExitCode };
+      const spawnResult = testCase.openclawSignal
+        ? { error: undefined, status: null, signal: testCase.openclawSignal }
+        : testCase.openclawExitCode === undefined
+          ? { error: undefined, status: 0 }
+          : { error: undefined, status: testCase.openclawExitCode };
       spawnSyncMock.mockReturnValueOnce(spawnResult);
       const fixtureRoot = path.resolve(process.cwd(), 'tests', 'compat-fixtures', testCase.name);
       const report = checkOpenClawCompatibility({ baseDir: fixtureRoot });

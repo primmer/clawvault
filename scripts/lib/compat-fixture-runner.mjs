@@ -131,6 +131,14 @@ export function loadCaseManifest(casesPath) {
         throw new Error(`compat fixture case[${index}] openclawExitCode must be an integer between 0 and 255`);
       }
     }
+    if (testCase.openclawSignal !== undefined) {
+      if (typeof testCase.openclawSignal !== 'string' || !/^SIG[A-Z0-9]+$/.test(testCase.openclawSignal)) {
+        throw new Error(`compat fixture case[${index}] openclawSignal must be a signal string like SIGTERM`);
+      }
+    }
+    if (testCase.openclawExitCode !== undefined && testCase.openclawSignal !== undefined) {
+      throw new Error(`compat fixture case[${index}] cannot set both openclawExitCode and openclawSignal`);
+    }
   }
 
   return {

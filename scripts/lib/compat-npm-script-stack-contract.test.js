@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS,
   REQUIRED_COMPAT_CI_REACHABLE_SCRIPT_NAMES,
   REQUIRED_COMPAT_CI_SEQUENCE,
   REQUIRED_COMPAT_ARTIFACT_CLI_DRIFT_PATHS,
   REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE,
   REQUIRED_COMPAT_NPM_SCRIPT_NAMES,
   REQUIRED_COMPAT_REPORT_STACK_SEQUENCE,
+  REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS,
   REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES,
   REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE,
   REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE
@@ -89,6 +91,15 @@ describe('compat npm script stack contracts', () => {
     }
   });
 
+  it('keeps script-stack contract runner wired to all governance suites', () => {
+    const scripts = loadPackageScripts();
+    const stackContractScript = scripts['test:compat-script-stack-contract:fast'];
+    expect(typeof stackContractScript).toBe('string');
+    for (const testPath of REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS) {
+      expect(stackContractScript).toContain(testPath);
+    }
+  });
+
   it('keeps fast artifact stack ordering aligned with required contract gates', () => {
     const scripts = loadPackageScripts();
     const artifactStackScript = scripts['test:compat-artifact-stack:fast'];
@@ -142,6 +153,35 @@ describe('compat npm script stack contracts', () => {
       REQUIRED_COMPAT_CI_SEQUENCE,
       'ci'
     );
+  });
+
+  it('keeps artifact producers ordered before their consumer gates', () => {
+    const scripts = loadPackageScripts();
+    for (const {
+      scriptName,
+      artifactFile,
+      producerSegment,
+      consumerSegment
+    } of REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS) {
+      const command = scripts[scriptName];
+      expect(typeof command, `missing script for producer/consumer contract: ${scriptName}`).toBe('string');
+      const producerIndex = command.indexOf(producerSegment);
+      const consumerIndex = command.indexOf(consumerSegment);
+      expect(producerIndex, `${scriptName} missing producer segment for ${artifactFile}: ${producerSegment}`).toBeGreaterThanOrEqual(0);
+      expect(consumerIndex, `${scriptName} missing consumer segment for ${artifactFile}: ${consumerSegment}`).toBeGreaterThanOrEqual(0);
+      expect(
+        producerIndex,
+        `${scriptName} runs consumer before producer for ${artifactFile}`
+      ).toBeLessThan(consumerIndex);
+      expect(
+        producerIndex,
+        `${scriptName} contains duplicate producer segment for ${artifactFile}`
+      ).toBe(command.lastIndexOf(producerSegment));
+      expect(
+        consumerIndex,
+        `${scriptName} contains duplicate consumer segment for ${artifactFile}`
+      ).toBe(command.lastIndexOf(consumerSegment));
+    }
   });
 
   it('keeps required compat scripts reachable from ci npm-run graph', () => {

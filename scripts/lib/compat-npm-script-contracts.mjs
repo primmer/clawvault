@@ -1,3 +1,7 @@
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS
+} from './compat-artifact-bundle-contracts.mjs';
+
 export const REQUIRED_COMPAT_NPM_SCRIPT_NAMES = Object.freeze([
   'ci',
   'test:compat-script-stack-contract:fast',
@@ -25,6 +29,29 @@ export const REQUIRED_COMPAT_ARTIFACT_CLI_DRIFT_PATHS = Object.freeze([
   'scripts/validate-compat-artifact-bundle-manifest.test.js',
   'scripts/validate-compat-artifact-bundle.test.js'
 ]);
+
+export const REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS = Object.freeze([
+  'scripts/lib/compat-npm-script-contracts.test.js',
+  'scripts/lib/compat-npm-script-graph-utils.test.js',
+  'scripts/lib/compat-npm-script-stack-contract.test.js',
+  'scripts/lib/compat-ci-workflow-contracts.test.js',
+  'scripts/lib/compat-ci-workflow-contract.test.js'
+]);
+
+const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_DEFINITION_FILES = REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS
+  .map((definition) => definition.artifactFile)
+  .filter((artifactFile) => artifactFile !== 'artifact-bundle-manifest-validator-result.json');
+
+export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES = Object.freeze([
+  ...REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_DEFINITION_FILES,
+  'artifact-bundle-validator-result.json',
+  'artifact-bundle-manifest-validator-result.json'
+]);
+
+export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX = '${{ runner.temp }}/compat-reports/';
+export const REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME = 'Upload compatibility summary artifact';
+export const REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME = 'Run quality and compatibility checks';
+export const REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND = 'npm run ci';
 
 export const REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-artifact-alignment:fast',
@@ -64,4 +91,37 @@ export const REQUIRED_COMPAT_CI_SEQUENCE = Object.freeze([
   'npm run build',
   'npm run test:compat-contract:fast',
   'npm run test:compat-summary:fast'
+]);
+
+export const REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS = Object.freeze([
+  Object.freeze({
+    scriptName: 'test:compat-validator-stack:fast',
+    artifactFile: 'validator-result-verifier-result.json',
+    producerSegment: 'npm run test:compat-validator-result:verify:report',
+    consumerSegment: 'npm run test:compat-validator-result:verify:schema'
+  }),
+  Object.freeze({
+    scriptName: 'test:compat-validator-stack:fast',
+    artifactFile: 'schema-validator-result.json',
+    producerSegment: 'npm run test:compat-validator-result:schema',
+    consumerSegment: 'npm run test:compat-schema-validator-result:verify'
+  }),
+  Object.freeze({
+    scriptName: 'test:compat-report-stack:fast',
+    artifactFile: 'report-schema-validator-result.json',
+    producerSegment: 'npm run test:compat-report-schemas:verify:report',
+    consumerSegment: 'npm run test:compat-report-schemas:verify:schema'
+  }),
+  Object.freeze({
+    scriptName: 'test:compat-artifact-stack:fast',
+    artifactFile: 'artifact-bundle-manifest-validator-result.json',
+    producerSegment: 'npm run test:compat-artifact-bundle:manifest:verify:report',
+    consumerSegment: 'npm run test:compat-artifact-bundle:manifest:verify:schema'
+  }),
+  Object.freeze({
+    scriptName: 'test:compat-artifact-stack:fast',
+    artifactFile: 'artifact-bundle-validator-result.json',
+    producerSegment: 'npm run test:compat-artifact-bundle:verify:report',
+    consumerSegment: 'npm run test:compat-artifact-bundle:verify:schema'
+  })
 ]);

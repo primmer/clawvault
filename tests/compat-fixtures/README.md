@@ -16,6 +16,7 @@ Use `--out <file>` to persist the validator result payload (success or error) fo
 Use `npm run test:compat-validator-result:verify -- <path-to-validator-result.json>` to validate a pre-existing validator-result payload artifact directly.
 Use `npm run test:compat-validator-result:schema` to validate the emitted `validator-result.json` against its JSON schema contract.
 Use `npm run test:compat-schema-validator-result:verify` to validate `schema-validator-result.json` against its dedicated output schema.
+Use `npm run test:compat-validator-result:verify:report` + `npm run test:compat-validator-result:verify:schema` to emit and schema-validate the verifier output payload (`validator-result-verifier-result.json`).
 The validator-result verifier also supports explicit CLI options (`--validator-result`, `--json`, `--out`, `--help`) with structured output contracts and tests.
 Generic schema-validation CLI is available via `scripts/validate-json-schema.mjs` for arbitrary schema/data checks.
 Use `--require-ok` when verifier workflows must fail on `validator-result` payloads with `status: "error"`.
@@ -25,7 +26,7 @@ Standalone validator behavior is unit-tested in `scripts/validate-compat-summary
 Summary workflow scripts respect `COMPAT_REPORT_DIR` from the caller environment (falling back to `.compat-reports` when unset).
 Runner utility tests also cover malformed summary-loading paths and fixtures-summary case-report failure validation for artifact-level error contracts.
 CI publishes the generated summary artifact (`compat-summary`) for each run, with full per-case report bundles uploaded on failures.
-`compat-summary` now includes `summary.json`, `validator-result.json`, and `schema-validator-result.json` for richer downstream CI artifact consumers.
+`compat-summary` now includes `summary.json`, `validator-result.json`, `schema-validator-result.json`, and `validator-result-verifier-result.json` for richer downstream CI artifact consumers.
 Compatibility report parsing now enforces per-check schema and warning/error tally coherence to catch malformed check output early.
 Validator result payload schema generation/validation is centralized in `scripts/lib/compat-summary-validator-output.mjs` with dedicated unit tests.
 Validator CLI tests also assert that `--out` still captures structured error payloads during argument-parse failures (e.g., unknown/missing-value options).

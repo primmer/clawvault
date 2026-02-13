@@ -110,6 +110,7 @@ export function loadCaseManifest(casesPath) {
   }
 
   return {
+    schemaVersion: parsed.schemaVersion,
     expectedCheckLabels,
     cases
   };

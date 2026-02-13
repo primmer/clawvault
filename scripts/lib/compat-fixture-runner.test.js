@@ -44,6 +44,7 @@ describe('compat fixture runner utilities', () => {
       expect(loaded).toHaveLength(1);
       expect(loaded[0].name).toBe('healthy');
       const manifest = loadCaseManifest(file);
+      expect(manifest.schemaVersion).toBe(COMPAT_FIXTURE_SCHEMA_VERSION);
       expect(manifest.expectedCheckLabels).toEqual(['hook handler safety']);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

@@ -152,6 +152,9 @@ function main() {
     if (validateOnly) {
       writeSummaryReport({
         generatedAt: new Date().toISOString(),
+        mode: 'contract',
+        schemaVersion: manifest.schemaVersion,
+        selectedCases: cases.map((testCase) => testCase.name),
         total: 0,
         failures: 0,
         results: []
@@ -162,6 +165,9 @@ function main() {
     const results = cases.map((testCase) => runCase(testCase, env));
     writeSummaryReport({
       generatedAt: new Date().toISOString(),
+      mode: 'fixtures',
+      schemaVersion: manifest.schemaVersion,
+      selectedCases: cases.map((testCase) => testCase.name),
       total: results.length,
       failures: results.filter((result) => !result.passed).length,
       results

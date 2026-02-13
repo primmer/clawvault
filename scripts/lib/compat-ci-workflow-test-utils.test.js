@@ -1,0 +1,64 @@
+import { describe, expect, it } from 'vitest';
+import {
+  extractEnvField,
+  extractRunCommand,
+  extractScalarField,
+  extractStepBlock,
+  extractStepMetadata,
+  extractUploadArtifactPaths,
+  extractUsesField
+} from './compat-ci-workflow-test-utils.js';
+
+const SAMPLE_WORKFLOW_YAML = `
+name: CI
+jobs:
+  test-and-compat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: First Step
+        uses: actions/example@v1
+      - name: Build
+        run: npm run build
+        env:
+          SAMPLE_ENV: hello
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-artifact
+          path: |
+            \${{ runner.temp }}/reports/a.json
+            \${{ runner.temp }}/reports/b.json
+          if-no-files-found: ignore
+`.trim();
+
+describe('compat ci workflow test utils', () => {
+  it('extracts step metadata/block and run/env fields', () => {
+    const metadata = extractStepMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Build');
+    expect(metadata).toBeTruthy();
+    expect(metadata.startIndex).toBeGreaterThanOrEqual(0);
+    expect(metadata.block).toContain('- name: Build');
+    expect(extractStepBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Build')).toContain('run: npm run build');
+    expect(extractRunCommand(metadata.block)).toBe('npm run build');
+    expect(extractEnvField(metadata.block, 'SAMPLE_ENV')).toBe('hello');
+  });
+
+  it('extracts uses/scalar fields and multiline upload paths', () => {
+    const uploadStepBlock = extractStepBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Upload');
+    expect(uploadStepBlock).toBeTruthy();
+    expect(extractUsesField(uploadStepBlock)).toBe('actions/upload-artifact@v4');
+    expect(extractScalarField(uploadStepBlock, 'name')).toBe('sample-artifact');
+    expect(extractScalarField(uploadStepBlock, 'if-no-files-found')).toBe('ignore');
+    expect(extractUploadArtifactPaths(uploadStepBlock)).toEqual([
+      '${{ runner.temp }}/reports/a.json',
+      '${{ runner.temp }}/reports/b.json'
+    ]);
+  });
+
+  it('returns null for missing steps/fields/path blocks', () => {
+    const missingStepBlock = extractStepBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step');
+    expect(missingStepBlock).toBe(null);
+    expect(extractStepMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step')).toBe(null);
+    expect(extractScalarField('run: npm test', 'missing')).toBe(null);
+    expect(extractUploadArtifactPaths('- name: Upload\n  uses: actions/upload-artifact@v4')).toBe(null);
+  });
+});

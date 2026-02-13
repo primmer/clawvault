@@ -34,6 +34,7 @@ export const REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS = Object.freeze([
   'scripts/lib/compat-npm-script-contracts.test.js',
   'scripts/lib/compat-npm-script-graph-utils.test.js',
   'scripts/lib/compat-npm-script-stack-contract.test.js',
+  'scripts/lib/compat-ci-workflow-test-utils.test.js',
   'scripts/lib/compat-ci-workflow-contracts.test.js',
   'scripts/lib/compat-ci-workflow-contract.test.js'
 ]);

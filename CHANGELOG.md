@@ -39,6 +39,9 @@
 - `clawvault compat --strict` now exits non-zero on warnings/errors for CI-friendly OpenClaw compatibility gates.
 - CLI entrypoint runtime helpers (`getVault`, `runQmd`, qmd-missing handling) were extracted into a dedicated module to keep command bootstrap maintainable.
 - Compatibility diagnostics now also validate hook manifest required bins metadata and hook handler delegation to `context --profile auto`.
+- `compat` command now supports `--base-dir` to validate alternate project roots (used for fixture and CI contract checks).
+- Added compatibility fixture matrix runner (`npm run test:compat-fixtures`) with healthy and drifted OpenClaw integration fixtures.
+- Added GitHub Actions CI workflow running typecheck, tests, and compatibility fixture matrix.
 
 ## [1.11.2] - 2026-02-12
 

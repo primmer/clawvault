@@ -62,6 +62,14 @@ jobs:
         run: echo done
 `.trim();
 
+const ALT_INDENTED_STEPS_SNIPPET = `
+steps:
+  - name: Alpha
+    run: echo alpha
+  - name: Beta
+    run: echo beta
+`.trim();
+
 describe('compat ci workflow test utils', () => {
   it('extracts workflow-level trigger metadata', () => {
     expect(extractWorkflowName(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe('CI');
@@ -135,6 +143,14 @@ describe('compat ci workflow test utils', () => {
     expect(extractNestedSectionScalarFieldValue(metadata.block, 'env', 'SAMPLE_ENV')).toBe('hello');
     expect(countStepFieldOccurrences(metadata.block, 'run')).toBe(1);
     expect(countStepFieldOccurrences(metadata.block, 'missing')).toBe(0);
+  });
+
+  it('extracts bounded step blocks without fixed indentation assumptions', () => {
+    const metadata = extractStepMetadata(`\n${ALT_INDENTED_STEPS_SNIPPET}\n`, 'Alpha');
+    expect(metadata).toBeTruthy();
+    expect(metadata.block).toContain('- name: Alpha');
+    expect(metadata.block).not.toContain('- name: Beta');
+    expect(extractRunCommand(metadata.block)).toBe('echo alpha');
   });
 
   it('extracts uses/scalar fields and multiline upload paths', () => {

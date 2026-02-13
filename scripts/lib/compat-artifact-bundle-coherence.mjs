@@ -51,7 +51,8 @@ export function ensureCrossPayloadCoherence({
   reportSchemaValidatorPayload,
   validatorResultVerifierPayload,
   schemaValidatorPayload,
-  artifactContracts
+  artifactContracts,
+  expectedCaseSchemaPath
 }) {
   if (summaryValidatorPayload.status === 'ok' && summaryValidatorPayload.mode !== summary.mode) {
     throw new Error(`summary mode mismatch between summary and validator-result payload (${summary.mode} vs ${summaryValidatorPayload.mode})`);
@@ -101,6 +102,12 @@ export function ensureCrossPayloadCoherence({
       throw new Error(
         `report-schema-validator summarySchemaPath mismatch for summary artifact contract `
         + `(expected ${summarySchemaContractPath}, received ${reportSchemaValidatorPayload.summarySchemaPath})`
+      );
+    }
+    if (expectedCaseSchemaPath && reportSchemaValidatorPayload.caseSchemaPath !== expectedCaseSchemaPath) {
+      throw new Error(
+        `report-schema-validator caseSchemaPath mismatch for active case-report contract `
+        + `(expected ${expectedCaseSchemaPath}, received ${reportSchemaValidatorPayload.caseSchemaPath})`
       );
     }
   }

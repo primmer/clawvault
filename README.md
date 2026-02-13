@@ -209,6 +209,9 @@ clawvault compat
 clawvault compat --strict   # exits non-zero on warnings/errors
 # validates hook events, required bins metadata, and handler safety/profile delegation
 
+# Validate a specific project root (fixtures/CI)
+clawvault compat --strict --base-dir ./tests/compat-fixtures/healthy
+
 # Run strict compatibility fixture matrix (healthy + intentional drift cases)
 npm run test:compat-fixtures
 

@@ -100,6 +100,7 @@
 - Fixture manifest now enforces lowercase kebab-case identifiers for fixture case names, improving consistency between declarative contracts and directory naming.
 - Compatibility summary generation now uses a shared fixture pass/fail summarizer utility, and summary artifacts explicitly include `passedCases` / `failedCases` lists for triage.
 - Contract-only and full fixture summary artifacts now share a consistent telemetry field set (`averageDurationMs`, `overallDurationMs`, `slowestCases`, pass/fail lists) for stable downstream parsing.
+- Compatibility summary artifacts are now explicitly schema-versioned (`summarySchemaVersion`) and built via a shared summary-header utility for contract/fixtures mode consistency.
 
 ## [1.11.2] - 2026-02-12
 

@@ -9,9 +9,53 @@ const repoRoot = path.resolve(scriptDir, '..');
 const fixturesRoot = path.join(repoRoot, 'tests', 'compat-fixtures');
 
 const cases = [
-  { name: 'healthy', expectedExitCode: 0 },
-  { name: 'missing-requires-bin', expectedExitCode: 1 },
-  { name: 'non-auto-profile', expectedExitCode: 1 }
+  {
+    name: 'healthy',
+    expectedExitCode: 0,
+    expectedWarnings: 0,
+    expectedErrors: 0,
+    expectedCheckStatuses: {
+      'hook manifest events': 'ok',
+      'hook manifest requirements': 'ok',
+      'hook handler safety': 'ok'
+    }
+  },
+  {
+    name: 'missing-requires-bin',
+    expectedExitCode: 1,
+    expectedWarnings: 1,
+    expectedErrors: 0,
+    expectedCheckStatuses: {
+      'hook manifest requirements': 'warn'
+    }
+  },
+  {
+    name: 'non-auto-profile',
+    expectedExitCode: 1,
+    expectedWarnings: 1,
+    expectedErrors: 0,
+    expectedCheckStatuses: {
+      'hook handler safety': 'warn'
+    }
+  },
+  {
+    name: 'missing-events',
+    expectedExitCode: 1,
+    expectedWarnings: 0,
+    expectedErrors: 1,
+    expectedCheckStatuses: {
+      'hook manifest events': 'error'
+    }
+  },
+  {
+    name: 'missing-package-hook',
+    expectedExitCode: 1,
+    expectedWarnings: 0,
+    expectedErrors: 1,
+    expectedCheckStatuses: {
+      'package hook registration': 'error'
+    }
+  }
 ];
 
 function createOpenClawShim() {
@@ -22,8 +66,33 @@ function createOpenClawShim() {
   return { shimDir, shimPath };
 }
 
-function runCase(caseName, expectedExitCode, env) {
-  const fixturePath = path.join(fixturesRoot, caseName);
+function ensureCompatReportShape(report, caseName) {
+  if (!report || typeof report !== 'object') {
+    throw new Error(`fixture=${caseName} emitted non-object JSON report`);
+  }
+  if (typeof report.generatedAt !== 'string') {
+    throw new Error(`fixture=${caseName} report missing generatedAt`);
+  }
+  if (!Array.isArray(report.checks)) {
+    throw new Error(`fixture=${caseName} report missing checks[]`);
+  }
+  if (typeof report.warnings !== 'number' || typeof report.errors !== 'number') {
+    throw new Error(`fixture=${caseName} report missing warnings/errors counts`);
+  }
+}
+
+function parseCompatReport(stdout, caseName) {
+  try {
+    const parsed = JSON.parse(stdout);
+    ensureCompatReportShape(parsed, caseName);
+    return parsed;
+  } catch (err) {
+    throw new Error(`fixture=${caseName} produced invalid JSON report: ${err?.message || String(err)}`);
+  }
+}
+
+function runCase(testCase, env) {
+  const fixturePath = path.join(fixturesRoot, testCase.name);
   const result = spawnSync(
     process.execPath,
     ['./bin/clawvault.js', 'compat', '--strict', '--base-dir', fixturePath, '--json'],
@@ -35,11 +104,36 @@ function runCase(caseName, expectedExitCode, env) {
   );
 
   const actualExitCode = result.status ?? 1;
-  const passed = actualExitCode === expectedExitCode;
-  const summary = `${passed ? '✓' : '✗'} fixture=${caseName} expected=${expectedExitCode} actual=${actualExitCode}`;
+  const exitMatches = actualExitCode === testCase.expectedExitCode;
+  let report = null;
+  let outputMatches = false;
+  let outputError = null;
+
+  try {
+    report = parseCompatReport(result.stdout, testCase.name);
+    const warningsMatch = report.warnings === testCase.expectedWarnings;
+    const errorsMatch = report.errors === testCase.expectedErrors;
+    const statusMatches = Object.entries(testCase.expectedCheckStatuses).every(([label, expectedStatus]) => {
+      const check = report.checks.find((candidate) => candidate?.label === label);
+      return check?.status === expectedStatus;
+    });
+    outputMatches = warningsMatch && errorsMatch && statusMatches;
+  } catch (err) {
+    outputError = err;
+    outputMatches = false;
+  }
+
+  const passed = exitMatches && outputMatches;
+  const summary = `${passed ? '✓' : '✗'} fixture=${testCase.name} expectedExit=${testCase.expectedExitCode} actualExit=${actualExitCode}`;
   console.log(summary);
 
   if (!passed) {
+    if (outputError) {
+      console.error(outputError.message);
+    }
+    if (report) {
+      console.error(`expected warnings/errors=${testCase.expectedWarnings}/${testCase.expectedErrors} actual=${report.warnings}/${report.errors}`);
+    }
     console.error(result.stdout);
     console.error(result.stderr);
   }
@@ -56,7 +150,7 @@ function main() {
 
   try {
     const failures = cases
-      .map((testCase) => runCase(testCase.name, testCase.expectedExitCode, env))
+      .map((testCase) => runCase(testCase, env))
       .filter((passed) => !passed).length;
 
     if (failures > 0) {

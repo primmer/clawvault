@@ -67,4 +67,36 @@ describe('command runtime helpers', () => {
 
     await expect(runQmd(['update'])).rejects.toBeInstanceOf(QmdUnavailableError);
   });
+
+  it('surfaces qmd non-zero exit codes as errors', async () => {
+    const { runQmd } = await loadRuntimeModule();
+    spawnMock.mockImplementation(() => {
+      const handlers = {};
+      const proc = {
+        on: (event, handler) => {
+          handlers[event] = handler;
+        }
+      };
+      queueMicrotask(() => {
+        handlers.close?.(2);
+      });
+      return proc;
+    });
+
+    await expect(runQmd(['update'])).rejects.toThrow('qmd exited with code 2');
+  });
+
+  it('prints consistent qmd missing guidance', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const { printQmdMissing } = await loadRuntimeModule();
+      printQmdMissing();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('ClawVault requires qmd.'));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('install-qmd'));
+    } finally {
+      errorSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+  });
 });

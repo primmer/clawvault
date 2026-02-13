@@ -26,6 +26,9 @@ import {
 import {
   COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION
 } from './compat-artifact-bundle-manifest-validator-output.mjs';
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+} from './compat-artifact-bundle-contracts.mjs';
 
 function readSchema(schemaFileName) {
   const schemaPath = path.resolve(process.cwd(), 'schemas', schemaFileName);
@@ -83,15 +86,7 @@ describe('compat payload json schema contracts', () => {
     const okBranch = schema.allOf.find(
       (entry) => entry?.if?.properties?.status?.const === 'ok'
     )?.then;
-    const requiredArtifactNames = [
-      'summary.json',
-      'report-schema-validator-result.json',
-      'validator-result.json',
-      'schema-validator-result.json',
-      'validator-result-verifier-result.json',
-      'artifact-bundle-manifest-validator-result.json'
-    ];
-    for (const artifactName of requiredArtifactNames) {
+    for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
       expect(
         okBranch?.allOf?.some((entry) => entry?.properties?.verifiedArtifacts?.contains?.const === artifactName)
       ).toBe(true);

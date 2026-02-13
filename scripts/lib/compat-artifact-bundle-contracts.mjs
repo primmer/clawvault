@@ -1,0 +1,17 @@
+export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES = Object.freeze([
+  'summary.json',
+  'report-schema-validator-result.json',
+  'validator-result.json',
+  'schema-validator-result.json',
+  'validator-result-verifier-result.json',
+  'artifact-bundle-manifest-validator-result.json'
+]);
+
+export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS = Object.freeze([
+  Object.freeze({ fieldName: 'summaryPath', artifactName: 'summary.json' }),
+  Object.freeze({ fieldName: 'validatorResultPath', artifactName: 'validator-result.json' }),
+  Object.freeze({ fieldName: 'reportSchemaValidatorResultPath', artifactName: 'report-schema-validator-result.json' }),
+  Object.freeze({ fieldName: 'schemaValidatorResultPath', artifactName: 'schema-validator-result.json' }),
+  Object.freeze({ fieldName: 'validatorResultVerifierResultPath', artifactName: 'validator-result-verifier-result.json' }),
+  Object.freeze({ fieldName: 'artifactBundleManifestValidatorResultPath', artifactName: 'artifact-bundle-manifest-validator-result.json' })
+]);

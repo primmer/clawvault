@@ -39,7 +39,7 @@
     "test:compat-contract": "npm run build && COMPAT_VALIDATE_ONLY=1 node scripts/check-compat-fixtures.mjs",
     "test:compat-contract:fast": "COMPAT_VALIDATE_ONLY=1 node scripts/check-compat-fixtures.mjs",
     "test:compat-smoke": "npm run test:compat-contract:fast && COMPAT_CASES=healthy npm run test:compat-fixtures:fast",
-    "ci": "npm run typecheck && npm test && npm run test:compat-fixtures",
+    "ci": "npm run typecheck && npm test && npm run build && npm run test:compat-contract:fast && npm run test:compat-fixtures:fast",
     "seo:generate": "node generate-seo-assets.mjs",
     "prepublishOnly": "npm run build"
   },

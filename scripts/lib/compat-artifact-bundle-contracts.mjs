@@ -7,6 +7,8 @@ export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES = Object.freeze([
   'artifact-bundle-manifest-validator-result.json'
 ]);
 
+export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT = REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length;
+
 export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS = Object.freeze({
   'summary.json': 'summarySchemaVersion',
   'report-schema-validator-result.json': 'outputSchemaVersion',

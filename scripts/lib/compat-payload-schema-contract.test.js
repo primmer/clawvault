@@ -126,6 +126,11 @@ describe('compat payload json schema contracts', () => {
     const schema = readSchema('compat-artifact-bundle-manifest-validator-output.schema.json');
     expect(schema.properties.outputSchemaVersion.const).toBe(COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION);
     expect(schema.properties.status.enum).toEqual(['ok', 'error']);
+    expect(schema.properties.artifactCount.const).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
+    expect(schema.properties.artifacts.minItems).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
+    expect(schema.properties.artifacts.maxItems).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
+    expect(schema.properties.artifacts.items.enum).toEqual(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
+    expect(schema.properties.schemaContracts.items.properties.artifactName.enum).toEqual(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
     const okBranch = schema.allOf.find(
       (entry) => entry?.if?.properties?.status?.const === 'ok'
     )?.then;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
@@ -8,6 +9,7 @@ import {
 describe('compat artifact bundle contracts constants', () => {
   it('keeps required artifact names unique and non-empty', () => {
     expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length).toBeGreaterThan(0);
+    expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
     expect(new Set(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES).size).toBe(
       REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length
     );

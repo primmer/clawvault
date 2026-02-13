@@ -1,8 +1,11 @@
 import * as fs from 'fs';
 import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
+
+const REQUIRED_ARTIFACT_NAME_SET = new Set(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
 
 export const COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION = 1;
 
@@ -60,9 +63,21 @@ export function ensureCompatArtifactBundleManifestValidatorPayloadShape(payload)
   if (payload.status === 'ok') {
     assertNonEmptyString(payload.manifestPath, 'manifestPath');
     assertNonNegativeInteger(payload.artifactCount, 'artifactCount');
+    if (payload.artifactCount !== REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT) {
+      throw new Error(
+        `compat artifact bundle manifest validator payload artifactCount must be ${REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT}`
+      );
+    }
     assertUniqueNonEmptyStringArray(payload.artifacts, 'artifacts');
     if (payload.artifacts.length !== payload.artifactCount) {
       throw new Error('compat artifact bundle manifest validator payload artifacts.length must match artifactCount');
+    }
+    const payloadArtifactSet = new Set(payload.artifacts);
+    const unsupportedArtifacts = payload.artifacts.filter((name) => !REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.includes(name));
+    if (unsupportedArtifacts.length > 0) {
+      throw new Error(
+        `compat artifact bundle manifest validator payload artifacts contains unsupported artifactName values: ${unsupportedArtifacts.join(', ')}`
+      );
     }
     if (!Array.isArray(payload.schemaContracts)) {
       throw new Error('compat artifact bundle manifest validator payload field "schemaContracts" must be an array');
@@ -93,6 +108,12 @@ export function ensureCompatArtifactBundleManifestValidatorPayloadShape(payload)
         `compat artifact bundle manifest validator payload schemaContracts contains duplicate artifactFile values: ${duplicateContractArtifactFiles.join(', ')}`
       );
     }
+    const unsupportedSchemaContractArtifacts = schemaContractArtifactNames.filter((name) => !REQUIRED_ARTIFACT_NAME_SET.has(name));
+    if (unsupportedSchemaContractArtifacts.length > 0) {
+      throw new Error(
+        `compat artifact bundle manifest validator payload schemaContracts contains unsupported artifactName values: ${unsupportedSchemaContractArtifacts.join(', ')}`
+      );
+    }
     if (schemaContractArtifactNames.some((value, index) => value !== payload.artifacts[index])) {
       throw new Error(
         'compat artifact bundle manifest validator payload schemaContracts artifactName order must match artifacts'
@@ -102,7 +123,7 @@ export function ensureCompatArtifactBundleManifestValidatorPayloadShape(payload)
       payload.schemaContracts.map((entry) => [entry.artifactName, entry])
     );
     for (const requiredArtifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
-      if (!payload.artifacts.includes(requiredArtifactName)) {
+      if (!payloadArtifactSet.has(requiredArtifactName)) {
         throw new Error(
           `compat artifact bundle manifest validator payload artifacts is missing required artifactName: ${requiredArtifactName}`
         );

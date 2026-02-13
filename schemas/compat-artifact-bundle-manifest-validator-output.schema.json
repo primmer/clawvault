@@ -19,11 +19,23 @@
     },
     "artifactCount": {
       "type": "integer",
-      "minimum": 0
+      "const": 6
     },
     "artifacts": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "enum": [
+          "summary.json",
+          "report-schema-validator-result.json",
+          "validator-result.json",
+          "schema-validator-result.json",
+          "validator-result-verifier-result.json",
+          "artifact-bundle-manifest-validator-result.json"
+        ]
+      },
       "uniqueItems": true
     },
     "schemaContracts": {
@@ -31,7 +43,17 @@
       "items": {
         "type": "object",
         "properties": {
-          "artifactName": { "type": "string", "minLength": 1 },
+          "artifactName": {
+            "type": "string",
+            "enum": [
+              "summary.json",
+              "report-schema-validator-result.json",
+              "validator-result.json",
+              "schema-validator-result.json",
+              "validator-result-verifier-result.json",
+              "artifact-bundle-manifest-validator-result.json"
+            ]
+          },
           "artifactFile": { "type": "string", "minLength": 1 },
           "schemaPath": { "type": "string", "minLength": 1 },
           "schemaId": { "type": "string", "minLength": 1 },

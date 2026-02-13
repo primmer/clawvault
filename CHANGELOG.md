@@ -172,6 +172,7 @@
 - Bundle-validator required artifact-name coverage checks now rely on manifest-load guarantees; obsolete duplicate runtime helper logic was removed to reduce dead code and maintenance overhead.
 - Manifest-validator CLI coverage now includes explicit missing-required-artifact manifest scenarios, locking in structured error semantics for incomplete manifest contracts.
 - Artifact-bundle manifest runtime/schema contracts now enforce a strict required artifact set (exact cardinality + no unsupported `artifactName` entries), tightening manifest governance and surfacing unsupported extensions earlier.
+- Artifact-bundle manifest-validator output runtime/schema contracts now enforce strict required artifact-set cardinality and supported `artifactName` domain (including schemaContracts), reducing ambiguous payload acceptance in standalone validator-output checks.
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

@@ -93,6 +93,9 @@
     },
     "expectedDetailIncludes": {
       "skill metadata": "Missing metadata.openclaw"
+    },
+    "expectedHintIncludes": {
+      "skill metadata": "metadata.openclaw"
     }
   },
   {

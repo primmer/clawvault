@@ -64,6 +64,14 @@ function checkOpenClawCli(): CompatCheck {
       hint: 'Install OpenClaw CLI to enable hook runtime validation.'
     };
   }
+  if (typeof result.status === 'number' && result.status !== 0) {
+    return {
+      label: 'openclaw CLI available',
+      status: 'warn',
+      detail: `openclaw --version exited with code ${result.status}`,
+      hint: 'Ensure OpenClaw CLI is installed and runnable in PATH.'
+    };
+  }
   return { label: 'openclaw CLI available', status: 'ok' };
 }
 
@@ -224,12 +232,36 @@ function checkSkillMetadata(options: CompatOptions): CompatCheck {
     };
   }
 
-  const hasOpenClawMetadata = /"openclaw"\s*:/.test(skillRaw);
+  let hasOpenClawMetadata = false;
+  try {
+    const parsed = matter(skillRaw);
+    const frontmatter = (parsed.data ?? {}) as Record<string, unknown>;
+    const metadata = (
+      frontmatter.metadata
+      && typeof frontmatter.metadata === 'object'
+      && !Array.isArray(frontmatter.metadata)
+    )
+      ? frontmatter.metadata as Record<string, unknown>
+      : undefined;
+
+    hasOpenClawMetadata = Boolean(
+      (metadata && typeof metadata.openclaw === 'object' && metadata.openclaw !== null)
+      || (typeof frontmatter.openclaw === 'object' && frontmatter.openclaw !== null)
+    );
+  } catch {
+    hasOpenClawMetadata = false;
+  }
+
+  if (!hasOpenClawMetadata) {
+    hasOpenClawMetadata = /"openclaw"\s*:/.test(skillRaw);
+  }
+
   if (!hasOpenClawMetadata) {
     return {
       label: 'skill metadata',
       status: 'warn',
-      detail: 'Missing metadata.openclaw in SKILL.md'
+      detail: 'Missing metadata.openclaw in SKILL.md',
+      hint: 'Add metadata.openclaw to SKILL.md frontmatter for OpenClaw compatibility.'
     };
   }
 

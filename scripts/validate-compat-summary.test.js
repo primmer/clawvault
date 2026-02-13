@@ -56,6 +56,10 @@ function runSummaryValidator(args = [], env = {}) {
   );
 }
 
+function parseJsonLine(stdout) {
+  return JSON.parse(stdout.trim());
+}
+
 describe('validate-compat-summary script', () => {
   it('validates a fixtures summary and case report artifact set', () => {
     const root = makeTempDir('compat-summary-script-');
@@ -135,6 +139,17 @@ describe('validate-compat-summary script', () => {
       const result = runSummaryValidator(['--summary', summaryPath, '--report-dir', reportRoot]);
       expect(result.status).toBe(0);
       expect(result.stdout).toContain(`reportDir=${reportRoot}`);
+
+      const jsonResult = runSummaryValidator(['--summary', summaryPath, '--report-dir', reportRoot, '--json']);
+      expect(jsonResult.status).toBe(0);
+      expect(parseJsonLine(jsonResult.stdout)).toEqual({
+        status: 'ok',
+        mode: 'fixtures',
+        selectedTotal: 1,
+        resultCount: 1,
+        reportDir: reportRoot,
+        caseReportMode: 'validated-case-reports'
+      });
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -165,5 +180,6 @@ describe('validate-compat-summary script', () => {
     expect(result.stdout).toContain('Usage: node scripts/validate-compat-summary.mjs');
     expect(result.stdout).toContain('--summary <summary.json>');
     expect(result.stdout).toContain('--allow-missing-case-reports');
+    expect(result.stdout).toContain('--json');
   });
 });

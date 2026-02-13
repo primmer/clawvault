@@ -47,4 +47,5 @@ jobs:
           path: |
             ${{ runner.temp }}/compat-reports/summary.json
             ${{ runner.temp }}/compat-reports/validator-result.json
+            ${{ runner.temp }}/compat-reports/schema-validator-result.json
           if-no-files-found: ignore

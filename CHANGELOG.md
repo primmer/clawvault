@@ -81,6 +81,7 @@
 - Fast compatibility checks now validate build freshness (`src/commands/compat.ts` vs `dist/commands/compat.js`) and fail early on stale artifacts to prevent false local results.
 - Skill metadata compatibility diagnostics now distinguish malformed `SKILL.md` frontmatter from missing metadata and emit clearer warning details with actionable hints.
 - Compatibility fixture manifest now supports per-case `openclawExitCode`, and fixture matrix coverage includes a broken-CLI scenario to validate `openclaw --version` non-zero warning behavior.
+- OpenClaw CLI compatibility checks now also report signal-terminated executions (e.g., `SIGTERM`) as warnings for clearer runtime readiness diagnostics.
 
 ## [1.11.2] - 2026-02-12
 

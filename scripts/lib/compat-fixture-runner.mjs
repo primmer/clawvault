@@ -127,6 +127,49 @@ export function parseCompatReport(stdout, caseName) {
   }
 }
 
+export function evaluateCaseReport(testCase, report, actualExitCode) {
+  const mismatches = [];
+
+  if (actualExitCode !== testCase.expectedExitCode) {
+    mismatches.push(`exit code mismatch (expected ${testCase.expectedExitCode}, received ${actualExitCode})`);
+  }
+
+  if (report.warnings !== testCase.expectedWarnings) {
+    mismatches.push(`warnings mismatch (expected ${testCase.expectedWarnings}, received ${report.warnings})`);
+  }
+
+  if (report.errors !== testCase.expectedErrors) {
+    mismatches.push(`errors mismatch (expected ${testCase.expectedErrors}, received ${report.errors})`);
+  }
+
+  for (const [label, expectedStatus] of Object.entries(testCase.expectedCheckStatuses)) {
+    const check = report.checks.find((candidate) => candidate?.label === label);
+    if (!check) {
+      mismatches.push(`missing check "${label}"`);
+      continue;
+    }
+    if (check.status !== expectedStatus) {
+      mismatches.push(`check "${label}" status mismatch (expected ${expectedStatus}, received ${check.status})`);
+    }
+  }
+
+  for (const [label, expectedSnippet] of Object.entries(testCase.expectedDetailIncludes ?? {})) {
+    const check = report.checks.find((candidate) => candidate?.label === label);
+    if (!check) {
+      mismatches.push(`missing check "${label}" for detail assertion`);
+      continue;
+    }
+    if (typeof check.detail !== 'string' || !check.detail.includes(expectedSnippet)) {
+      mismatches.push(`check "${label}" detail missing snippet "${expectedSnippet}"`);
+    }
+  }
+
+  return {
+    passed: mismatches.length === 0,
+    mismatches
+  };
+}
+
 export function assertFixtureFiles(caseName, fixturePath, requiredPaths = REQUIRED_FIXTURE_FILES, allowMissingFiles = []) {
   const allowedMissing = new Set(allowMissingFiles);
   const missing = requiredPaths

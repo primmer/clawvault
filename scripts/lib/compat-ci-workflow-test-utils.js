@@ -397,29 +397,62 @@ export function extractUsesField(stepBlock) {
 }
 
 export function extractUploadArtifactPaths(stepBlock) {
+  return extractNestedSectionListOrMultilineFieldValues(stepBlock, 'with', 'path');
+}
+
+export function extractNestedSectionListOrMultilineFieldValues(stepBlock, sectionName, fieldName) {
   const lines = stepBlock.split('\n');
-  const pathLineIndex = lines.findIndex((line) => {
+  const sectionLineIndex = lines.findIndex((line) => {
     const trimmedLine = line.trim();
-    return trimmedLine === 'path:' || trimmedLine === 'path: |';
+    return trimmedLine === `${sectionName}:` || trimmedLine === `${sectionName}: |`;
   });
-  if (pathLineIndex < 0) {
+  if (sectionLineIndex < 0) {
     return null;
   }
-  const pathIndent = countLeadingSpaces(lines[pathLineIndex]);
-  const pathLines = [];
-  for (let index = pathLineIndex + 1; index < lines.length; index += 1) {
+  const sectionIndent = countLeadingSpaces(lines[sectionLineIndex]);
+  const fieldHeaderPattern = new RegExp(`^${escapeRegex(fieldName)}:\\s*(.*)$`);
+  let fieldLineIndex = -1;
+  let fieldLineRemainder = '';
+  for (let index = sectionLineIndex + 1; index < lines.length; index += 1) {
     const line = lines[index];
     const trimmedLine = line.trim();
     if (!trimmedLine) {
       continue;
     }
     const lineIndent = countLeadingSpaces(line);
-    if (lineIndent <= pathIndent) {
+    if (lineIndent <= sectionIndent) {
       break;
     }
-    pathLines.push(trimmedLine.startsWith('- ') ? trimmedLine.slice(2).trim() : trimmedLine);
+    const fieldMatch = fieldHeaderPattern.exec(trimmedLine);
+    if (fieldMatch) {
+      fieldLineIndex = index;
+      fieldLineRemainder = fieldMatch[1].trim();
+      break;
+    }
   }
-  return pathLines;
+  if (fieldLineIndex < 0) {
+    return null;
+  }
+
+  if (fieldLineRemainder && fieldLineRemainder !== '|') {
+    return [fieldLineRemainder];
+  }
+
+  const fieldIndent = countLeadingSpaces(lines[fieldLineIndex]);
+  const fieldValues = [];
+  for (let index = fieldLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent <= fieldIndent) {
+      break;
+    }
+    fieldValues.push(trimmedLine.startsWith('- ') ? trimmedLine.slice(2).trim() : trimmedLine);
+  }
+  return fieldValues;
 }
 
 function buildJobContractSnapshot({

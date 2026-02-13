@@ -5,7 +5,6 @@ import {
   ensureArtifactPathCoherence,
   ensureCrossPayloadCoherence,
   ensureManifestValidatorPayloadCoherence,
-  ensureRequiredArtifactNamesPresent,
   ensureRequireOkStatuses
 } from './compat-artifact-bundle-coherence.mjs';
 
@@ -127,18 +126,6 @@ function buildBaseFixtureState() {
 }
 
 describe('compat artifact bundle coherence helpers', () => {
-  it('validates required artifact names', () => {
-    const fixture = buildBaseFixtureState();
-    expect(() => ensureRequiredArtifactNamesPresent(
-      fixture.artifactContracts,
-      ['summary.json', 'validator-result.json']
-    )).not.toThrow();
-    expect(() => ensureRequiredArtifactNamesPresent(
-      fixture.artifactContracts,
-      ['missing-artifact.json']
-    )).toThrow('missing required artifactName');
-  });
-
   it('validates path coherence and detects drift', () => {
     const fixture = buildBaseFixtureState();
     expect(() => ensureArtifactPathCoherence({

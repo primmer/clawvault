@@ -29,6 +29,7 @@ import {
   REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME,
   REQUIRED_COMPAT_CI_SETUP_NODE_USES,
   REQUIRED_COMPAT_CI_SETUP_NODE_VERSION,
+  REQUIRED_COMPAT_CI_STEP_NAMES,
   REQUIRED_COMPAT_CI_STEP_SEQUENCE,
   REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME,
   REQUIRED_COMPAT_CI_UPLOAD_CONDITION,
@@ -52,6 +53,7 @@ import {
   extractPushBranches,
   extractTopLevelJobNames,
   extractOnTriggerNames,
+  extractStepNames,
   extractUploadArtifactPaths,
   extractUsesField,
   extractWorkflowName,
@@ -138,6 +140,13 @@ describe('compat ci workflow contract', () => {
         `required CI step "${stepName}" must appear exactly once in ${REQUIRED_COMPAT_CI_JOB_NAME}`
       ).toBe(1);
     }
+  });
+
+  it('keeps CI step-name domain exact for compat job', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    expect(extractStepNames(ciJobBlock)).toEqual(REQUIRED_COMPAT_CI_STEP_NAMES);
   });
 
   it('keeps checkout/setup/install steps aligned with canonical CI environment contracts', () => {

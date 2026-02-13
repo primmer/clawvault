@@ -99,6 +99,11 @@ export function countStepNameOccurrences(workflowYamlOrJobBlock, stepName) {
   return [...workflowYamlOrJobBlock.matchAll(stepHeaderPattern)].length;
 }
 
+export function extractStepNames(workflowYamlOrJobBlock) {
+  const stepHeaderPattern = /\n\s+- name:\s+(.+)\s*\n/g;
+  return [...workflowYamlOrJobBlock.matchAll(stepHeaderPattern)].map((match) => match[1].trim());
+}
+
 export function countScalarFieldOccurrences(block, fieldName) {
   const fieldPattern = new RegExp(`\\n\\s*${escapeRegex(fieldName)}:\\s*`, 'g');
   return [...block.matchAll(fieldPattern)].length;

@@ -11,6 +11,7 @@ import {
   extractTopLevelJobNames,
   extractRunCommand,
   extractScalarField,
+  extractStepNames,
   extractStepBlock,
   extractStepMetadata,
   extractUploadArtifactPaths,
@@ -90,6 +91,7 @@ describe('compat ci workflow test utils', () => {
     expect(extractEnvField(metadata.block, 'SAMPLE_ENV')).toBe('hello');
     expect(countStepNameOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Build')).toBe(1);
     expect(countStepNameOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step')).toBe(0);
+    expect(extractStepNames(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['First Step', 'Build', 'Upload', 'Done']);
   });
 
   it('extracts uses/scalar fields and multiline upload paths', () => {

@@ -108,6 +108,9 @@ export const REQUIRED_COMPAT_CI_STEP_SEQUENCE = Object.freeze([
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME,
   REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME
 ]);
+export const REQUIRED_COMPAT_CI_STEP_NAMES = Object.freeze([
+  ...REQUIRED_COMPAT_CI_STEP_SEQUENCE
+]);
 
 export const REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-artifact-alignment:fast',

@@ -16,6 +16,8 @@
 
 ### Changed
 - Dashboard edge diffing now includes edge type/label, enabling reliable live updates when relation type changes.
+- Hook event matching now supports alias payload shapes (`event`, `eventName`, etc.) for better OpenClaw compatibility.
+- `link` and `entities` commands now consistently respect `--vault` without requiring `CLAWVAULT_PATH`.
 
 ## [1.11.2] - 2026-02-12
 

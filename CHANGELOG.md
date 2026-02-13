@@ -132,6 +132,7 @@
 - Validator payload contracts are now centralized in dedicated helpers (`scripts/lib/compat-summary-validator-output.mjs`) with unit coverage, reducing drift between CLI output generation and validation semantics.
 - Standalone validator tests now verify `--out` error-payload persistence even when CLI argument parsing fails, hardening pipeline auditability for malformed invocations.
 - Added standalone validator-result verification workflow (`validate-compat-validator-result.mjs`, `test:compat-validator-result:verify`) to validate emitted validator payload artifacts independently of summary generation.
+- Validator-result verification now has its own structured output contract helpers (`scripts/lib/compat-validator-result-verifier-output.mjs`) and CLI support for `--json`, `--out`, and `--help` with dedicated test coverage.
 
 ## [1.11.2] - 2026-02-12
 

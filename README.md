@@ -280,6 +280,9 @@ node scripts/validate-compat-summary.mjs --help
 npm run test:compat-summary:verify -- /tmp/clawvault-compat-reports/summary.json
 # validate previously emitted validator-result payload directly
 npm run test:compat-validator-result:verify -- /tmp/clawvault-compat-reports/validator-result.json
+# explicit verifier CLI options:
+node scripts/validate-compat-validator-result.mjs --validator-result /tmp/clawvault-compat-reports/validator-result.json --json --out /tmp/verifier-result.json
+# use --help for verifier usage and path-resolution rules
 # or run fixture generation + standalone summary validation together
 npm run test:compat-summary:fast
 # script behavior is covered by dedicated unit tests (success + failure + env fallback)

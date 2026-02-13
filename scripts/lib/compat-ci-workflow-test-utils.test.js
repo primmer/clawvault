@@ -185,6 +185,30 @@ describe('compat ci workflow test utils', () => {
     expect(countTopLevelFieldOccurrences(`\n${DUPLICATE_TOP_LEVEL_FIELDS_WORKFLOW_YAML}\n`, 'on')).toBe(0);
   });
 
+  it('keeps extracted domains and occurrence counters aligned', () => {
+    const workflowYaml = `\n${SAMPLE_WORKFLOW_YAML}\n`;
+    const topLevelFieldNames = extractTopLevelFieldNames(workflowYaml);
+    const topLevelFieldNameCounts = extractTopLevelFieldNameCounts(workflowYaml);
+    for (const fieldName of Object.keys(topLevelFieldNameCounts)) {
+      expect(countTopLevelFieldOccurrences(workflowYaml, fieldName)).toBe(topLevelFieldNameCounts[fieldName]);
+    }
+    expect(Object.keys(topLevelFieldNameCounts)).toEqual(topLevelFieldNames);
+
+    const jobNames = extractTopLevelJobNames(workflowYaml);
+    for (const jobName of jobNames) {
+      expect(countJobNameOccurrences(workflowYaml, jobName)).toBe(
+        jobNames.filter((candidateJobName) => candidateJobName === jobName).length
+      );
+    }
+
+    const stepNames = extractStepNames(workflowYaml);
+    for (const stepName of stepNames) {
+      expect(countStepNameOccurrences(workflowYaml, stepName)).toBe(
+        stepNames.filter((candidateStepName) => candidateStepName === stepName).length
+      );
+    }
+  });
+
   it('extracts workflow trigger/jobs metadata with nonstandard section indentation', () => {
     const workflowYaml = `\n${NONSTANDARD_SECTION_INDENT_WORKFLOW_YAML}\n`;
     expect(extractOnTriggerNames(workflowYaml)).toEqual(['push', 'pull_request']);
@@ -289,6 +313,35 @@ describe('compat ci workflow test utils', () => {
     expect(snapshotsByJobName['second-job'].jobName).toBe('second-job');
     expect(snapshotsByJobName['second-job'].stepTopLevelFieldNamesByName).toEqual({
       Done: ['name', 'run']
+    });
+  });
+
+  it('auto-discovers job step domains when explicit step list is omitted', () => {
+    const snapshotsByJobName = buildWorkflowJobsContractSnapshot({
+      workflowYaml: `\n${SAMPLE_WORKFLOW_YAML}\n`,
+      jobNames: ['test-and-compat']
+    });
+    expect(snapshotsByJobName['test-and-compat']).toEqual({
+      jobName: 'test-and-compat',
+      jobTopLevelFieldNames: ['runs-on', 'steps'],
+      jobRunsOn: 'ubuntu-latest',
+      jobTimeoutMinutes: null,
+      stepNames: ['First Step', 'Build', 'Upload'],
+      stepTopLevelFieldNamesByName: {
+        'First Step': ['name', 'uses'],
+        Build: ['name', 'run', 'env'],
+        Upload: ['name', 'uses', 'with']
+      },
+      stepWithFieldNamesByName: {
+        'First Step': null,
+        Build: null,
+        Upload: ['name', 'path', 'if-no-files-found']
+      },
+      stepEnvFieldNamesByName: {
+        'First Step': null,
+        Build: ['SAMPLE_ENV'],
+        Upload: null
+      }
     });
   });
 

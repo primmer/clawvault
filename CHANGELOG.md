@@ -38,6 +38,7 @@
 - CI workflow test utilities now expose nested section scalar-field maps derived from shared field-entry extraction, and CI contract assertions use those maps for with/env scalar value checks to keep nested-field governance concise and consistent.
 - Top-level CI workflow parsing now uses shared indentation-aware section/child traversal helpers for trigger names, trigger-section fields, job names, branch lists, and job metadata/step-name extraction, reducing fixed-indentation assumptions and adding nonstandard-indentation regression coverage.
 - CI workflow utilities now derive top-level field occurrence counts from a shared parsed field-entry set (`extractTopLevelFieldNameCounts`), reducing regex duplication and strengthening workflow uniqueness-domain guard coverage in parser tests.
+- Workflow job snapshots now auto-discover step domains when explicit step lists are omitted, and parser-invariant tests now verify extracted domain/count alignment across top-level fields, jobs, and steps to catch counter/extractor drift early.
 - Dashboard edge diffing now includes edge type/label, enabling reliable live updates when relation type changes.
 - Hook event matching now supports alias payload shapes (`event`, `eventName`, etc.) for better OpenClaw compatibility.
 - `link` and `entities` commands now consistently respect `--vault` without requiring `CLAWVAULT_PATH`.

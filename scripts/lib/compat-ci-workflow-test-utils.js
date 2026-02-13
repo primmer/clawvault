@@ -541,10 +541,11 @@ function buildJobContractSnapshot({
   jobName,
   stepNames
 }) {
+  const jobBlock = extractJobBlock(workflowYaml, jobName);
+  const discoveredStepNames = jobBlock ? extractStepNames(jobBlock) : [];
   const normalizedStepNames = Array.isArray(stepNames) && stepNames.length > 0
     ? stepNames
-    : [];
-  const jobBlock = extractJobBlock(workflowYaml, jobName);
+    : discoveredStepNames;
   const stepTopLevelFieldNamesByName = {};
   const stepWithFieldNamesByName = {};
   const stepEnvFieldNamesByName = {};

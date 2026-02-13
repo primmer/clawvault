@@ -7,6 +7,7 @@ Use `npm run test:compat-contract` when you only need contract validation (manif
   - includes `schemaVersion` for explicit contract evolution (current: `2`).
   - includes `expectedCheckLabels` to lock the compatibility check-label contract.
   - supports `expectedCheckStatuses`, `expectedDetailIncludes`, and `expectedHintIncludes`.
+  - supports `openclawExitCode` to simulate non-zero OpenClaw CLI behavior per fixture case.
   - enforces strict expectation consistency (`expectedExitCode` in `0|1`, non-negative warning/error counts, and non-empty `expectedCheckStatuses`).
 - Each case references a fixture folder with:
   - `package.json`

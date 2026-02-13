@@ -141,6 +141,7 @@
 - Added versioned schema/runtime contract for generic schema-validator payloads (`scripts/lib/json-schema-validator-output.mjs`, `schemas/json-schema-validator-output.schema.json`) and chained verification of `schema-validator-result.json` in `test:compat-summary:fast`.
 - Added verifier-output artifact emission and schema validation chain (`validator-result-verifier-result.json`) via `test:compat-validator-result:verify:report` + `test:compat-validator-result:verify:schema`, with CI artifact bundling for full validator/verifier contract auditing.
 - Added schema artifacts for core compatibility reports (`schemas/compat-summary.schema.json`, `schemas/compat-case-report.schema.json`) plus `scripts/validate-compat-report-schemas.mjs` and `test:compat-report-schemas:verify` integration in fast summary workflows.
+- Added structured output contracts for report-schema validator runs (`scripts/lib/compat-report-schema-validator-output.mjs`, `schemas/compat-report-schema-validator-output.schema.json`) plus chained `report-schema-validator-result.json` emission/schema-validation in fast summary workflows and CI artifacts.
 
 ## [1.11.2] - 2026-02-12
 

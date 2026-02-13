@@ -139,6 +139,16 @@ export function loadCaseManifest(casesPath) {
     if (testCase.openclawExitCode !== undefined && testCase.openclawSignal !== undefined) {
       throw new Error(`compat fixture case[${index}] cannot set both openclawExitCode and openclawSignal`);
     }
+
+    if (
+      (
+        (testCase.openclawExitCode !== undefined && testCase.openclawExitCode !== 0)
+        || testCase.openclawSignal !== undefined
+      )
+      && testCase.expectedCheckStatuses?.['openclaw CLI available'] !== 'warn'
+    ) {
+      throw new Error(`compat fixture case[${index}] non-ready openclaw simulation requires expectedCheckStatuses[\"openclaw CLI available\"] = \"warn\"`);
+    }
   }
 
   return {

@@ -127,6 +127,7 @@
 - Standalone summary validator now supports `--json` output for machine-readable automation workflows.
 - Validator JSON mode now emits schema-versioned success payloads and structured error payloads (`status:error`) for automation-friendly failure handling.
 - Validator success JSON payloads now include summary/fixture schema version metadata, enabling downstream tooling to enforce schema compatibility explicitly.
+- Standalone summary validator now supports `--out <file>` to persist structured success/error result payloads for pipeline artifact capture.
 
 ## [1.11.2] - 2026-02-12
 

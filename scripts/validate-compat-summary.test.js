@@ -198,6 +198,22 @@ describe('validate-compat-summary script', () => {
     expect(parseJsonLine(jsonMissingValueResult.stdout)).toEqual(expectedErrorPayload);
     expect(JSON.parse(fs.readFileSync(outputPath, 'utf-8'))).toEqual(expectedErrorPayload);
     fs.rmSync(root, { recursive: true, force: true });
+
+    const unknownRoot = makeTempDir('compat-summary-script-');
+    const unknownOutputPath = path.join(unknownRoot, 'validator-error-output.json');
+    const unknownWithOutResult = runSummaryValidator(['--json', '--out', unknownOutputPath, '--unknown']);
+    expect(unknownWithOutResult.status).toBe(1);
+    expect(parseJsonLine(unknownWithOutResult.stdout)).toEqual({
+      outputSchemaVersion: COMPAT_SUMMARY_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'error',
+      error: 'Unknown option: --unknown'
+    });
+    expect(JSON.parse(fs.readFileSync(unknownOutputPath, 'utf-8'))).toEqual({
+      outputSchemaVersion: COMPAT_SUMMARY_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'error',
+      error: 'Unknown option: --unknown'
+    });
+    fs.rmSync(unknownRoot, { recursive: true, force: true });
   });
 
   it('prints usage help and exits successfully for --help', () => {

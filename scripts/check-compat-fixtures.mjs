@@ -8,6 +8,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const fixturesRoot = path.join(repoRoot, 'tests', 'compat-fixtures');
 const fixtureCasesPath = path.join(fixturesRoot, 'cases.json');
+const VALID_CHECK_STATUSES = new Set(['ok', 'warn', 'error']);
 
 function loadCases() {
   const raw = fs.readFileSync(fixtureCasesPath, 'utf-8');
@@ -16,6 +17,7 @@ function loadCases() {
     throw new Error('compat fixture cases must be a non-empty array');
   }
 
+  const names = new Set();
   for (const [index, testCase] of parsed.entries()) {
     if (!testCase || typeof testCase !== 'object') {
       throw new Error(`compat fixture case[${index}] must be an object`);
@@ -23,6 +25,10 @@ function loadCases() {
     if (typeof testCase.name !== 'string' || testCase.name.length === 0) {
       throw new Error(`compat fixture case[${index}] missing name`);
     }
+    if (names.has(testCase.name)) {
+      throw new Error(`compat fixture case[${index}] duplicates name "${testCase.name}"`);
+    }
+    names.add(testCase.name);
     if (!Number.isInteger(testCase.expectedExitCode)) {
       throw new Error(`compat fixture case[${index}] missing expectedExitCode`);
     }
@@ -34,6 +40,25 @@ function loadCases() {
     }
     if (!testCase.expectedCheckStatuses || typeof testCase.expectedCheckStatuses !== 'object') {
       throw new Error(`compat fixture case[${index}] missing expectedCheckStatuses`);
+    }
+    for (const [label, status] of Object.entries(testCase.expectedCheckStatuses)) {
+      if (typeof label !== 'string' || !label) {
+        throw new Error(`compat fixture case[${index}] has invalid status label`);
+      }
+      if (!VALID_CHECK_STATUSES.has(status)) {
+        throw new Error(`compat fixture case[${index}] has invalid status "${status}" for "${label}"`);
+      }
+    }
+
+    if (testCase.expectedDetailIncludes !== undefined) {
+      if (!testCase.expectedDetailIncludes || typeof testCase.expectedDetailIncludes !== 'object') {
+        throw new Error(`compat fixture case[${index}] expectedDetailIncludes must be an object`);
+      }
+      for (const [label, snippet] of Object.entries(testCase.expectedDetailIncludes)) {
+        if (typeof label !== 'string' || !label || typeof snippet !== 'string' || !snippet) {
+          throw new Error(`compat fixture case[${index}] has invalid detail expectation`);
+        }
+      }
     }
   }
 
@@ -134,7 +159,11 @@ function runCase(testCase, env) {
       const check = report.checks.find((candidate) => candidate?.label === label);
       return check?.status === expectedStatus;
     });
-    outputMatches = warningsMatch && errorsMatch && statusMatches;
+    const detailMatches = Object.entries(testCase.expectedDetailIncludes ?? {}).every(([label, expectedSnippet]) => {
+      const check = report.checks.find((candidate) => candidate?.label === label);
+      return typeof check?.detail === 'string' && check.detail.includes(expectedSnippet);
+    });
+    outputMatches = warningsMatch && errorsMatch && statusMatches && detailMatches;
   } catch (err) {
     outputError = err;
     outputMatches = false;

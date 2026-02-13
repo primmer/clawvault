@@ -17,6 +17,9 @@
     "expectedErrors": 0,
     "expectedCheckStatuses": {
       "hook manifest requirements": "warn"
+    },
+    "expectedDetailIncludes": {
+      "hook manifest requirements": "Missing required hook bin"
     }
   },
   {
@@ -26,6 +29,9 @@
     "expectedErrors": 0,
     "expectedCheckStatuses": {
       "hook handler safety": "warn"
+    },
+    "expectedDetailIncludes": {
+      "hook handler safety": "--profile auto"
     }
   },
   {
@@ -35,6 +41,9 @@
     "expectedErrors": 1,
     "expectedCheckStatuses": {
       "hook manifest events": "error"
+    },
+    "expectedDetailIncludes": {
+      "hook manifest events": "Missing events"
     }
   },
   {
@@ -44,6 +53,9 @@
     "expectedErrors": 1,
     "expectedCheckStatuses": {
       "package hook registration": "error"
+    },
+    "expectedDetailIncludes": {
+      "package hook registration": "Missing ./hooks/clawvault"
     }
   }
 ]

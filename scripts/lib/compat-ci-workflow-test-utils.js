@@ -15,88 +15,149 @@ export function extractTopLevelFieldNames(workflowYaml) {
     .map((line) => line.replace(/^([A-Za-z0-9_-]+):.*/, '$1'));
 }
 
-export function extractOnTriggerNames(workflowYaml) {
-  const lines = workflowYaml.split('\n');
-  const onLineIndex = lines.findIndex((line) => /^on:\s*$/.test(line.trim()));
-  if (onLineIndex < 0) {
-    return null;
-  }
-  const triggerNames = [];
-  for (let index = onLineIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (/^[^\s].*:\s*$/.test(line)) {
-      break;
-    }
-    const triggerMatch = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
-    if (triggerMatch) {
-      triggerNames.push(triggerMatch[1]);
-    }
-  }
-  return triggerNames;
+function findSectionHeaderLineIndex(lines, sectionName) {
+  return lines.findIndex((line) => line.trim() === `${sectionName}:`);
 }
 
-export function extractOnTriggerSectionFieldNames(workflowYaml, triggerName) {
-  const lines = workflowYaml.split('\n');
-  const onLineIndex = lines.findIndex((line) => /^on:\s*$/.test(line.trim()));
-  if (onLineIndex < 0) {
-    return null;
-  }
-
-  let triggerLineIndex = -1;
-  for (let index = onLineIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (/^[^\s].*:\s*$/.test(line)) {
-      break;
-    }
-    const triggerMatch = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
-    if (triggerMatch && triggerMatch[1] === triggerName) {
-      triggerLineIndex = index;
-      break;
-    }
-  }
-  if (triggerLineIndex < 0) {
-    return null;
-  }
-
-  const triggerIndent = countLeadingSpaces(lines[triggerLineIndex]);
-  const triggerFieldIndent = triggerIndent + 2;
-  const triggerFieldPattern = new RegExp(`^\\s{${triggerFieldIndent}}([A-Za-z0-9_-]+):\\s*`);
-  const fieldNames = [];
-  for (let index = triggerLineIndex + 1; index < lines.length; index += 1) {
+function getIndentedBlockRange(lines, headerLineIndex) {
+  const headerIndent = countLeadingSpaces(lines[headerLineIndex]);
+  let blockEndLineIndex = lines.length;
+  for (let index = headerLineIndex + 1; index < lines.length; index += 1) {
     const line = lines[index];
     if (!line.trim()) {
       continue;
     }
     const lineIndent = countLeadingSpaces(line);
-    if (lineIndent <= triggerIndent) {
+    if (lineIndent <= headerIndent) {
+      blockEndLineIndex = index;
       break;
     }
-    const fieldMatch = triggerFieldPattern.exec(line);
-    if (fieldMatch) {
-      fieldNames.push(fieldMatch[1]);
+  }
+  return {
+    headerIndent,
+    blockEndLineIndex
+  };
+}
+
+function findDirectChildIndent(lines, headerLineIndex) {
+  const {
+    headerIndent,
+    blockEndLineIndex
+  } = getIndentedBlockRange(lines, headerLineIndex);
+  let childIndent = null;
+  for (let index = headerLineIndex + 1; index < blockEndLineIndex; index += 1) {
+    const line = lines[index];
+    if (!line.trim()) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent <= headerIndent) {
+      break;
+    }
+    if (childIndent === null || lineIndent < childIndent) {
+      childIndent = lineIndent;
     }
   }
-  return fieldNames;
+  return childIndent;
+}
+
+function listDirectChildLineEntries(lines, headerLineIndex) {
+  const {
+    blockEndLineIndex
+  } = getIndentedBlockRange(lines, headerLineIndex);
+  const childIndent = findDirectChildIndent(lines, headerLineIndex);
+  if (childIndent === null) {
+    return [];
+  }
+
+  const entries = [];
+  for (let index = headerLineIndex + 1; index < blockEndLineIndex; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent !== childIndent) {
+      continue;
+    }
+    const fieldMatch = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(trimmedLine);
+    if (!fieldMatch) {
+      continue;
+    }
+    entries.push({
+      lineIndex: index,
+      fieldName: fieldMatch[1],
+      fieldValue: fieldMatch[2].trim()
+    });
+  }
+  return entries;
+}
+
+function findDirectChildLineEntry(lines, headerLineIndex, fieldName) {
+  return listDirectChildLineEntries(lines, headerLineIndex)
+    .find((entry) => entry.fieldName === fieldName) ?? null;
+}
+
+function collectDirectListValues(lines, headerLineIndex) {
+  const {
+    blockEndLineIndex
+  } = getIndentedBlockRange(lines, headerLineIndex);
+  const childIndent = findDirectChildIndent(lines, headerLineIndex);
+  if (childIndent === null) {
+    return [];
+  }
+  const values = [];
+  for (let index = headerLineIndex + 1; index < blockEndLineIndex; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent !== childIndent) {
+      continue;
+    }
+    const listItemMatch = /^-\s+(.+)$/.exec(trimmedLine);
+    if (listItemMatch) {
+      values.push(listItemMatch[1].trim());
+    }
+  }
+  return values;
+}
+
+export function extractOnTriggerNames(workflowYaml) {
+  const lines = workflowYaml.split('\n');
+  const onLineIndex = findSectionHeaderLineIndex(lines, 'on');
+  if (onLineIndex < 0) {
+    return null;
+  }
+  return listDirectChildLineEntries(lines, onLineIndex)
+    .map((entry) => entry.fieldName);
+}
+
+export function extractOnTriggerSectionFieldNames(workflowYaml, triggerName) {
+  const lines = workflowYaml.split('\n');
+  const onLineIndex = findSectionHeaderLineIndex(lines, 'on');
+  if (onLineIndex < 0) {
+    return null;
+  }
+  const triggerEntry = findDirectChildLineEntry(lines, onLineIndex, triggerName);
+  if (!triggerEntry) {
+    return null;
+  }
+  return listDirectChildLineEntries(lines, triggerEntry.lineIndex)
+    .map((entry) => entry.fieldName);
 }
 
 export function extractTopLevelJobNames(workflowYaml) {
   const lines = workflowYaml.split('\n');
-  const jobsLineIndex = lines.findIndex((line) => /^jobs:\s*$/.test(line.trim()));
+  const jobsLineIndex = findSectionHeaderLineIndex(lines, 'jobs');
   if (jobsLineIndex < 0) {
     return null;
   }
-  const jobNames = [];
-  for (let index = jobsLineIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (/^[^\s].*:\s*$/.test(line)) {
-      break;
-    }
-    const jobMatch = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
-    if (jobMatch) {
-      jobNames.push(jobMatch[1]);
-    }
-  }
-  return jobNames;
+  return listDirectChildLineEntries(lines, jobsLineIndex)
+    .map((entry) => entry.fieldName);
 }
 
 export function countTopLevelFieldOccurrences(workflowYaml, fieldName) {
@@ -105,55 +166,47 @@ export function countTopLevelFieldOccurrences(workflowYaml, fieldName) {
 }
 
 export function extractPushBranches(workflowYaml) {
-  const branchesBlockMatch = workflowYaml.match(/\n\s{2}push:\s*\n\s{4}branches:\s*\n((?:\s{6}- .*\n)+)/);
-  if (!branchesBlockMatch) {
+  const lines = workflowYaml.split('\n');
+  const onLineIndex = findSectionHeaderLineIndex(lines, 'on');
+  if (onLineIndex < 0) {
     return null;
   }
-  return branchesBlockMatch[1]
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('- '))
-    .map((line) => line.slice(2).trim());
+  const pushLineEntry = findDirectChildLineEntry(lines, onLineIndex, 'push');
+  if (!pushLineEntry) {
+    return null;
+  }
+  const branchesLineEntry = findDirectChildLineEntry(lines, pushLineEntry.lineIndex, 'branches');
+  if (!branchesLineEntry) {
+    return null;
+  }
+  const branches = collectDirectListValues(lines, branchesLineEntry.lineIndex);
+  if (branches.length === 0) {
+    return null;
+  }
+  return branches;
 }
 
 export function hasPullRequestTrigger(workflowYaml) {
-  return /\n\s{2}pull_request:\s*(?:\n|$)/.test(workflowYaml);
+  const triggerNames = extractOnTriggerNames(workflowYaml);
+  return Array.isArray(triggerNames) && triggerNames.includes('pull_request');
 }
 
 export function extractJobMetadata(workflowYaml, jobName) {
   const lines = workflowYaml.split('\n');
   const lineStartIndexes = computeLineStartIndexes(lines);
-  const jobsLineIndex = lines.findIndex((line) => line.trim() === 'jobs:');
+  const jobsLineIndex = findSectionHeaderLineIndex(lines, 'jobs');
   if (jobsLineIndex < 0) {
     return null;
   }
-
-  let jobHeaderLineIndex = -1;
-  const jobHeaderPattern = /^([A-Za-z0-9_-]+):\s*$/;
-  for (let index = jobsLineIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    const trimmedLine = line.trim();
-    if (!trimmedLine) {
-      continue;
-    }
-    const lineIndent = countLeadingSpaces(line);
-    if (lineIndent === 0) {
-      break;
-    }
-    if (lineIndent === 2) {
-      const headerMatch = jobHeaderPattern.exec(trimmedLine);
-      if (headerMatch && headerMatch[1] === jobName) {
-        jobHeaderLineIndex = index;
-        break;
-      }
-    }
-  }
-  if (jobHeaderLineIndex < 0) {
+  const jobEntry = findDirectChildLineEntry(lines, jobsLineIndex, jobName);
+  if (!jobEntry) {
     return null;
   }
+  const jobHeaderLineIndex = jobEntry.lineIndex;
 
   const jobHeaderIndent = countLeadingSpaces(lines[jobHeaderLineIndex]);
   let blockEndLineIndex = lines.length;
+  const jobHeaderPattern = /^([A-Za-z0-9_-]+):\s*$/;
   for (let index = jobHeaderLineIndex + 1; index < lines.length; index += 1) {
     const line = lines[index];
     const trimmedLine = line.trim();
@@ -188,36 +241,36 @@ export function extractJobBlock(workflowYaml, jobName) {
 
 export function extractJobTopLevelFieldNames(jobBlock) {
   const lines = jobBlock.split('\n');
-  const jobHeaderLine = lines.find((line) => /^\s{2}[A-Za-z0-9_-]+:\s*$/.test(line));
-  if (!jobHeaderLine) {
+  const jobHeaderLineIndex = lines.findIndex((line) => /^\s*[A-Za-z0-9_-]+:\s*$/.test(line.trimEnd()));
+  if (jobHeaderLineIndex < 0) {
     return null;
   }
-  const jobHeaderIndent = countLeadingSpaces(jobHeaderLine);
-  const jobFieldIndent = jobHeaderIndent + 2;
-  const jobFieldPattern = new RegExp(`^\\s{${jobFieldIndent}}([A-Za-z0-9-]+):\\s*`);
-  const fieldNames = [];
-  for (const line of lines) {
-    const fieldMatch = jobFieldPattern.exec(line);
-    if (fieldMatch) {
-      fieldNames.push(fieldMatch[1]);
-    }
+  if (countLeadingSpaces(lines[jobHeaderLineIndex]) === 0) {
+    return null;
   }
-  return fieldNames;
+  return listDirectChildLineEntries(lines, jobHeaderLineIndex)
+    .map((entry) => entry.fieldName);
 }
 
 export function countJobNameOccurrences(workflowYaml, jobName) {
-  const jobHeaderPattern = new RegExp(`\\n\\s{2}${escapeRegex(jobName)}:\\s*\\n`, 'g');
-  return [...workflowYaml.matchAll(jobHeaderPattern)].length;
+  const jobNames = extractTopLevelJobNames(workflowYaml);
+  if (!jobNames) {
+    return 0;
+  }
+  return jobNames.filter((candidateJobName) => candidateJobName === jobName).length;
 }
 
 export function countStepNameOccurrences(workflowYamlOrJobBlock, stepName) {
-  const stepHeaderPattern = new RegExp(`\\n\\s+- name:\\s+${escapeRegex(stepName)}\\s*\\n`, 'g');
-  return [...workflowYamlOrJobBlock.matchAll(stepHeaderPattern)].length;
+  return extractStepNames(workflowYamlOrJobBlock)
+    .filter((candidateStepName) => candidateStepName === stepName)
+    .length;
 }
 
 export function extractStepNames(workflowYamlOrJobBlock) {
-  const stepHeaderPattern = /\n\s+- name:\s+(.+)\s*\n/g;
-  return [...workflowYamlOrJobBlock.matchAll(stepHeaderPattern)].map((match) => match[1].trim());
+  return workflowYamlOrJobBlock
+    .split('\n')
+    .map((line) => /^\s*-\s+name:\s+(.+?)\s*$/.exec(line)?.[1]?.trim() ?? null)
+    .filter((stepName) => typeof stepName === 'string' && stepName.length > 0);
 }
 
 export function extractStepFieldNames(stepBlock) {

@@ -7,6 +7,7 @@ import {
   buildCompatSummaryHeader,
   COMPAT_FIXTURE_SCHEMA_VERSION
 } from './lib/compat-fixture-runner.mjs';
+import { COMPAT_SUMMARY_VALIDATOR_OUTPUT_SCHEMA_VERSION } from './lib/compat-summary-validator-output.mjs';
 
 const summaryValidatorScript = path.resolve(process.cwd(), 'scripts', 'validate-compat-summary.mjs');
 
@@ -149,7 +150,7 @@ describe('validate-compat-summary script', () => {
       ]);
       expect(jsonResult.status).toBe(0);
       const expectedPayload = {
-        outputSchemaVersion: 1,
+        outputSchemaVersion: COMPAT_SUMMARY_VALIDATOR_OUTPUT_SCHEMA_VERSION,
         status: 'ok',
         summarySchemaVersion: 1,
         fixtureSchemaVersion: 2,
@@ -190,7 +191,7 @@ describe('validate-compat-summary script', () => {
     const jsonMissingValueResult = runSummaryValidator(['--json', '--report-dir', '--out', outputPath]);
     expect(jsonMissingValueResult.status).toBe(1);
     const expectedErrorPayload = {
-      outputSchemaVersion: 1,
+      outputSchemaVersion: COMPAT_SUMMARY_VALIDATOR_OUTPUT_SCHEMA_VERSION,
       status: 'error',
       error: 'Missing value for --report-dir'
     };

@@ -9,7 +9,8 @@ function parseCliArgs(argv) {
     summaryPath: '',
     reportDir: '',
     help: false,
-    allowMissingCaseReports: false
+    allowMissingCaseReports: false,
+    json: false
   };
   const positional = [];
 
@@ -21,6 +22,10 @@ function parseCliArgs(argv) {
     }
     if (value === '--allow-missing-case-reports') {
       parsed.allowMissingCaseReports = true;
+      continue;
+    }
+    if (value === '--json') {
+      parsed.json = true;
       continue;
     }
     if (value === '--summary') {
@@ -58,11 +63,13 @@ function printHelp() {
   console.log('Usage: node scripts/validate-compat-summary.mjs [summary.json]');
   console.log('       node scripts/validate-compat-summary.mjs --summary <summary.json> [--report-dir <dir>]');
   console.log('       node scripts/validate-compat-summary.mjs --summary <summary.json> --allow-missing-case-reports');
+  console.log('       node scripts/validate-compat-summary.mjs --summary <summary.json> --json');
   console.log('');
   console.log('Resolution order:');
   console.log('  summary path: --summary | positional arg | COMPAT_SUMMARY_PATH | COMPAT_REPORT_DIR/summary.json');
   console.log('  report dir : --report-dir | COMPAT_REPORT_DIR | dirname(summary path)');
   console.log('  flags      : --allow-missing-case-reports (skip fixtures case-report file validation)');
+  console.log('               --json (emit machine-readable success payload)');
 }
 
 function resolvePaths(args) {
@@ -114,9 +121,19 @@ function main() {
 
   const resultCount = Array.isArray(summary.results) ? summary.results.length : 0;
   const caseReportMode = args.allowMissingCaseReports ? 'skipped-case-reports' : 'validated-case-reports';
-  console.log(
-    `Compatibility summary validation passed (${summary.mode}) selected=${summary.selectedTotal} results=${resultCount} reportDir=${reportDir} ${caseReportMode}`
-  );
+  if (args.json) {
+    console.log(JSON.stringify({
+      status: 'ok',
+      mode: summary.mode,
+      selectedTotal: summary.selectedTotal,
+      resultCount,
+      reportDir,
+      caseReportMode
+    }));
+    return;
+  }
+
+  console.log(`Compatibility summary validation passed (${summary.mode}) selected=${summary.selectedTotal} results=${resultCount} reportDir=${reportDir} ${caseReportMode}`);
 }
 
 try {

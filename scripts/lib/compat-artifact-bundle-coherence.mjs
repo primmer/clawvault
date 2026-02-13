@@ -1,11 +1,3 @@
-export function ensureRequiredArtifactNamesPresent(artifactContracts, requiredArtifactNames) {
-  for (const requiredName of requiredArtifactNames) {
-    if (!artifactContracts.some((entry) => entry.artifactName === requiredName)) {
-      throw new Error(`compat artifact bundle manifest missing required artifactName: ${requiredName}`);
-    }
-  }
-}
-
 export function ensureArtifactPathCoherence({
   summaryValidatorPayload,
   reportSchemaValidatorPayload,

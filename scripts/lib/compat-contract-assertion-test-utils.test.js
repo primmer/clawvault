@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   expectUnitCountMapByKeyParity,
   expectUnitCountMapParity
@@ -33,5 +33,34 @@ describe('compat contract assertion test utils', () => {
       },
       'nested array domain'
     );
+  });
+
+  it('throws when unit count-map parity does not match expected counts', () => {
+    expect(() => {
+      expectUnitCountMapParity(
+        ['a', 'b'],
+        {
+          a: 2,
+          b: 1
+        },
+        'mismatched array domain'
+      );
+    }).toThrow();
+  });
+
+  it('throws when keyed unit count-map parity does not match expected counts', () => {
+    expect(() => {
+      expectUnitCountMapByKeyParity(
+        {
+          jobs: ['test']
+        },
+        {
+          jobs: {
+            test: 2
+          }
+        },
+        'mismatched nested array domain'
+      );
+    }).toThrow();
   });
 });

@@ -208,6 +208,7 @@ clawvault compat
 # CI/automation-friendly compatibility gate
 clawvault compat --strict   # exits non-zero on warnings/errors
 # validates openclaw CLI readiness, hook events/requirements, handler safety/profile delegation, and SKILL metadata
+# flags missing, non-zero, or signal-terminated openclaw CLI checks as warnings
 
 # Validate a specific project root (fixtures/CI)
 clawvault compat --strict --base-dir ./tests/compat-fixtures/healthy

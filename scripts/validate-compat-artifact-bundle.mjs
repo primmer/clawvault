@@ -12,7 +12,7 @@ import {
   loadJsonSchemaValidatorPayload
 } from './lib/json-schema-validator-output.mjs';
 import {
-  ensureValidatorResultVerifierPayloadShape
+  loadValidatorResultVerifierPayload
 } from './lib/compat-validator-result-verifier-output.mjs';
 import {
   loadCompatReportSchemaValidatorPayload
@@ -35,7 +35,6 @@ import {
   createJsonSchemaAjv,
   getSchemaConst,
   getSchemaId,
-  loadJsonObject,
   validateWithCompiledSchema
 } from './lib/json-schema-utils.mjs';
 import {
@@ -146,9 +145,7 @@ function main() {
       continue;
     }
     if (entry.artifactName === 'validator-result-verifier-result.json') {
-      const payload = loadJsonObject(entry.artifactPath, 'validator-result verifier payload');
-      ensureValidatorResultVerifierPayloadShape(payload);
-      artifactPayloadsByName.set(entry.artifactName, payload);
+      artifactPayloadsByName.set(entry.artifactName, loadValidatorResultVerifierPayload(entry.artifactPath));
       continue;
     }
     if (entry.artifactName === 'artifact-bundle-manifest-validator-result.json') {

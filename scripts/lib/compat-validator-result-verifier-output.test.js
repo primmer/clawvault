@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   buildValidatorResultVerifierErrorPayload,
   buildValidatorResultVerifierSuccessPayload,
   COMPAT_VALIDATOR_RESULT_VERIFIER_OUTPUT_SCHEMA_VERSION,
-  ensureValidatorResultVerifierPayloadShape
+  ensureValidatorResultVerifierPayloadShape,
+  loadValidatorResultVerifierPayload
 } from './compat-validator-result-verifier-output.mjs';
 
 describe('compat validator-result verifier output payload contracts', () => {
@@ -41,5 +45,22 @@ describe('compat validator-result verifier output payload contracts', () => {
       status: 'error',
       error: ''
     })).toThrow('field "error"');
+  });
+
+  it('loads and validates payloads from disk', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'validator-result-verifier-payload-'));
+    const payloadPath = path.join(root, 'validator-result-verifier-result.json');
+    try {
+      const payload = buildValidatorResultVerifierErrorPayload('bad');
+      fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2), 'utf-8');
+      expect(loadValidatorResultVerifierPayload(payloadPath)).toEqual(payload);
+
+      fs.writeFileSync(payloadPath, '{"status":"ok"', 'utf-8');
+      expect(() => loadValidatorResultVerifierPayload(payloadPath)).toThrow(
+        'Unable to read validator-result verifier payload'
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

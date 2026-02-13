@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+
 export const COMPAT_VALIDATOR_RESULT_VERIFIER_OUTPUT_SCHEMA_VERSION = 1;
 
 function assertNonEmptyString(value, fieldName) {
@@ -59,4 +61,15 @@ export function buildValidatorResultVerifierErrorPayload(error) {
   };
   ensureValidatorResultVerifierPayloadShape(payload);
   return payload;
+}
+
+export function loadValidatorResultVerifierPayload(payloadPath) {
+  try {
+    const raw = fs.readFileSync(payloadPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    ensureValidatorResultVerifierPayloadShape(parsed);
+    return parsed;
+  } catch (err) {
+    throw new Error(`Unable to read validator-result verifier payload at ${payloadPath}: ${err?.message || String(err)}`);
+  }
 }

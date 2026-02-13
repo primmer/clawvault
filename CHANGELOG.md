@@ -156,6 +156,7 @@
 - Bundle-validator coherence enforcement has been extracted into `scripts/lib/compat-artifact-bundle-coherence.mjs` with dedicated unit coverage, reducing validator-script complexity while preserving strict error semantics.
 - Bundle-validator output payload shape checks now enforce parity between top-level artifact path fields and `artifactContracts` / `verifiedArtifacts` ordering, tightening contract integrity for downstream parsers.
 - Manifest-validator output payload shape checks now enforce `artifacts`↔`schemaContracts` ordering parity and duplicate guards, improving integrity of emitted manifest contract metadata.
+- Added a dedicated loader for validator-result verifier payloads (`loadValidatorResultVerifierPayload`) and wired bundle validation to use it, aligning verifier artifact loading/error semantics with other validator output helpers.
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

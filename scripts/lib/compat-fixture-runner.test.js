@@ -785,6 +785,39 @@ describe('compat fixture runner utilities', () => {
       ...summary,
       passedCases: ['healthy', 'healthy']
     })).toThrow('Duplicate summary header entries in passedCases');
+    expect(() => ensureCompatSummaryShape({
+      ...summary,
+      selectedCases: ['healthy', 'missing-events'],
+      selectedTotal: 2
+    })).toThrow('fixtures summary total must equal selectedTotal');
+
+    const contractSummary = {
+      ...buildCompatSummaryHeader({
+        generatedAt: '2026-02-13T00:00:00.000Z',
+        mode: 'contract',
+        schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+        selectedCases: ['healthy'],
+        expectedCheckLabels: ['openclaw CLI available'],
+        runtimeCheckLabels: ['openclaw CLI available']
+      }),
+      total: 0,
+      preflightDurationMs: 10,
+      totalDurationMs: 10,
+      averageDurationMs: 0,
+      overallDurationMs: 10,
+      slowestCases: [],
+      failures: 0,
+      passedCases: [],
+      failedCases: [],
+      results: []
+    };
+    expect(() => ensureCompatSummaryShape(contractSummary)).not.toThrow();
+    expect(() => ensureCompatSummaryShape({
+      ...contractSummary,
+      total: 1,
+      results: [{ name: 'healthy', passed: true }],
+      passedCases: ['healthy']
+    })).toThrow('contract summary must report zero total/failures');
   });
 
   it('validates build freshness for compatibility checks', () => {

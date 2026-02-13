@@ -36,6 +36,10 @@ describe('validate-compat-validator-result script', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('Validator result payload is valid');
 
+      const requireOkFailure = runValidatorResult(['--validator-result', payloadPath, '--require-ok']);
+      expect(requireOkFailure.status).toBe(1);
+      expect(requireOkFailure.stderr).toContain('--require-ok');
+
       const outPath = path.join(root, 'validator-verify-result.json');
       const jsonResult = runValidatorResult(['--validator-result', payloadPath, '--json', '--out', outPath]);
       expect(jsonResult.status).toBe(0);
@@ -87,6 +91,7 @@ describe('validate-compat-validator-result script', () => {
     expect(helpResult.stdout).toContain('Usage: node scripts/validate-compat-validator-result.mjs');
     expect(helpResult.stdout).toContain('--validator-result <path>');
     expect(helpResult.stdout).toContain('--json');
+    expect(helpResult.stdout).toContain('--require-ok');
 
     const unknownOptionResult = runValidatorResult(['--unknown']);
     expect(unknownOptionResult.status).toBe(1);

@@ -43,6 +43,7 @@
 - Added compatibility fixture matrix runner (`npm run test:compat-fixtures`) with healthy and drifted OpenClaw integration fixtures.
 - Added GitHub Actions CI workflow running typecheck, tests, and compatibility fixture matrix.
 - Added consolidated `npm run ci` local gate and wired CI workflow to use it for parity with local validation.
+- Compatibility fixture matrix now validates additional hard-failure drift cases (missing required hook events, missing package hook registration) and asserts JSON report shape/signals.
 
 ## [1.11.2] - 2026-02-12
 

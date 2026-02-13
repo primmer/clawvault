@@ -1,5 +1,6 @@
 export const REQUIRED_COMPAT_NPM_SCRIPT_NAMES = Object.freeze([
   'ci',
+  'test:compat-script-stack-contract:fast',
   'test:compat-summary:fast',
   'test:compat-report-stack:fast',
   'test:compat-validator-stack:fast',
@@ -46,6 +47,7 @@ export const REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE = Object.freeze([
 ]);
 
 export const REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE = Object.freeze([
+  'npm run test:compat-script-stack-contract:fast',
   'npm run test:compat-fixtures:fast',
   'node scripts/validate-compat-summary.mjs --out',
   'npm run test:compat-report-stack:fast'

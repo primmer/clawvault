@@ -218,6 +218,17 @@ export function expectStringContainsSegmentsExactlyOnceInOrder(value, segments, 
   expectStringContainsSegmentsExactlyOnce(value, segments, label);
 }
 
+export function expectStringSegmentPairOrderedAndUnique(value, firstSegment, secondSegment, label) {
+  expectNonEmptyString(firstSegment, `${label} first segment`);
+  expectNonEmptyString(secondSegment, `${label} second segment`);
+  expect(firstSegment, `${label} first/second segments must differ`).not.toBe(secondSegment);
+  expectStringContainsSegmentsExactlyOnceInOrder(
+    value,
+    [firstSegment, secondSegment],
+    label
+  );
+}
+
 export function expectEachDomainValueOccursExactlyOnce(values, resolveCount, label) {
   expect(Array.isArray(values), `${label} must receive array values`).toBe(true);
   for (const value of values) {

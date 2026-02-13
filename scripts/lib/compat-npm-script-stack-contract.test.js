@@ -20,6 +20,9 @@ import {
   REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE
 } from './compat-npm-script-contracts.mjs';
 import {
+  expectArrayContainsAllValues,
+  expectNonEmptyString,
+  expectStringSegmentPairOrderedAndUnique,
   expectStringContainsSegmentsExactlyOnce,
   expectStringContainsSegmentsExactlyOnceInOrder
 } from './compat-contract-assertion-test-utils.js';
@@ -162,23 +165,13 @@ describe('compat npm script stack contracts', () => {
       consumerSegment
     } of REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS) {
       const command = scripts[scriptName];
-      expect(typeof command, `missing script for producer/consumer contract: ${scriptName}`).toBe('string');
-      const producerIndex = command.indexOf(producerSegment);
-      const consumerIndex = command.indexOf(consumerSegment);
-      expect(producerIndex, `${scriptName} missing producer segment for ${artifactFile}: ${producerSegment}`).toBeGreaterThanOrEqual(0);
-      expect(consumerIndex, `${scriptName} missing consumer segment for ${artifactFile}: ${consumerSegment}`).toBeGreaterThanOrEqual(0);
-      expect(
-        producerIndex,
-        `${scriptName} runs consumer before producer for ${artifactFile}`
-      ).toBeLessThan(consumerIndex);
-      expect(
-        producerIndex,
-        `${scriptName} contains duplicate producer segment for ${artifactFile}`
-      ).toBe(command.lastIndexOf(producerSegment));
-      expect(
-        consumerIndex,
-        `${scriptName} contains duplicate consumer segment for ${artifactFile}`
-      ).toBe(command.lastIndexOf(consumerSegment));
+      expectNonEmptyString(command, `missing script for producer/consumer contract: ${scriptName}`);
+      expectStringSegmentPairOrderedAndUnique(
+        command,
+        producerSegment,
+        consumerSegment,
+        `${scriptName} producer/consumer contract for ${artifactFile}`
+      );
     }
   });
 
@@ -192,11 +185,10 @@ describe('compat npm script stack contracts', () => {
       [...unresolvedScripts],
       'cannot evaluate ci reachability contracts with unresolved npm-run targets'
     ).toEqual([]);
-    for (const requiredScriptName of REQUIRED_COMPAT_CI_REACHABLE_SCRIPT_NAMES) {
-      expect(
-        visitedScripts.has(requiredScriptName),
-        `ci npm-run graph does not reach required compat script: ${requiredScriptName}`
-      ).toBe(true);
-    }
+    expectArrayContainsAllValues(
+      [...visitedScripts],
+      REQUIRED_COMPAT_CI_REACHABLE_SCRIPT_NAMES,
+      'ci npm-run graph reachable script domain'
+    );
   });
 });

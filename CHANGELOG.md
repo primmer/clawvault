@@ -11,6 +11,7 @@
 - **`clawvault graph`** command for graph summary/refresh diagnostics.
 - **Context profiles** for `clawvault context`:
   - `default`, `planning`, `incident`, `handoff`.
+- **CLI command registration smoke tests** for modular command groups.
 - Doctor now includes an **OpenClaw compatibility** check summary.
 - Dashboard graph parser now emits:
   - typed nodes,

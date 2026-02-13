@@ -12,6 +12,7 @@ import {
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME,
+  REQUIRED_COMPAT_CI_FAILURE_UPLOAD_USES,
   REQUIRED_COMPAT_CI_INSTALL_COMMAND,
   REQUIRED_COMPAT_CI_INSTALL_STEP_NAME,
   REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND,
@@ -24,12 +25,15 @@ import {
   REQUIRED_COMPAT_CI_SETUP_NODE_VERSION,
   REQUIRED_COMPAT_CI_STEP_SEQUENCE,
   REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME,
+  REQUIRED_COMPAT_CI_UPLOAD_CONDITION,
   REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES,
   REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND,
   REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX,
-  REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME
+  REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME,
+  REQUIRED_COMPAT_CI_UPLOAD_USES
 } from './compat-npm-script-contracts.mjs';
 import {
+  countStepNameOccurrences,
   extractEnvField,
   extractJobBlock,
   extractRunCommand,
@@ -68,6 +72,18 @@ describe('compat ci workflow contract', () => {
         `step "${stepName}" appears before previous required CI step in sequence`
       ).toBeGreaterThan(previousStepStartIndex);
       previousStepStartIndex = startIndex;
+    }
+  });
+
+  it('keeps required CI steps unique within compat job', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    for (const stepName of REQUIRED_COMPAT_CI_STEP_SEQUENCE) {
+      expect(
+        countStepNameOccurrences(ciJobBlock, stepName),
+        `required CI step "${stepName}" must appear exactly once in ${REQUIRED_COMPAT_CI_JOB_NAME}`
+      ).toBe(1);
     }
   });
 
@@ -111,6 +127,8 @@ describe('compat ci workflow contract', () => {
     const stepBlock = extractStepBlock(ciJobBlock, REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
     expect(stepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME}`).toBeTruthy();
     const artifactName = extractScalarField(stepBlock, 'name');
+    const stepCondition = extractScalarField(stepBlock, 'if');
+    const stepUses = extractUsesField(stepBlock);
     const ifNoFilesFoundValue = extractScalarField(stepBlock, 'if-no-files-found');
     const uploadPaths = extractUploadArtifactPaths(stepBlock);
     expect(uploadPaths, `step "${REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME}" must include a multiline path block`).toBeTruthy();
@@ -118,6 +136,8 @@ describe('compat ci workflow contract', () => {
       (artifactFile) => `${REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX}${artifactFile}`
     );
     expect(artifactName).toBe(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME);
+    expect(stepCondition).toBe(REQUIRED_COMPAT_CI_UPLOAD_CONDITION);
+    expect(stepUses).toBe(REQUIRED_COMPAT_CI_UPLOAD_USES);
     expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND);
     expect(uploadPaths).toEqual(expectedPaths);
   });
@@ -130,10 +150,12 @@ describe('compat ci workflow contract', () => {
     expect(stepBlock, `missing CI workflow step: ${REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME}`).toBeTruthy();
     const ifCondition = extractScalarField(stepBlock, 'if');
     const artifactName = extractScalarField(stepBlock, 'name');
+    const stepUses = extractUsesField(stepBlock);
     const uploadPath = extractScalarField(stepBlock, 'path');
     const ifNoFilesFoundValue = extractScalarField(stepBlock, 'if-no-files-found');
     expect(ifCondition).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_CONDITION);
     expect(artifactName).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_ARTIFACT_NAME);
+    expect(stepUses).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_USES);
     expect(uploadPath).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH);
     expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND);
   });

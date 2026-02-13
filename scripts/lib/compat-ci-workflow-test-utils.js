@@ -23,6 +23,11 @@ export function extractJobBlock(workflowYaml, jobName) {
   return extractJobMetadata(workflowYaml, jobName)?.block ?? null;
 }
 
+export function countStepNameOccurrences(workflowYamlOrJobBlock, stepName) {
+  const stepHeaderPattern = new RegExp(`\\n\\s+- name:\\s+${escapeRegex(stepName)}\\s*\\n`, 'g');
+  return [...workflowYamlOrJobBlock.matchAll(stepHeaderPattern)].length;
+}
+
 export function extractStepMetadata(workflowYaml, stepName) {
   const stepHeaderPattern = new RegExp(`\\n\\s+- name:\\s+${escapeRegex(stepName)}\\s*\\n`);
   const headerMatch = stepHeaderPattern.exec(workflowYaml);

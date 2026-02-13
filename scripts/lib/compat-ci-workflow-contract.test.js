@@ -45,6 +45,7 @@ import {
   REQUIRED_COMPAT_CI_UPLOAD_USES
 } from './compat-npm-script-contracts.mjs';
 import {
+  buildWorkflowContractSnapshot,
   countTopLevelFieldOccurrences,
   countJobNameOccurrences,
   countScalarFieldOccurrences,
@@ -74,6 +75,13 @@ function loadCiWorkflowYaml() {
   return fs.readFileSync(workflowPath, 'utf-8');
 }
 
+function compactDefinedSectionMap(sectionMapByName) {
+  return Object.fromEntries(
+    Object.entries(sectionMapByName)
+      .filter(([, fieldNames]) => Array.isArray(fieldNames))
+  );
+}
+
 describe('compat ci workflow contract', () => {
   it('keeps workflow identity and top-level fields aligned with contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
@@ -92,6 +100,47 @@ describe('compat ci workflow contract', () => {
     expect(extractOnTriggerNames(workflowYaml)).toEqual(REQUIRED_COMPAT_CI_TRIGGER_NAMES);
     expect(extractPushBranches(workflowYaml)).toEqual(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES);
     expect(hasPullRequestTrigger(workflowYaml)).toBe(true);
+  });
+
+  it('matches canonical CI workflow contract snapshot across workflow/job/step surfaces', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const snapshot = buildWorkflowContractSnapshot({
+      workflowYaml,
+      jobName: REQUIRED_COMPAT_CI_JOB_NAME,
+      stepNames: REQUIRED_COMPAT_CI_STEP_NAMES
+    });
+
+    expect({
+      workflowName: snapshot.workflowName,
+      topLevelFieldNames: snapshot.topLevelFieldNames,
+      triggerNames: snapshot.triggerNames,
+      pushBranches: snapshot.pushBranches,
+      pullRequestTrigger: snapshot.pullRequestTrigger,
+      jobNames: snapshot.jobNames,
+      jobName: snapshot.jobName,
+      jobTopLevelFieldNames: snapshot.jobTopLevelFieldNames,
+      jobRunsOn: snapshot.jobRunsOn,
+      jobTimeoutMinutes: snapshot.jobTimeoutMinutes,
+      stepNames: snapshot.stepNames,
+      stepTopLevelFieldNamesByName: snapshot.stepTopLevelFieldNamesByName,
+      stepWithFieldNamesByName: compactDefinedSectionMap(snapshot.stepWithFieldNamesByName),
+      stepEnvFieldNamesByName: compactDefinedSectionMap(snapshot.stepEnvFieldNamesByName)
+    }).toEqual({
+      workflowName: REQUIRED_COMPAT_CI_WORKFLOW_NAME,
+      topLevelFieldNames: REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES,
+      triggerNames: REQUIRED_COMPAT_CI_TRIGGER_NAMES,
+      pushBranches: REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES,
+      pullRequestTrigger: true,
+      jobNames: REQUIRED_COMPAT_CI_JOB_NAMES,
+      jobName: REQUIRED_COMPAT_CI_JOB_NAME,
+      jobTopLevelFieldNames: REQUIRED_COMPAT_CI_JOB_FIELD_NAMES,
+      jobRunsOn: REQUIRED_COMPAT_CI_JOB_RUNS_ON,
+      jobTimeoutMinutes: REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES,
+      stepNames: REQUIRED_COMPAT_CI_STEP_NAMES,
+      stepTopLevelFieldNamesByName: REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES,
+      stepWithFieldNamesByName: REQUIRED_COMPAT_CI_STEP_WITH_FIELD_NAME_SEQUENCES,
+      stepEnvFieldNamesByName: REQUIRED_COMPAT_CI_STEP_ENV_FIELD_NAME_SEQUENCES
+    });
   });
 
   it('keeps compat job declaration unique in workflow', () => {

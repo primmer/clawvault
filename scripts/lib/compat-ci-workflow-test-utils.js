@@ -260,3 +260,40 @@ export function extractUploadArtifactPaths(stepBlock) {
   }
   return pathLines;
 }
+
+export function buildWorkflowContractSnapshot({
+  workflowYaml,
+  jobName,
+  stepNames
+}) {
+  const normalizedStepNames = Array.isArray(stepNames) && stepNames.length > 0
+    ? stepNames
+    : [];
+  const jobBlock = extractJobBlock(workflowYaml, jobName);
+  const stepTopLevelFieldNamesByName = {};
+  const stepWithFieldNamesByName = {};
+  const stepEnvFieldNamesByName = {};
+  for (const stepName of normalizedStepNames) {
+    const stepBlock = jobBlock ? extractStepBlock(jobBlock, stepName) : null;
+    stepTopLevelFieldNamesByName[stepName] = stepBlock ? extractStepFieldNames(stepBlock) : null;
+    stepWithFieldNamesByName[stepName] = stepBlock ? extractNestedSectionFieldNames(stepBlock, 'with') : null;
+    stepEnvFieldNamesByName[stepName] = stepBlock ? extractNestedSectionFieldNames(stepBlock, 'env') : null;
+  }
+
+  return {
+    workflowName: extractWorkflowName(workflowYaml),
+    topLevelFieldNames: extractTopLevelFieldNames(workflowYaml),
+    triggerNames: extractOnTriggerNames(workflowYaml),
+    pushBranches: extractPushBranches(workflowYaml),
+    pullRequestTrigger: hasPullRequestTrigger(workflowYaml),
+    jobNames: extractTopLevelJobNames(workflowYaml),
+    jobName,
+    jobTopLevelFieldNames: jobBlock ? extractJobTopLevelFieldNames(jobBlock) : null,
+    jobRunsOn: jobBlock ? extractScalarField(jobBlock, 'runs-on') : null,
+    jobTimeoutMinutes: jobBlock ? extractScalarField(jobBlock, 'timeout-minutes') : null,
+    stepNames: jobBlock ? extractStepNames(jobBlock) : null,
+    stepTopLevelFieldNamesByName,
+    stepWithFieldNamesByName,
+    stepEnvFieldNamesByName
+  };
+}

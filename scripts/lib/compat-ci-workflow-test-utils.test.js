@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildWorkflowContractSnapshot,
   countTopLevelFieldOccurrences,
   countJobNameOccurrences,
   countScalarFieldOccurrences,
@@ -70,6 +71,28 @@ describe('compat ci workflow test utils', () => {
     expect(extractOnTriggerNames(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['push', 'pull_request']);
     expect(extractPushBranches(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['main', 'master']);
     expect(hasPullRequestTrigger(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe(true);
+  });
+
+  it('builds normalized workflow contract snapshot view', () => {
+    const snapshot = buildWorkflowContractSnapshot({
+      workflowYaml: `\n${SAMPLE_WORKFLOW_YAML}\n`,
+      jobName: 'test-and-compat',
+      stepNames: ['First Step', 'Build', 'Upload']
+    });
+    expect(snapshot.workflowName).toBe('CI');
+    expect(snapshot.topLevelFieldNames).toEqual(['name', 'on', 'jobs']);
+    expect(snapshot.triggerNames).toEqual(['push', 'pull_request']);
+    expect(snapshot.pushBranches).toEqual(['main', 'master']);
+    expect(snapshot.pullRequestTrigger).toBe(true);
+    expect(snapshot.jobNames).toEqual(['test-and-compat', 'second-job']);
+    expect(snapshot.jobTopLevelFieldNames).toEqual(['runs-on', 'steps']);
+    expect(snapshot.jobRunsOn).toBe('ubuntu-latest');
+    expect(snapshot.jobTimeoutMinutes).toBe(null);
+    expect(snapshot.stepNames).toEqual(['First Step', 'Build', 'Upload']);
+    expect(snapshot.stepTopLevelFieldNamesByName['Build']).toEqual(['name', 'run', 'env']);
+    expect(snapshot.stepWithFieldNamesByName['Upload']).toEqual(['name', 'path', 'if-no-files-found']);
+    expect(snapshot.stepEnvFieldNamesByName['Build']).toEqual(['SAMPLE_ENV']);
+    expect(snapshot.stepEnvFieldNamesByName['First Step']).toBe(null);
   });
 
   it('extracts job metadata/block boundaries and scalar fields', () => {

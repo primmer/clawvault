@@ -22,6 +22,7 @@ Use `npm run test:compat-validator-result:verify:report` + `npm run test:compat-
 Use `npm run test:compat-artifact-bundle:verify` to verify cross-artifact coherence across summary + validator payload outputs, and `test:compat-artifact-bundle:verify:report` + `test:compat-artifact-bundle:verify:schema` to emit/schema-validate `artifact-bundle-validator-result.json`.
 `artifact-bundle-validator-result.json` now includes `artifactContracts` entries that declare artifact path, schema path/ID, version field, and expected/actual schema version for release-grade contract auditability.
 Artifact bundle mapping is now declarative via `schemas/compat-artifact-bundle.manifest.json` (validated by `schemas/compat-artifact-bundle.manifest.schema.json` and `npm run test:compat-artifact-bundle:manifest:schema`).
+Use `test:compat-artifact-bundle:manifest:verify` to run semantic manifest validation (schema file existence, schema `$id` parity, and version-field const checks), and `test:compat-artifact-bundle:manifest:verify:report` + `test:compat-artifact-bundle:manifest:verify:schema` to emit/schema-validate `artifact-bundle-manifest-validator-result.json`.
 The validator-result verifier also supports explicit CLI options (`--validator-result`, `--json`, `--out`, `--help`) with structured output contracts and tests.
 Generic schema-validation CLI is available via `scripts/validate-json-schema.mjs` for arbitrary schema/data checks.
 Use `--require-ok` when verifier workflows must fail on `validator-result` payloads with `status: "error"`.

@@ -12,6 +12,62 @@
     "artifacts": {
       "type": "array",
       "minItems": 1,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "artifactName": { "const": "summary.json" }
+            },
+            "required": ["artifactName"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "artifactName": { "const": "report-schema-validator-result.json" }
+            },
+            "required": ["artifactName"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "artifactName": { "const": "validator-result.json" }
+            },
+            "required": ["artifactName"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "artifactName": { "const": "schema-validator-result.json" }
+            },
+            "required": ["artifactName"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "artifactName": { "const": "validator-result-verifier-result.json" }
+            },
+            "required": ["artifactName"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "artifactName": { "const": "artifact-bundle-manifest-validator-result.json" }
+            },
+            "required": ["artifactName"]
+          }
+        }
+      ],
       "items": {
         "type": "object",
         "properties": {

@@ -48,7 +48,7 @@ describe('validate-compat-artifact-bundle-manifest script', () => {
     }
   });
 
-  it('fails on manifest schemaId mismatch with structured error output', () => {
+  it('fails when required schemaId mapping drifts with structured error output', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'compat-artifact-manifest-validator-'));
     try {
       const manifestPath = path.join(root, 'manifest.json');
@@ -69,9 +69,35 @@ describe('validate-compat-artifact-bundle-manifest script', () => {
       expect(payload).toEqual({
         outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,
         status: 'error',
-        error: 'compat artifact bundle manifest schemaId mismatch for summary.json (manifest=https://example.dev/not-matching.json, actual=https://clawvault.dev/schemas/compat-summary.schema.json)'
+        error: `Unable to read compat artifact bundle manifest at ${manifestPath}: compat artifact bundle manifest required artifact summary.json must use schemaId=https://clawvault.dev/schemas/compat-summary.schema.json`
       });
       expect(JSON.parse(fs.readFileSync(outPath, 'utf-8'))).toEqual(payload);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when required schemaPath mapping drifts', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'compat-artifact-manifest-validator-'));
+    try {
+      const manifestPath = path.join(root, 'manifest.json');
+      const manifest = JSON.parse(
+        fs.readFileSync(path.resolve(process.cwd(), 'schemas', 'compat-artifact-bundle.manifest.json'), 'utf-8')
+      );
+      manifest.artifacts = manifest.artifacts.map((entry) => (
+        entry.artifactName === 'summary.json'
+          ? { ...entry, schemaPath: 'schemas/drifted-summary.schema.json' }
+          : entry
+      ));
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+      const result = runManifestValidator(['--manifest', manifestPath, '--json']);
+      expect(result.status).toBe(1);
+      expect(parseJsonLine(result.stdout)).toEqual({
+        outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+        status: 'error',
+        error: `Unable to read compat artifact bundle manifest at ${manifestPath}: compat artifact bundle manifest required artifact summary.json must use schemaPath=schemas/compat-summary.schema.json`
+      });
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

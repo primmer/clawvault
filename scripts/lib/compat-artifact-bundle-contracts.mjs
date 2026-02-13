@@ -15,6 +15,23 @@ export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES = Object.freeze(
   )
 );
 
+export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS = Object.freeze({
+  'summary.json': 'schemas/compat-summary.schema.json',
+  'report-schema-validator-result.json': 'schemas/compat-report-schema-validator-output.schema.json',
+  'validator-result.json': 'schemas/compat-summary-validator-output.schema.json',
+  'schema-validator-result.json': 'schemas/json-schema-validator-output.schema.json',
+  'validator-result-verifier-result.json': 'schemas/compat-validator-result-verifier-output.schema.json',
+  'artifact-bundle-manifest-validator-result.json': 'schemas/compat-artifact-bundle-manifest-validator-output.schema.json'
+});
+
+export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS = Object.freeze(
+  Object.fromEntries(
+    Object.entries(REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS).map(([artifactName, schemaPath]) => (
+      [artifactName, `https://clawvault.dev/${schemaPath}`]
+    ))
+  )
+);
+
 export const REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS = Object.freeze({
   'summary.json': 'summarySchemaVersion',
   'report-schema-validator-result.json': 'outputSchemaVersion',

@@ -4,6 +4,8 @@ import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
@@ -42,6 +44,21 @@ describe('compat artifact bundle contracts constants', () => {
     );
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
       expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES[artifactName]).toBe(artifactName);
+    }
+  });
+
+  it('keeps required schema path/id bindings aligned with required artifact set', () => {
+    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS).sort()).toEqual(
+      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    );
+    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS).sort()).toEqual(
+      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    );
+    for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
+      const schemaPath = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS[artifactName];
+      const schemaId = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS[artifactName];
+      expect(schemaPath.startsWith('schemas/')).toBe(true);
+      expect(schemaId).toBe(`https://clawvault.dev/${schemaPath}`);
     }
   });
 });

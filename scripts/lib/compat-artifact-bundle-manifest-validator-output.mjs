@@ -3,6 +3,8 @@ import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
@@ -146,6 +148,20 @@ export function ensureCompatArtifactBundleManifestValidatorPayloadShape(payload)
         throw new Error(
           `compat artifact bundle manifest validator payload schemaContracts entry for ${requiredArtifactName} `
           + `must use artifactFile=${expectedArtifactFile}`
+        );
+      }
+      const expectedSchemaPath = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS[requiredArtifactName];
+      if (!schemaContractsByArtifactName.get(requiredArtifactName)?.schemaPath?.endsWith(expectedSchemaPath)) {
+        throw new Error(
+          `compat artifact bundle manifest validator payload schemaContracts entry for ${requiredArtifactName} `
+          + `must reference schemaPath ending with ${expectedSchemaPath}`
+        );
+      }
+      const expectedSchemaId = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS[requiredArtifactName];
+      if (schemaContractsByArtifactName.get(requiredArtifactName)?.schemaId !== expectedSchemaId) {
+        throw new Error(
+          `compat artifact bundle manifest validator payload schemaContracts entry for ${requiredArtifactName} `
+          + `must use schemaId=${expectedSchemaId}`
         );
       }
       const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[requiredArtifactName];

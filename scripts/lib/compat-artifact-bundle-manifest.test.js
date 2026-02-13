@@ -8,15 +8,17 @@ import {
   loadCompatArtifactBundleManifest
 } from './compat-artifact-bundle-manifest.mjs';
 import {
-  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS
 } from './compat-artifact-bundle-contracts.mjs';
 
 function buildRequiredManifestArtifacts() {
   return REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.map((artifactName) => ({
     artifactName,
     artifactFile: artifactName,
-    schemaPath: `schemas/${artifactName}.schema.json`,
-    schemaId: `https://clawvault.dev/schemas/${artifactName}.schema.json`,
+    schemaPath: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS[artifactName],
+    schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS[artifactName],
     versionField: artifactName === 'summary.json' ? 'summarySchemaVersion' : 'outputSchemaVersion'
   }));
 }
@@ -94,6 +96,26 @@ describe('compat artifact bundle manifest contracts', () => {
       schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
       artifacts: artifactFileDriftArtifacts
     })).toThrow('required artifact summary.json must use artifactFile=summary.json');
+
+    const schemaPathDriftArtifacts = buildRequiredManifestArtifacts().map((entry) => (
+      entry.artifactName === 'summary.json'
+        ? { ...entry, schemaPath: 'schemas/drifted-summary.schema.json' }
+        : entry
+    ));
+    expect(() => ensureCompatArtifactBundleManifestShape({
+      schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
+      artifacts: schemaPathDriftArtifacts
+    })).toThrow('required artifact summary.json must use schemaPath=schemas/compat-summary.schema.json');
+
+    const schemaIdDriftArtifacts = buildRequiredManifestArtifacts().map((entry) => (
+      entry.artifactName === 'summary.json'
+        ? { ...entry, schemaId: 'https://example.dev/drifted-summary.schema.json' }
+        : entry
+    ));
+    expect(() => ensureCompatArtifactBundleManifestShape({
+      schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
+      artifacts: schemaIdDriftArtifacts
+    })).toThrow('required artifact summary.json must use schemaId=https://clawvault.dev/schemas/compat-summary.schema.json');
 
     expect(() => ensureCompatArtifactBundleManifestShape({
       schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,

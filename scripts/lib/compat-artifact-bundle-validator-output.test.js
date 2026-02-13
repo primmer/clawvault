@@ -9,14 +9,18 @@ import {
   ensureCompatArtifactBundleValidatorPayloadShape,
   loadCompatArtifactBundleValidatorPayload
 } from './compat-artifact-bundle-validator-output.mjs';
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS
+} from './compat-artifact-bundle-contracts.mjs';
 
 function buildValidArtifactContracts() {
   return [
     {
       artifactName: 'summary.json',
       artifactPath: '/tmp/reports/summary.json',
-      schemaPath: '/tmp/schemas/compat-summary.schema.json',
-      schemaId: 'https://clawvault.dev/schemas/compat-summary.schema.json',
+      schemaPath: path.resolve(process.cwd(), REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS['summary.json']),
+      schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS['summary.json'],
       versionField: 'summarySchemaVersion',
       expectedSchemaVersion: 1,
       actualSchemaVersion: 1
@@ -24,8 +28,8 @@ function buildValidArtifactContracts() {
     {
       artifactName: 'report-schema-validator-result.json',
       artifactPath: '/tmp/reports/report-schema-validator-result.json',
-      schemaPath: '/tmp/schemas/compat-report-schema-validator-output.schema.json',
-      schemaId: 'https://clawvault.dev/schemas/compat-report-schema-validator-output.schema.json',
+      schemaPath: path.resolve(process.cwd(), REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS['report-schema-validator-result.json']),
+      schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS['report-schema-validator-result.json'],
       versionField: 'outputSchemaVersion',
       expectedSchemaVersion: 1,
       actualSchemaVersion: 1
@@ -33,8 +37,8 @@ function buildValidArtifactContracts() {
     {
       artifactName: 'validator-result.json',
       artifactPath: '/tmp/reports/validator-result.json',
-      schemaPath: '/tmp/schemas/compat-summary-validator-output.schema.json',
-      schemaId: 'https://clawvault.dev/schemas/compat-summary-validator-output.schema.json',
+      schemaPath: path.resolve(process.cwd(), REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS['validator-result.json']),
+      schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS['validator-result.json'],
       versionField: 'outputSchemaVersion',
       expectedSchemaVersion: 1,
       actualSchemaVersion: 1
@@ -42,8 +46,8 @@ function buildValidArtifactContracts() {
     {
       artifactName: 'schema-validator-result.json',
       artifactPath: '/tmp/reports/schema-validator-result.json',
-      schemaPath: '/tmp/schemas/json-schema-validator-output.schema.json',
-      schemaId: 'https://clawvault.dev/schemas/json-schema-validator-output.schema.json',
+      schemaPath: path.resolve(process.cwd(), REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS['schema-validator-result.json']),
+      schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS['schema-validator-result.json'],
       versionField: 'outputSchemaVersion',
       expectedSchemaVersion: 1,
       actualSchemaVersion: 1
@@ -51,8 +55,8 @@ function buildValidArtifactContracts() {
     {
       artifactName: 'validator-result-verifier-result.json',
       artifactPath: '/tmp/reports/validator-result-verifier-result.json',
-      schemaPath: '/tmp/schemas/compat-validator-result-verifier-output.schema.json',
-      schemaId: 'https://clawvault.dev/schemas/compat-validator-result-verifier-output.schema.json',
+      schemaPath: path.resolve(process.cwd(), REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS['validator-result-verifier-result.json']),
+      schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS['validator-result-verifier-result.json'],
       versionField: 'outputSchemaVersion',
       expectedSchemaVersion: 1,
       actualSchemaVersion: 1
@@ -60,8 +64,8 @@ function buildValidArtifactContracts() {
     {
       artifactName: 'artifact-bundle-manifest-validator-result.json',
       artifactPath: '/tmp/reports/artifact-bundle-manifest-validator-result.json',
-      schemaPath: '/tmp/schemas/compat-artifact-bundle-manifest-validator-output.schema.json',
-      schemaId: 'https://clawvault.dev/schemas/compat-artifact-bundle-manifest-validator-output.schema.json',
+      schemaPath: path.resolve(process.cwd(), REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS['artifact-bundle-manifest-validator-result.json']),
+      schemaId: REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS['artifact-bundle-manifest-validator-result.json'],
       versionField: 'outputSchemaVersion',
       expectedSchemaVersion: 1,
       actualSchemaVersion: 1
@@ -253,6 +257,46 @@ describe('compat artifact bundle validator output payload contracts', () => {
           : entry
       ))
     })).toThrow('artifactContracts entry for summary.json must use versionField=summarySchemaVersion');
+
+    expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
+      outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'ok',
+      reportDir: '/tmp/reports',
+      summaryMode: 'fixtures',
+      requireOk: true,
+      summaryPath: '/tmp/reports/summary.json',
+      validatorResultPath: '/tmp/reports/validator-result.json',
+      reportSchemaValidatorResultPath: '/tmp/reports/report-schema-validator-result.json',
+      schemaValidatorResultPath: '/tmp/reports/schema-validator-result.json',
+      validatorResultVerifierResultPath: '/tmp/reports/validator-result-verifier-result.json',
+      artifactBundleManifestValidatorResultPath: '/tmp/reports/artifact-bundle-manifest-validator-result.json',
+      verifiedArtifacts: artifactContracts.map((entry) => entry.artifactName),
+      artifactContracts: artifactContracts.map((entry) => (
+        entry.artifactName === 'summary.json'
+          ? { ...entry, schemaPath: '/tmp/drifted-summary.schema.json' }
+          : entry
+      ))
+    })).toThrow('artifactContracts entry for summary.json must reference schemaPath ending with schemas/compat-summary.schema.json');
+
+    expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
+      outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'ok',
+      reportDir: '/tmp/reports',
+      summaryMode: 'fixtures',
+      requireOk: true,
+      summaryPath: '/tmp/reports/summary.json',
+      validatorResultPath: '/tmp/reports/validator-result.json',
+      reportSchemaValidatorResultPath: '/tmp/reports/report-schema-validator-result.json',
+      schemaValidatorResultPath: '/tmp/reports/schema-validator-result.json',
+      validatorResultVerifierResultPath: '/tmp/reports/validator-result-verifier-result.json',
+      artifactBundleManifestValidatorResultPath: '/tmp/reports/artifact-bundle-manifest-validator-result.json',
+      verifiedArtifacts: artifactContracts.map((entry) => entry.artifactName),
+      artifactContracts: artifactContracts.map((entry) => (
+        entry.artifactName === 'summary.json'
+          ? { ...entry, schemaId: 'https://example.dev/drifted-summary.schema.json' }
+          : entry
+      ))
+    })).toThrow('artifactContracts entry for summary.json must use schemaId=https://clawvault.dev/schemas/compat-summary.schema.json');
 
     expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
       outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,

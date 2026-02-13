@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
@@ -65,6 +67,18 @@ export function ensureCompatArtifactBundleManifestShape(manifest) {
     if (entry.artifactFile !== expectedArtifactFile) {
       throw new Error(
         `compat artifact bundle manifest required artifact ${requiredArtifactName} must use artifactFile=${expectedArtifactFile}`
+      );
+    }
+    const expectedSchemaPath = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS[requiredArtifactName];
+    if (entry.schemaPath !== expectedSchemaPath) {
+      throw new Error(
+        `compat artifact bundle manifest required artifact ${requiredArtifactName} must use schemaPath=${expectedSchemaPath}`
+      );
+    }
+    const expectedSchemaId = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS[requiredArtifactName];
+    if (entry.schemaId !== expectedSchemaId) {
+      throw new Error(
+        `compat artifact bundle manifest required artifact ${requiredArtifactName} must use schemaId=${expectedSchemaId}`
       );
     }
     const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[requiredArtifactName];

@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import Ajv2020 from 'ajv/dist/2020.js';
+import {
+  buildCompatReportSchemaValidatorErrorPayload,
+  buildCompatReportSchemaValidatorSuccessPayload,
+  ensureCompatReportSchemaValidatorPayloadShape
+} from './lib/compat-report-schema-validator-output.mjs';
 
 function parseCliArgs(argv) {
   const parsed = {
@@ -8,6 +13,8 @@ function parseCliArgs(argv) {
     reportDir: '',
     summarySchemaPath: '',
     caseSchemaPath: '',
+    json: false,
+    outPath: '',
     help: false,
     allowMissingCaseReports: false
   };
@@ -21,6 +28,19 @@ function parseCliArgs(argv) {
     }
     if (value === '--allow-missing-case-reports') {
       parsed.allowMissingCaseReports = true;
+      continue;
+    }
+    if (value === '--json') {
+      parsed.json = true;
+      continue;
+    }
+    if (value === '--out') {
+      const nextValue = argv[index + 1];
+      if (!nextValue || nextValue.startsWith('--')) {
+        throw new Error('Missing value for --out');
+      }
+      parsed.outPath = nextValue;
+      index += 1;
       continue;
     }
     if (value === '--summary') {
@@ -83,6 +103,26 @@ function printHelp() {
   console.log('  summary schema: --summary-schema | schemas/compat-summary.schema.json');
   console.log('  case schema   : --case-schema | schemas/compat-case-report.schema.json');
   console.log('  flags         : --allow-missing-case-reports');
+  console.log('                  --json, --out <file>');
+}
+
+function isJsonModeRequestedFromArgv(argv) {
+  return argv.includes('--json');
+}
+
+function bestEffortOutPath(argv) {
+  const index = argv.indexOf('--out');
+  if (index === -1) return '';
+  const value = argv[index + 1];
+  if (!value || value.startsWith('--')) return '';
+  return value;
+}
+
+function writeResultPayload(outPath, payload) {
+  ensureCompatReportSchemaValidatorPayloadShape(payload);
+  const resolvedPath = path.resolve(process.cwd(), outPath);
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  fs.writeFileSync(resolvedPath, JSON.stringify(payload, null, 2), 'utf-8');
 }
 
 function resolvePaths(args) {
@@ -188,6 +228,23 @@ function main() {
   }
 
   const caseReportMode = args.allowMissingCaseReports ? 'skipped-case-reports' : 'validated-case-reports';
+  const payload = buildCompatReportSchemaValidatorSuccessPayload({
+    mode: summary.mode,
+    summaryPath,
+    reportDir,
+    summarySchemaPath,
+    caseSchemaPath,
+    validatedCaseReports,
+    caseReportMode
+  });
+  if (args.outPath) {
+    writeResultPayload(args.outPath, payload);
+  }
+  if (args.json) {
+    console.log(JSON.stringify(payload));
+    return;
+  }
+
   console.log(
     `Compatibility report schema validation passed mode=${summary.mode} summary=${summaryPath} reportDir=${reportDir} validatedCaseReports=${validatedCaseReports} ${caseReportMode}`
   );
@@ -197,6 +254,22 @@ try {
   main();
 } catch (err) {
   const message = err?.message || String(err);
-  console.error(message);
+  const argv = process.argv.slice(2);
+  const outPath = (() => {
+    try {
+      return parseCliArgs(argv).outPath;
+    } catch {
+      return bestEffortOutPath(argv);
+    }
+  })();
+  const payload = buildCompatReportSchemaValidatorErrorPayload(message);
+  if (outPath) {
+    writeResultPayload(outPath, payload);
+  }
+  if (isJsonModeRequestedFromArgv(argv)) {
+    console.log(JSON.stringify(payload));
+  } else {
+    console.error(message);
+  }
   process.exit(1);
 }

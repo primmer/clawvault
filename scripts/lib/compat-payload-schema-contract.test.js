@@ -14,6 +14,9 @@ import {
   COMPAT_FIXTURE_SCHEMA_VERSION,
   COMPAT_SUMMARY_SCHEMA_VERSION
 } from './compat-fixture-runner.mjs';
+import {
+  COMPAT_REPORT_SCHEMA_VALIDATOR_OUTPUT_SCHEMA_VERSION
+} from './compat-report-schema-validator-output.mjs';
 
 function readSchema(schemaFileName) {
   const schemaPath = path.resolve(process.cwd(), 'schemas', schemaFileName);
@@ -54,6 +57,13 @@ describe('compat payload json schema contracts', () => {
   it('keeps compat case-report artifact schema aligned with runtime status contract', () => {
     const schema = readSchema('compat-case-report.schema.json');
     expect(schema.properties.checks.items.properties.status.enum).toEqual(['ok', 'warn', 'error']);
+    expect(schema.additionalProperties).toBe(false);
+  });
+
+  it('keeps compat report-schema validator output schema in sync with runtime contract versions', () => {
+    const schema = readSchema('compat-report-schema-validator-output.schema.json');
+    expect(schema.properties.outputSchemaVersion.const).toBe(COMPAT_REPORT_SCHEMA_VALIDATOR_OUTPUT_SCHEMA_VERSION);
+    expect(schema.properties.status.enum).toEqual(['ok', 'error']);
     expect(schema.additionalProperties).toBe(false);
   });
 });

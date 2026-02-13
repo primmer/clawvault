@@ -14,6 +14,9 @@ import {
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_USES,
+  REQUIRED_COMPAT_CI_WORKFLOW_NAME,
+  REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
+  REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES,
   REQUIRED_COMPAT_CI_INSTALL_COMMAND,
   REQUIRED_COMPAT_CI_INSTALL_STEP_NAME,
   REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND,
@@ -34,6 +37,7 @@ import {
   REQUIRED_COMPAT_CI_UPLOAD_USES
 } from './compat-npm-script-contracts.mjs';
 import {
+  countTopLevelFieldOccurrences,
   countJobNameOccurrences,
   countScalarFieldOccurrences,
   countStepNameOccurrences,
@@ -43,8 +47,11 @@ import {
   extractScalarField,
   extractStepBlock,
   extractStepMetadata,
+  extractPushBranches,
   extractUploadArtifactPaths,
-  extractUsesField
+  extractUsesField,
+  extractWorkflowName,
+  hasPullRequestTrigger
 } from './compat-ci-workflow-test-utils.js';
 
 function loadCiWorkflowYaml() {
@@ -53,6 +60,23 @@ function loadCiWorkflowYaml() {
 }
 
 describe('compat ci workflow contract', () => {
+  it('keeps workflow identity and top-level fields aligned with contracts', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    expect(extractWorkflowName(workflowYaml)).toBe(REQUIRED_COMPAT_CI_WORKFLOW_NAME);
+    for (const fieldName of REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES) {
+      expect(
+        countTopLevelFieldOccurrences(workflowYaml, fieldName),
+        `required top-level workflow field "${fieldName}" must appear exactly once`
+      ).toBe(1);
+    }
+  });
+
+  it('keeps workflow trigger domain aligned with push + pull-request contracts', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    expect(extractPushBranches(workflowYaml)).toEqual(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES);
+    expect(hasPullRequestTrigger(workflowYaml)).toBe(true);
+  });
+
   it('keeps compat job declaration unique in workflow', () => {
     const workflowYaml = loadCiWorkflowYaml();
     expect(

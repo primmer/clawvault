@@ -1,21 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countTopLevelFieldOccurrences,
   countJobNameOccurrences,
   countScalarFieldOccurrences,
   countStepNameOccurrences,
   extractEnvField,
   extractJobBlock,
   extractJobMetadata,
+  extractPushBranches,
   extractRunCommand,
   extractScalarField,
   extractStepBlock,
   extractStepMetadata,
   extractUploadArtifactPaths,
-  extractUsesField
+  extractUsesField,
+  extractWorkflowName,
+  hasPullRequestTrigger
 } from './compat-ci-workflow-test-utils.js';
 
 const SAMPLE_WORKFLOW_YAML = `
 name: CI
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
 jobs:
   test-and-compat:
     runs-on: ubuntu-latest
@@ -42,6 +52,15 @@ jobs:
 `.trim();
 
 describe('compat ci workflow test utils', () => {
+  it('extracts workflow-level trigger metadata', () => {
+    expect(extractWorkflowName(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe('CI');
+    expect(countTopLevelFieldOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'name')).toBe(1);
+    expect(countTopLevelFieldOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'on')).toBe(1);
+    expect(countTopLevelFieldOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'jobs')).toBe(1);
+    expect(extractPushBranches(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['main', 'master']);
+    expect(hasPullRequestTrigger(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe(true);
+  });
+
   it('extracts job metadata/block boundaries and scalar fields', () => {
     const metadata = extractJobMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'test-and-compat');
     expect(metadata).toBeTruthy();
@@ -90,5 +109,8 @@ describe('compat ci workflow test utils', () => {
     expect(extractScalarField('run: npm test', 'missing')).toBe(null);
     expect(extractUploadArtifactPaths('- name: Upload\n  uses: actions/upload-artifact@v4')).toBe(null);
     expect(countScalarFieldOccurrences('run: npm test', 'missing')).toBe(0);
+    expect(extractWorkflowName('jobs:\n  test:\n    runs-on: ubuntu-latest')).toBe(null);
+    expect(extractPushBranches('on:\n  pull_request:')).toBe(null);
+    expect(hasPullRequestTrigger('on:\n  push:\n    branches:\n      - main')).toBe(false);
   });
 });

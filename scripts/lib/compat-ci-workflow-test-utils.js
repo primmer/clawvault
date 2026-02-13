@@ -2,6 +2,32 @@ export function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function extractWorkflowName(workflowYaml) {
+  const match = workflowYaml.match(/^name:\s*(.+)\s*$/m);
+  return match ? match[1].trim() : null;
+}
+
+export function countTopLevelFieldOccurrences(workflowYaml, fieldName) {
+  const pattern = new RegExp(`^${escapeRegex(fieldName)}:\\s*`, 'gm');
+  return [...workflowYaml.matchAll(pattern)].length;
+}
+
+export function extractPushBranches(workflowYaml) {
+  const branchesBlockMatch = workflowYaml.match(/\n\s{2}push:\s*\n\s{4}branches:\s*\n((?:\s{6}- .*\n)+)/);
+  if (!branchesBlockMatch) {
+    return null;
+  }
+  return branchesBlockMatch[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+    .map((line) => line.slice(2).trim());
+}
+
+export function hasPullRequestTrigger(workflowYaml) {
+  return /\n\s{2}pull_request:\s*(?:\n|$)/.test(workflowYaml);
+}
+
 export function extractJobMetadata(workflowYaml, jobName) {
   const jobHeaderPattern = new RegExp(`\\n\\s{2}${escapeRegex(jobName)}:\\s*\\n`);
   const headerMatch = jobHeaderPattern.exec(workflowYaml);

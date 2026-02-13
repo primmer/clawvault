@@ -5,6 +5,7 @@ import * as path from 'path';
 import {
   COMPAT_FIXTURE_SCHEMA_VERSION,
   assertFixtureFiles,
+  evaluateCaseReport,
   ensureCompatReportShape,
   loadCases,
   parseCompatReport,
@@ -120,6 +121,37 @@ describe('compat fixture runner utilities', () => {
     expect(() => ensureCompatReportShape(report, 'healthy')).not.toThrow();
     expect(parseCompatReport(JSON.stringify(report), 'healthy')).toEqual(report);
     expect(() => parseCompatReport('{}', 'bad')).toThrow('invalid JSON report');
+  });
+
+  it('evaluates expected report signals and surfaces mismatches', () => {
+    const testCase = {
+      expectedExitCode: 1,
+      expectedWarnings: 1,
+      expectedErrors: 0,
+      expectedCheckStatuses: { 'hook handler safety': 'warn' },
+      expectedDetailIncludes: { 'hook handler safety': '--profile auto' }
+    };
+    const matchingReport = {
+      generatedAt: new Date().toISOString(),
+      warnings: 1,
+      errors: 0,
+      checks: [
+        { label: 'hook handler safety', status: 'warn', detail: 'Missing --profile auto' }
+      ]
+    };
+    const mismatchReport = {
+      generatedAt: new Date().toISOString(),
+      warnings: 0,
+      errors: 0,
+      checks: [
+        { label: 'hook handler safety', status: 'ok', detail: 'all good' }
+      ]
+    };
+
+    expect(evaluateCaseReport(testCase, matchingReport, 1)).toEqual({ passed: true, mismatches: [] });
+    const mismatch = evaluateCaseReport(testCase, mismatchReport, 0);
+    expect(mismatch.passed).toBe(false);
+    expect(mismatch.mismatches.length).toBeGreaterThan(0);
   });
 
   it('asserts required fixture file layout', () => {

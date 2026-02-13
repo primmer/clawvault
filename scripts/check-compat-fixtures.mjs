@@ -5,6 +5,7 @@ import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import {
   assertFixtureFiles,
+  evaluateCaseReport,
   loadCases,
   parseCompatReport,
   selectCases,
@@ -61,31 +62,26 @@ function runCase(testCase, env) {
   );
 
   const actualExitCode = result.status ?? 1;
-  const exitMatches = actualExitCode === testCase.expectedExitCode;
   let report = null;
-  let outputMatches = false;
+  let evaluation = {
+    passed: false,
+    mismatches: []
+  };
   let outputError = null;
 
   try {
     report = parseCompatReport(result.stdout, testCase.name);
     writeCaseReport(testCase, report);
-    const warningsMatch = report.warnings === testCase.expectedWarnings;
-    const errorsMatch = report.errors === testCase.expectedErrors;
-    const statusMatches = Object.entries(testCase.expectedCheckStatuses).every(([label, expectedStatus]) => {
-      const check = report.checks.find((candidate) => candidate?.label === label);
-      return check?.status === expectedStatus;
-    });
-    const detailMatches = Object.entries(testCase.expectedDetailIncludes ?? {}).every(([label, expectedSnippet]) => {
-      const check = report.checks.find((candidate) => candidate?.label === label);
-      return typeof check?.detail === 'string' && check.detail.includes(expectedSnippet);
-    });
-    outputMatches = warningsMatch && errorsMatch && statusMatches && detailMatches;
+    evaluation = evaluateCaseReport(testCase, report, actualExitCode);
   } catch (err) {
     outputError = err;
-    outputMatches = false;
+    evaluation = {
+      passed: false,
+      mismatches: [err?.message || String(err)]
+    };
   }
 
-  const passed = exitMatches && outputMatches;
+  const passed = evaluation.passed;
   const summary = `${passed ? '✓' : '✗'} fixture=${testCase.name} expectedExit=${testCase.expectedExitCode} actualExit=${actualExitCode}`;
   console.log(summary);
 
@@ -93,8 +89,8 @@ function runCase(testCase, env) {
     if (outputError) {
       console.error(outputError.message);
     }
-    if (report) {
-      console.error(`expected warnings/errors=${testCase.expectedWarnings}/${testCase.expectedErrors} actual=${report.warnings}/${report.errors}`);
+    for (const mismatch of evaluation.mismatches) {
+      console.error(`  - ${mismatch}`);
     }
     console.error(result.stdout);
     console.error(result.stderr);
@@ -104,7 +100,8 @@ function runCase(testCase, env) {
     passed,
     name: testCase.name,
     expectedExitCode: testCase.expectedExitCode,
-    actualExitCode
+    actualExitCode,
+    mismatches: evaluation.mismatches
   };
 }
 

@@ -50,11 +50,19 @@ export function registerMaintenanceCommands(program, { chalk }) {
   program
     .command('compat')
     .description('Check OpenClaw compatibility status')
+    .option('--strict', 'Exit non-zero when warnings are present')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        const { compatCommand } = await import('../dist/commands/compat.js');
-        await compatCommand({ json: options.json });
+        const { compatCommand, compatibilityExitCode } = await import('../dist/commands/compat.js');
+        const report = await compatCommand({
+          json: options.json,
+          strict: options.strict
+        });
+        const exitCode = compatibilityExitCode(report, { strict: options.strict });
+        if (exitCode !== 0) {
+          process.exitCode = exitCode;
+        }
       } catch (err) {
         console.error(chalk.red(`Error: ${err.message}`));
         process.exit(1);

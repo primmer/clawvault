@@ -24,6 +24,11 @@ interface CompatOptions {
   baseDir?: string;
 }
 
+export interface CompatCommandOptions {
+  json?: boolean;
+  strict?: boolean;
+}
+
 const REQUIRED_HOOK_EVENTS = ['gateway:startup', 'command:new', 'session:start'];
 
 function readOptionalFile(filePath: string): string | null {
@@ -222,11 +227,25 @@ function formatCompatibilityReport(report: CompatReport): string {
   return lines.join('\n');
 }
 
-export async function compatCommand(options: { json?: boolean } = {}): Promise<void> {
+export function compatibilityExitCode(
+  report: CompatReport,
+  options: { strict?: boolean } = {}
+): number {
+  if (report.errors > 0) {
+    return 1;
+  }
+  if (options.strict && report.warnings > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+export async function compatCommand(options: CompatCommandOptions = {}): Promise<CompatReport> {
   const report = checkOpenClawCompatibility();
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
-    return;
+  } else {
+    console.log(formatCompatibilityReport(report));
   }
-  console.log(formatCompatibilityReport(report));
+  return report;
 }

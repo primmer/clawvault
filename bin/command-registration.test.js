@@ -129,6 +129,10 @@ describe('CLI command registration modules', () => {
     const templateCommand = program.commands.find((command) => command.name() === 'template');
     const templateSubcommands = templateCommand?.commands.map((command) => command.name()) ?? [];
     expect(templateSubcommands).toEqual(expect.arrayContaining(['list', 'create', 'add']));
+
+    const compatCommand = program.commands.find((command) => command.name() === 'compat');
+    const strictOption = compatCommand?.options.find((option) => option.flags.includes('--strict'));
+    expect(strictOption).toBeTruthy();
   });
 
   it('keeps top-level command names unique when modules are combined', () => {

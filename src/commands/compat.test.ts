@@ -82,4 +82,12 @@ describe('checkOpenClawCompatibility', () => {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('computes strict exit code from warnings/errors', async () => {
+    const { compatibilityExitCode } = await loadCompatModule();
+    expect(compatibilityExitCode({ generatedAt: '', checks: [], warnings: 0, errors: 0 })).toBe(0);
+    expect(compatibilityExitCode({ generatedAt: '', checks: [], warnings: 1, errors: 0 })).toBe(0);
+    expect(compatibilityExitCode({ generatedAt: '', checks: [], warnings: 1, errors: 0 }, { strict: true })).toBe(1);
+    expect(compatibilityExitCode({ generatedAt: '', checks: [], warnings: 0, errors: 1 })).toBe(1);
+  });
 });

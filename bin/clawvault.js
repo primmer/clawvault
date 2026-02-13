@@ -9,7 +9,6 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
-import { spawn } from 'child_process';
 import { registerMaintenanceCommands } from './register-maintenance-commands.js';
 import { registerCoreCommands } from './register-core-commands.js';
 import { registerQueryCommands } from './register-query-commands.js';
@@ -18,11 +17,14 @@ import { registerSessionLifecycleCommands } from './register-session-lifecycle-c
 import { registerTemplateCommands } from './register-template-commands.js';
 import { registerVaultOperationsCommands } from './register-vault-operations-commands.js';
 import {
-  ClawVault,
-  createVault,
-  resolveVaultPath as resolveConfiguredVaultPath,
-  QmdUnavailableError,
-  QMD_INSTALL_COMMAND
+  getVault,
+  resolveVaultPath,
+  runQmd,
+  printQmdMissing,
+  QmdUnavailableError
+} from './command-runtime.js';
+import {
+  createVault
 } from '../dist/index.js';
 
 const program = new Command();
@@ -36,38 +38,6 @@ const CLI_VERSION = (() => {
     return '0.0.0';
   }
 })();
-
-async function getVault(vaultPath) {
-  const vault = new ClawVault(resolveConfiguredVaultPath({ explicitPath: vaultPath }));
-  await vault.load();
-  return vault;
-}
-
-function resolveVaultPath(vaultPath) {
-  return resolveConfiguredVaultPath({ explicitPath: vaultPath });
-}
-
-async function runQmd(args) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('qmd', args, { stdio: 'inherit' });
-    proc.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`qmd exited with code ${code}`));
-    });
-    proc.on('error', (err) => {
-      if (err?.code === 'ENOENT') {
-        reject(new QmdUnavailableError());
-      } else {
-        reject(err);
-      }
-    });
-  });
-}
-
-function printQmdMissing() {
-  console.error(chalk.red('Error: ClawVault requires qmd.'));
-  console.log(chalk.dim(`Install: ${QMD_INSTALL_COMMAND}`));
-}
 
 program
   .name('clawvault')

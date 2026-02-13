@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  REQUIRED_COMPAT_CI_FAILURE_UPLOAD_ARTIFACT_NAME,
+  REQUIRED_COMPAT_CI_FAILURE_UPLOAD_CONDITION,
+  REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND,
+  REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH,
+  REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME,
   REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND,
   REQUIRED_COMPAT_CI_REPORT_DIR_ENV_KEY,
   REQUIRED_COMPAT_CI_REPORT_DIR_ENV_VALUE,
@@ -108,5 +113,18 @@ describe('compat ci workflow contract', () => {
     expect(artifactName).toBe(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME);
     expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND);
     expect(uploadPaths).toEqual(expectedPaths);
+  });
+
+  it('keeps failure artifact upload step aligned with compat report directory contracts', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const stepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
+    const ifCondition = extractScalarField(stepBlock, 'if', REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
+    const artifactName = extractScalarField(stepBlock, 'name', REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
+    const uploadPath = extractScalarField(stepBlock, 'path', REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
+    const ifNoFilesFoundValue = extractScalarField(stepBlock, 'if-no-files-found', REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME);
+    expect(ifCondition).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_CONDITION);
+    expect(artifactName).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_ARTIFACT_NAME);
+    expect(uploadPath).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH);
+    expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND);
   });
 });

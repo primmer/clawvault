@@ -179,7 +179,12 @@ function main() {
         total: 0,
         preflightDurationMs,
         totalDurationMs: preflightDurationMs,
+        averageDurationMs: 0,
+        overallDurationMs: preflightDurationMs,
+        slowestCases: [],
         failures: 0,
+        passedCases: [],
+        failedCases: [],
         results: []
       });
       console.log(`Compatibility contract runtime: ${preflightDurationMs}ms`);

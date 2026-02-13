@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as path from 'path';
 import {
+  ensureArtifactContractVersionParity,
   ensureArtifactPathCoherence,
   ensureCrossPayloadCoherence,
   ensureManifestValidatorPayloadCoherence,
@@ -223,5 +224,40 @@ describe('compat artifact bundle coherence helpers', () => {
       artifactContracts: fixture.artifactContracts,
       artifactContractEntries: fixture.artifactContractEntries
     })).toThrow('artifacts list does not match active manifest order');
+  });
+
+  it('validates artifact contract version parity and detects schema/version drift', () => {
+    const fixture = buildBaseFixtureState();
+    const artifactContractEntries = fixture.artifactContracts.map((entry) => ({
+      artifactName: entry.artifactName,
+      schemaId: entry.schemaId,
+      versionField: entry.versionField,
+      expectedSchemaVersion: 1,
+      actualSchemaVersion: 1
+    }));
+
+    expect(() => ensureArtifactContractVersionParity(artifactContractEntries, fixture.artifactContracts)).not.toThrow();
+
+    const schemaDriftEntries = artifactContractEntries.map((entry) => ({ ...entry }));
+    schemaDriftEntries[0].schemaId = 'https://clawvault.dev/schemas/drifted.schema.json';
+    expect(() => ensureArtifactContractVersionParity(schemaDriftEntries, fixture.artifactContracts))
+      .toThrow('artifact contract schemaId mismatch');
+
+    const versionDriftEntries = artifactContractEntries.map((entry) => ({ ...entry }));
+    versionDriftEntries[1].actualSchemaVersion = 2;
+    expect(() => ensureArtifactContractVersionParity(versionDriftEntries, fixture.artifactContracts))
+      .toThrow('artifact contract version mismatch');
+  });
+
+  it('detects manifest validator expected-schema-version drift', () => {
+    const fixture = buildBaseFixtureState();
+    fixture.artifactBundleManifestValidatorPayload.schemaContracts = fixture.artifactBundleManifestValidatorPayload.schemaContracts.map(
+      (entry, index) => (index === 0 ? { ...entry, expectedSchemaVersion: 2 } : entry)
+    );
+    expect(() => ensureManifestValidatorPayloadCoherence({
+      artifactBundleManifestValidatorPayload: fixture.artifactBundleManifestValidatorPayload,
+      artifactContracts: fixture.artifactContracts,
+      artifactContractEntries: fixture.artifactContractEntries
+    })).toThrow('expectedSchemaVersion mismatch');
   });
 });

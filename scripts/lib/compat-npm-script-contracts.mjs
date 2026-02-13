@@ -60,6 +60,10 @@ export const REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES = Object.freeze([
   'master',
   'cursor/**'
 ]);
+export const REQUIRED_COMPAT_CI_TRIGGER_NAMES = Object.freeze([
+  'push',
+  'pull_request'
+]);
 
 export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX = '${{ runner.temp }}/compat-reports/';
 export const REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME = 'Upload compatibility summary artifact';

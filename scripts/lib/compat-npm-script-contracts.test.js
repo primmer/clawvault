@@ -11,6 +11,7 @@ import {
   REQUIRED_COMPAT_CI_WORKFLOW_NAME,
   REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
   REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES,
+  REQUIRED_COMPAT_CI_TRIGGER_NAMES,
   REQUIRED_COMPAT_CI_JOB_NAME,
   REQUIRED_COMPAT_CI_JOB_RUNS_ON,
   REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES,
@@ -112,6 +113,11 @@ describe('compat npm script contracts constants', () => {
       'main',
       'master',
       'cursor/**'
+    ]));
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_TRIGGER_NAMES, 'REQUIRED_COMPAT_CI_TRIGGER_NAMES');
+    expect(REQUIRED_COMPAT_CI_TRIGGER_NAMES).toEqual(expect.arrayContaining([
+      'push',
+      'pull_request'
     ]));
     expect(typeof REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME.length).toBeGreaterThan(0);

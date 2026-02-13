@@ -14,6 +14,7 @@ import {
   extractStepMetadata,
   extractUploadArtifactPaths,
   extractUsesField,
+  extractOnTriggerNames,
   extractWorkflowName,
   hasPullRequestTrigger
 } from './compat-ci-workflow-test-utils.js';
@@ -57,6 +58,7 @@ describe('compat ci workflow test utils', () => {
     expect(countTopLevelFieldOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'name')).toBe(1);
     expect(countTopLevelFieldOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'on')).toBe(1);
     expect(countTopLevelFieldOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'jobs')).toBe(1);
+    expect(extractOnTriggerNames(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['push', 'pull_request']);
     expect(extractPushBranches(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['main', 'master']);
     expect(hasPullRequestTrigger(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe(true);
   });
@@ -110,6 +112,7 @@ describe('compat ci workflow test utils', () => {
     expect(extractUploadArtifactPaths('- name: Upload\n  uses: actions/upload-artifact@v4')).toBe(null);
     expect(countScalarFieldOccurrences('run: npm test', 'missing')).toBe(0);
     expect(extractWorkflowName('jobs:\n  test:\n    runs-on: ubuntu-latest')).toBe(null);
+    expect(extractOnTriggerNames('name: CI\njobs:\n  test:\n    runs-on: ubuntu-latest')).toBe(null);
     expect(extractPushBranches('on:\n  pull_request:')).toBe(null);
     expect(hasPullRequestTrigger('on:\n  push:\n    branches:\n      - main')).toBe(false);
   });

@@ -17,6 +17,7 @@ import {
   REQUIRED_COMPAT_CI_WORKFLOW_NAME,
   REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
   REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES,
+  REQUIRED_COMPAT_CI_TRIGGER_NAMES,
   REQUIRED_COMPAT_CI_INSTALL_COMMAND,
   REQUIRED_COMPAT_CI_INSTALL_STEP_NAME,
   REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND,
@@ -48,6 +49,7 @@ import {
   extractStepBlock,
   extractStepMetadata,
   extractPushBranches,
+  extractOnTriggerNames,
   extractUploadArtifactPaths,
   extractUsesField,
   extractWorkflowName,
@@ -73,6 +75,7 @@ describe('compat ci workflow contract', () => {
 
   it('keeps workflow trigger domain aligned with push + pull-request contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
+    expect(extractOnTriggerNames(workflowYaml)).toEqual(REQUIRED_COMPAT_CI_TRIGGER_NAMES);
     expect(extractPushBranches(workflowYaml)).toEqual(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES);
     expect(hasPullRequestTrigger(workflowYaml)).toBe(true);
   });

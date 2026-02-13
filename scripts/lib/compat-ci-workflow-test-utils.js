@@ -7,6 +7,26 @@ export function extractWorkflowName(workflowYaml) {
   return match ? match[1].trim() : null;
 }
 
+export function extractOnTriggerNames(workflowYaml) {
+  const lines = workflowYaml.split('\n');
+  const onLineIndex = lines.findIndex((line) => /^on:\s*$/.test(line.trim()));
+  if (onLineIndex < 0) {
+    return null;
+  }
+  const triggerNames = [];
+  for (let index = onLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^[^\s].*:\s*$/.test(line)) {
+      break;
+    }
+    const triggerMatch = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
+    if (triggerMatch) {
+      triggerNames.push(triggerMatch[1]);
+    }
+  }
+  return triggerNames;
+}
+
 export function countTopLevelFieldOccurrences(workflowYaml, fieldName) {
   const pattern = new RegExp(`^${escapeRegex(fieldName)}:\\s*`, 'gm');
   return [...workflowYaml.matchAll(pattern)].length;

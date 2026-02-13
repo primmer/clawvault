@@ -117,6 +117,7 @@
 - Added dedicated unit tests for the standalone summary validator script (`scripts/validate-compat-summary.test.js`) covering success, missing-case-report failure, and env-based path resolution.
 - Standalone summary validator script coverage now also includes explicit missing-input failure behavior to keep CLI error guidance stable.
 - Compatibility summary workflow scripts now honor caller-provided `COMPAT_REPORT_DIR` (with `.compat-reports` fallback), aligning local/CI artifact destinations.
+- Added `test:compat-summary:verify` for validating pre-existing summary artifacts directly (with optional path argument), enabling artifact-only checks without fixture re-execution.
 
 ## [1.11.2] - 2026-02-12
 

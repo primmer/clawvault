@@ -199,6 +199,10 @@ export function selectCases(cases, rawSelection) {
     .map((value) => value.trim())
     .filter(Boolean);
 
+  if (selected.length === 0) {
+    throw new Error('COMPAT_CASES did not include any case names');
+  }
+
   const duplicateSelections = selected
     .filter((name, index, values) => values.indexOf(name) !== index)
     .filter((name, index, values) => values.indexOf(name) === index);

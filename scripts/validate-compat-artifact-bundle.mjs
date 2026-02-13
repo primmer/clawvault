@@ -252,6 +252,67 @@ function main() {
       );
     }
   }
+  if (artifactBundleManifestValidatorPayload.status === 'ok') {
+    const expectedArtifactNames = artifactContracts.map((entry) => entry.artifactName);
+    if (artifactBundleManifestValidatorPayload.artifactCount !== expectedArtifactNames.length) {
+      throw new Error(
+        `artifact-bundle manifest validator artifactCount mismatch (expected ${expectedArtifactNames.length}, received ${artifactBundleManifestValidatorPayload.artifactCount})`
+      );
+    }
+    if (
+      artifactBundleManifestValidatorPayload.artifacts.length !== expectedArtifactNames.length
+      || artifactBundleManifestValidatorPayload.artifacts.some((name, index) => name !== expectedArtifactNames[index])
+    ) {
+      throw new Error('artifact-bundle manifest validator artifacts list does not match active manifest order');
+    }
+
+    const manifestValidatorContractsByArtifactName = new Map(
+      artifactBundleManifestValidatorPayload.schemaContracts.map((entry) => [entry.artifactName, entry])
+    );
+    if (manifestValidatorContractsByArtifactName.size !== artifactContracts.length) {
+      throw new Error('artifact-bundle manifest validator schemaContracts must include exactly one entry per artifact');
+    }
+    for (const manifestEntry of artifactContracts) {
+      const manifestValidatorEntry = manifestValidatorContractsByArtifactName.get(manifestEntry.artifactName);
+      if (!manifestValidatorEntry) {
+        throw new Error(`artifact-bundle manifest validator schemaContracts missing entry for ${manifestEntry.artifactName}`);
+      }
+      if (manifestValidatorEntry.artifactFile !== manifestEntry.artifactFile) {
+        throw new Error(
+          `artifact-bundle manifest validator artifactFile mismatch for ${manifestEntry.artifactName} `
+          + `(expected ${manifestEntry.artifactFile}, received ${manifestValidatorEntry.artifactFile})`
+        );
+      }
+      if (manifestValidatorEntry.schemaPath !== manifestEntry.schemaPathResolved) {
+        throw new Error(
+          `artifact-bundle manifest validator schemaPath mismatch for ${manifestEntry.artifactName} `
+          + `(expected ${manifestEntry.schemaPathResolved}, received ${manifestValidatorEntry.schemaPath})`
+        );
+      }
+      if (manifestValidatorEntry.schemaId !== manifestEntry.schemaId) {
+        throw new Error(
+          `artifact-bundle manifest validator schemaId mismatch for ${manifestEntry.artifactName} `
+          + `(expected ${manifestEntry.schemaId}, received ${manifestValidatorEntry.schemaId})`
+        );
+      }
+      if (manifestValidatorEntry.versionField !== manifestEntry.versionField) {
+        throw new Error(
+          `artifact-bundle manifest validator versionField mismatch for ${manifestEntry.artifactName} `
+          + `(expected ${manifestEntry.versionField}, received ${manifestValidatorEntry.versionField})`
+        );
+      }
+      const activeContractEntry = artifactContractEntries.find((entry) => entry.artifactName === manifestEntry.artifactName);
+      if (!activeContractEntry) {
+        throw new Error(`artifact contract entry missing for ${manifestEntry.artifactName}`);
+      }
+      if (manifestValidatorEntry.expectedSchemaVersion !== activeContractEntry.expectedSchemaVersion) {
+        throw new Error(
+          `artifact-bundle manifest validator expectedSchemaVersion mismatch for ${manifestEntry.artifactName} `
+          + `(expected ${activeContractEntry.expectedSchemaVersion}, received ${manifestValidatorEntry.expectedSchemaVersion})`
+        );
+      }
+    }
+  }
 
   const payload = buildCompatArtifactBundleValidatorSuccessPayload({
     reportDir,

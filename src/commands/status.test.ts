@@ -139,6 +139,20 @@ describe('status command', () => {
         path.join(clawvaultDir, 'last-checkpoint.json'),
         JSON.stringify({ timestamp, workingOn: 'sync', focus: null, blocked: null }, null, 2)
       );
+      fs.writeFileSync(
+        path.join(clawvaultDir, 'graph-index.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          vaultPath,
+          generatedAt: timestamp,
+          files: {},
+          graph: {
+            nodes: [],
+            edges: [],
+            stats: { nodeCount: 1, edgeCount: 0 }
+          }
+        }, null, 2)
+      );
 
       mockStats = { documents: 1, categories: { inbox: 1 } };
       mockCollection = 'vault';
@@ -151,8 +165,10 @@ describe('status command', () => {
       expect(status.qmd.indexStatus).toBe('present');
       expect(status.links.total).toBe(0);
       expect(status.links.orphans).toBe(0);
+      expect(status.graph.indexStatus).toBe('present');
       const formatted = formatStatus(status);
       expect(formatted).toContain('Issues: none');
+      expect(formatted).toContain('Graph:');
       expect(formatted).toContain('Links:');
     } finally {
       fs.rmSync(vaultPath, { recursive: true, force: true });

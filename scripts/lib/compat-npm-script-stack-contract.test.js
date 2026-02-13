@@ -33,6 +33,17 @@ function expectContainsInOrder(value, parts, label) {
   }
 }
 
+function expectContainsExactlyOnceInOrder(value, parts, label) {
+  expectContainsInOrder(value, parts, label);
+  for (const part of parts) {
+    expect(value.indexOf(part), `${label} contains no occurrence for segment: ${part}`).toBeGreaterThanOrEqual(0);
+    expect(
+      value.indexOf(part),
+      `${label} contains duplicate segment occurrence: ${part}`
+    ).toBe(value.lastIndexOf(part));
+  }
+}
+
 describe('compat npm script stack contracts', () => {
   it('keeps required compat script names present', () => {
     const scripts = loadPackageScripts();
@@ -82,7 +93,7 @@ describe('compat npm script stack contracts', () => {
     const scripts = loadPackageScripts();
     const artifactStackScript = scripts['test:compat-artifact-stack:fast'];
     expect(typeof artifactStackScript).toBe('string');
-    expectContainsInOrder(
+    expectContainsExactlyOnceInOrder(
       artifactStackScript,
       REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE,
       'test:compat-artifact-stack:fast'
@@ -93,7 +104,7 @@ describe('compat npm script stack contracts', () => {
     const scripts = loadPackageScripts();
     const reportStackScript = scripts['test:compat-report-stack:fast'];
     expect(typeof reportStackScript).toBe('string');
-    expectContainsInOrder(
+    expectContainsExactlyOnceInOrder(
       reportStackScript,
       REQUIRED_COMPAT_REPORT_STACK_SEQUENCE,
       'test:compat-report-stack:fast'
@@ -104,7 +115,7 @@ describe('compat npm script stack contracts', () => {
     const scripts = loadPackageScripts();
     const validatorStackScript = scripts['test:compat-validator-stack:fast'];
     expect(typeof validatorStackScript).toBe('string');
-    expectContainsInOrder(
+    expectContainsExactlyOnceInOrder(
       validatorStackScript,
       REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE,
       'test:compat-validator-stack:fast'
@@ -115,7 +126,7 @@ describe('compat npm script stack contracts', () => {
     const scripts = loadPackageScripts();
     const summaryFastScript = scripts['test:compat-summary:fast'];
     expect(typeof summaryFastScript).toBe('string');
-    expectContainsInOrder(
+    expectContainsExactlyOnceInOrder(
       summaryFastScript,
       REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE,
       'test:compat-summary:fast'
@@ -126,7 +137,7 @@ describe('compat npm script stack contracts', () => {
     const scripts = loadPackageScripts();
     const ciScript = scripts.ci;
     expect(typeof ciScript).toBe('string');
-    expectContainsInOrder(
+    expectContainsExactlyOnceInOrder(
       ciScript,
       REQUIRED_COMPAT_CI_SEQUENCE,
       'ci'

@@ -12,6 +12,7 @@ import {
   loadCaseManifest,
   parseCompatReport,
   selectCases,
+  summarizeFixtureResults,
   validateDeclaredCheckLabels,
   validateCheckStatusCoverage,
   validateExpectedCheckLabels,
@@ -186,6 +187,7 @@ function main() {
       return;
     }
     const results = cases.map((testCase) => runCase(testCase, env));
+    const resultSummary = summarizeFixtureResults(results);
     const telemetry = buildFixtureRunTelemetry(results, preflightDurationMs);
     writeSummaryReport(compatReportDir, {
       generatedAt: new Date().toISOString(),
@@ -194,12 +196,14 @@ function main() {
       selectedCases: cases.map((testCase) => testCase.name),
       expectedCheckLabels: manifest.expectedCheckLabels,
       runtimeCheckLabels: availableLabels,
-      total: results.length,
+      total: resultSummary.total,
       ...telemetry,
-      failures: results.filter((result) => !result.passed).length,
+      failures: resultSummary.failures,
+      passedCases: resultSummary.passedCases,
+      failedCases: resultSummary.failedCases,
       results
     });
-    const failures = results.filter((result) => !result.passed).length;
+    const failures = resultSummary.failures;
 
     if (failures > 0) {
       console.error(`Compatibility fixture check failed: ${failures} case(s).`);

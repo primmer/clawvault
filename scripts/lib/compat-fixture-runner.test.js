@@ -14,6 +14,7 @@ import {
   loadCases,
   parseCompatReport,
   selectCases,
+  summarizeFixtureResults,
   validateCheckStatusCoverage,
   validateDeclaredCheckLabels,
   validateExpectedCheckLabels,
@@ -654,6 +655,19 @@ describe('compat fixture runner utilities', () => {
       averageDurationMs: 0,
       overallDurationMs: 0,
       slowestCases: []
+    });
+  });
+
+  it('summarizes fixture pass/fail case names', () => {
+    expect(summarizeFixtureResults([
+      { name: 'healthy', passed: true },
+      { name: 'missing-events', passed: false },
+      { name: 'missing-package-hook', passed: false }
+    ])).toEqual({
+      total: 3,
+      failures: 2,
+      passedCases: ['healthy'],
+      failedCases: ['missing-events', 'missing-package-hook']
     });
   });
 

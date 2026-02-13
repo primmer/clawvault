@@ -378,6 +378,7 @@ program
   .option('--recent', 'Boost recent documents (enabled by default)', true)
   .option('--include-observations', 'Include observation memories in output', true)
   .option('--budget <number>', 'Optional token budget for assembled context')
+  .option('--profile <profile>', 'Context profile (default|planning|incident|handoff)', 'default')
   .option('-v, --vault <path>', 'Vault path')
   .action(async (task, options) => {
     try {
@@ -395,7 +396,8 @@ program
         format,
         recent: options.recent,
         includeObservations: options.includeObservations,
-        budget: parsedBudget
+        budget: parsedBudget,
+        profile: options.profile
       });
     } catch (err) {
       if (err instanceof QmdUnavailableError) {

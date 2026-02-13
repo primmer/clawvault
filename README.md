@@ -107,6 +107,9 @@ clawvault context "what decisions were made" --budget 2000
 
 clawvault context "what decisions were made" --format json
 # → includes explain metadata (signals + rationale) per entry
+
+clawvault context "plan database migration" --profile planning
+# → profile-tuned ordering for planning, incident, handoff, or default
 ```
 
 ## Search

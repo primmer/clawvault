@@ -9,6 +9,7 @@ Fixture runner validates full summary artifact shape/invariants before writing (
 - Fixtures-mode summary validation now also enforces per-result schema + status coherence (`passedCases`/`failedCases`) and selected-case ordering parity for emitted result lists.
 - `slowestCases` is contract-validated against emitted fixture results (exact `min(3,total)` length, descending order, and duration parity).
 - Result semantics are validated: passed entries must have no mismatches and matched expected/actual exits; failed entries must include mismatch details.
+- Summary shape validation is centralized at summary write time, so any future reporter writing `summary.json` inherits the same contract checks.
 
 - `cases.json` is the source of truth for expected outcomes.
   - includes `schemaVersion` for explicit contract evolution (current: `2`).

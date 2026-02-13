@@ -109,6 +109,7 @@
 - Compatibility summary validation now enforces fixture result-entry schema and coherence between `results`, pass/fail lists, and selected-case ordering, tightening downstream report contract guarantees.
 - Summary validation now enforces `slowestCases` coherence with fixture results (expected count, descending duration order, and exact per-case duration parity), reducing telemetry drift risk.
 - Compatibility summary validation now enforces pass/fail result semantics (failed cases must carry mismatch details, and passed cases must keep expected/actual exit-code parity).
+- Summary artifact writing now centrally validates summary shape in `writeSummaryReport`, ensuring all report emitters share one enforcement path.
 - Fixture manifest validation now requires `expectedCheckStatuses` labels to be declared in `expectedCheckLabels`, tightening declarative contract integrity.
 
 ## [1.11.2] - 2026-02-12

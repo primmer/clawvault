@@ -980,6 +980,46 @@ describe('compat fixture runner utilities', () => {
         'utf-8'
       );
       expect(() => validateCompatSummaryCaseReports(fixturesSummary, root)).not.toThrow();
+
+      fs.writeFileSync(
+        path.join(root, 'healthy.json'),
+        JSON.stringify({ generatedAt: new Date().toISOString() }, null, 2),
+        'utf-8'
+      );
+      expect(() => validateCompatSummaryCaseReports(fixturesSummary, root)).toThrow('report missing');
+
+      const contractSummary = {
+        ...buildCompatSummaryHeader({
+          generatedAt: '2026-02-13T00:00:00.000Z',
+          mode: 'contract',
+          schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+          selectedCases: ['healthy'],
+          expectedCheckLabels: ['openclaw CLI available'],
+          runtimeCheckLabels: ['openclaw CLI available']
+        }),
+        total: 0,
+        preflightDurationMs: 10,
+        totalDurationMs: 10,
+        averageDurationMs: 0,
+        overallDurationMs: 10,
+        slowestCases: [],
+        failures: 0,
+        passedCases: [],
+        failedCases: [],
+        results: []
+      };
+      expect(() => validateCompatSummaryCaseReports(contractSummary, root)).not.toThrow();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects malformed summary artifact content when loading from disk', () => {
+    const root = makeTempDir('compat-summary-artifact-');
+    const summaryPath = path.join(root, 'summary.json');
+    try {
+      fs.writeFileSync(summaryPath, '{"summarySchemaVersion":1', 'utf-8');
+      expect(() => loadCompatSummary(summaryPath)).toThrow('Unable to read compat summary');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

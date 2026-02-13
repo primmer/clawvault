@@ -51,6 +51,7 @@ import {
   REQUIRED_COMPAT_CI_UPLOAD_USES
 } from './compat-npm-script-contracts.mjs';
 import {
+  buildWorkflowDomainConsistencySnapshot,
   buildWorkflowJobsContractSnapshot,
   buildWorkflowContractSnapshot,
   countTopLevelFieldOccurrences,
@@ -121,6 +122,30 @@ describe('compat ci workflow contract', () => {
       REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.map((fieldName) => [fieldName, 1])
     );
     expect(extractTopLevelFieldNameCounts(workflowYaml)).toEqual(expectedFieldNameCounts);
+  });
+
+  it('keeps workflow domain consistency snapshot aligned with canonical uniqueness contracts', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const consistencySnapshot = buildWorkflowDomainConsistencySnapshot({
+      workflowYaml,
+      jobNames: REQUIRED_COMPAT_CI_JOB_NAMES
+    });
+    const expectedTopLevelFieldNameCounts = Object.fromEntries(
+      REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.map((fieldName) => [fieldName, 1])
+    );
+    const expectedJobNameCounts = Object.fromEntries(
+      REQUIRED_COMPAT_CI_JOB_NAMES.map((jobName) => [jobName, 1])
+    );
+    const expectedStepNameCountsByJobName = Object.fromEntries(
+      Object.entries(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES).map(([jobName, stepNames]) => [
+        jobName,
+        Object.fromEntries(stepNames.map((stepName) => [stepName, 1]))
+      ])
+    );
+
+    expect(consistencySnapshot.topLevelFieldNameCounts).toEqual(expectedTopLevelFieldNameCounts);
+    expect(consistencySnapshot.jobNameCounts).toEqual(expectedJobNameCounts);
+    expect(consistencySnapshot.stepNameCountsByJobName).toEqual(expectedStepNameCountsByJobName);
   });
 
   it('keeps workflow trigger domain aligned with push + pull-request contracts', () => {

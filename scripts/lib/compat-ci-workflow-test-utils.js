@@ -606,6 +606,32 @@ export function buildWorkflowJobsContractSnapshot({
   );
 }
 
+export function buildWorkflowDomainConsistencySnapshot({
+  workflowYaml,
+  jobNames
+}) {
+  const normalizedJobNames = Array.isArray(jobNames) && jobNames.length > 0
+    ? jobNames
+    : (extractTopLevelJobNames(workflowYaml) ?? []);
+  const stepNamesByJobName = {};
+  const stepNameCountsByJobName = {};
+  for (const jobName of normalizedJobNames) {
+    const jobBlock = extractJobBlock(workflowYaml, jobName);
+    const stepNames = jobBlock ? extractStepNames(jobBlock) : [];
+    stepNamesByJobName[jobName] = stepNames;
+    stepNameCountsByJobName[jobName] = extractStepNameCounts(jobBlock ?? '');
+  }
+
+  return {
+    topLevelFieldNames: extractTopLevelFieldNames(workflowYaml),
+    topLevelFieldNameCounts: extractTopLevelFieldNameCounts(workflowYaml),
+    jobNames: normalizedJobNames,
+    jobNameCounts: extractJobNameCounts(workflowYaml),
+    stepNamesByJobName,
+    stepNameCountsByJobName
+  };
+}
+
 export function buildWorkflowContractSnapshot({
   workflowYaml,
   jobName,

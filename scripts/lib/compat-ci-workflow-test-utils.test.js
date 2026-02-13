@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildWorkflowDomainConsistencySnapshot,
   buildWorkflowJobsContractSnapshot,
   buildWorkflowContractSnapshot,
   countTopLevelFieldOccurrences,
@@ -217,6 +218,39 @@ describe('compat ci workflow test utils', () => {
         stepNames.filter((candidateStepName) => candidateStepName === stepName).length
       );
     }
+  });
+
+  it('builds workflow domain consistency snapshots for reusable invariants', () => {
+    const snapshot = buildWorkflowDomainConsistencySnapshot({
+      workflowYaml: `\n${SAMPLE_WORKFLOW_YAML}\n`
+    });
+    expect(snapshot).toEqual({
+      topLevelFieldNames: ['name', 'on', 'jobs'],
+      topLevelFieldNameCounts: {
+        name: 1,
+        on: 1,
+        jobs: 1
+      },
+      jobNames: ['test-and-compat', 'second-job'],
+      jobNameCounts: {
+        'test-and-compat': 1,
+        'second-job': 1
+      },
+      stepNamesByJobName: {
+        'test-and-compat': ['First Step', 'Build', 'Upload'],
+        'second-job': ['Done']
+      },
+      stepNameCountsByJobName: {
+        'test-and-compat': {
+          'First Step': 1,
+          Build: 1,
+          Upload: 1
+        },
+        'second-job': {
+          Done: 1
+        }
+      }
+    });
   });
 
   it('extracts workflow trigger/jobs metadata with nonstandard section indentation', () => {

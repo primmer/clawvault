@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import {
   assertBuildFreshness,
   assertFixtureFiles,
+  buildCompatSummaryHeader,
   buildFixtureRunTelemetry,
   ensureReportDir,
   evaluateCaseReport,
@@ -169,13 +170,16 @@ function main() {
     validateCheckStatusCoverage(allCases, manifest.expectedCheckLabels);
     const preflightDurationMs = Date.now() - preflightStartedAtMs;
     if (validateOnly) {
+      const generatedAt = new Date().toISOString();
       writeSummaryReport(compatReportDir, {
-        generatedAt: new Date().toISOString(),
-        mode: 'contract',
-        schemaVersion: manifest.schemaVersion,
-        selectedCases: cases.map((testCase) => testCase.name),
-        expectedCheckLabels: manifest.expectedCheckLabels,
-        runtimeCheckLabels: availableLabels,
+        ...buildCompatSummaryHeader({
+          generatedAt,
+          mode: 'contract',
+          schemaVersion: manifest.schemaVersion,
+          selectedCases: cases.map((testCase) => testCase.name),
+          expectedCheckLabels: manifest.expectedCheckLabels,
+          runtimeCheckLabels: availableLabels
+        }),
         total: 0,
         preflightDurationMs,
         totalDurationMs: preflightDurationMs,
@@ -194,13 +198,16 @@ function main() {
     const results = cases.map((testCase) => runCase(testCase, env));
     const resultSummary = summarizeFixtureResults(results);
     const telemetry = buildFixtureRunTelemetry(results, preflightDurationMs);
+    const generatedAt = new Date().toISOString();
     writeSummaryReport(compatReportDir, {
-      generatedAt: new Date().toISOString(),
-      mode: 'fixtures',
-      schemaVersion: manifest.schemaVersion,
-      selectedCases: cases.map((testCase) => testCase.name),
-      expectedCheckLabels: manifest.expectedCheckLabels,
-      runtimeCheckLabels: availableLabels,
+      ...buildCompatSummaryHeader({
+        generatedAt,
+        mode: 'fixtures',
+        schemaVersion: manifest.schemaVersion,
+        selectedCases: cases.map((testCase) => testCase.name),
+        expectedCheckLabels: manifest.expectedCheckLabels,
+        runtimeCheckLabels: availableLabels
+      }),
       total: resultSummary.total,
       ...telemetry,
       failures: resultSummary.failures,

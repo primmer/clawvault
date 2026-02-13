@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export const COMPAT_FIXTURE_SCHEMA_VERSION = 2;
+export const COMPAT_SUMMARY_SCHEMA_VERSION = 1;
 export const VALID_CHECK_STATUSES = new Set(['ok', 'warn', 'error']);
 export const REQUIRED_FIXTURE_FILES = [
   'package.json',
@@ -406,6 +407,29 @@ export function summarizeFixtureResults(results) {
     failures: failedCases.length,
     passedCases,
     failedCases
+  };
+}
+
+export function buildCompatSummaryHeader({
+  generatedAt,
+  mode,
+  schemaVersion,
+  selectedCases,
+  expectedCheckLabels,
+  runtimeCheckLabels
+}) {
+  if (mode !== 'contract' && mode !== 'fixtures') {
+    throw new Error(`Unsupported summary mode: ${String(mode)}`);
+  }
+
+  return {
+    summarySchemaVersion: COMPAT_SUMMARY_SCHEMA_VERSION,
+    generatedAt,
+    mode,
+    schemaVersion,
+    selectedCases,
+    expectedCheckLabels,
+    runtimeCheckLabels
   };
 }
 

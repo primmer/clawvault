@@ -5,7 +5,9 @@ import * as path from 'path';
 import {
   assertBuildFreshness,
   COMPAT_FIXTURE_SCHEMA_VERSION,
+  COMPAT_SUMMARY_SCHEMA_VERSION,
   assertFixtureFiles,
+  buildCompatSummaryHeader,
   buildFixtureRunTelemetry,
   ensureReportDir,
   evaluateCaseReport,
@@ -669,6 +671,34 @@ describe('compat fixture runner utilities', () => {
       passedCases: ['healthy'],
       failedCases: ['missing-events', 'missing-package-hook']
     });
+  });
+
+  it('builds compatibility summary headers with schema versioning', () => {
+    const header = buildCompatSummaryHeader({
+      generatedAt: '2026-02-13T00:00:00.000Z',
+      mode: 'fixtures',
+      schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+      selectedCases: ['healthy'],
+      expectedCheckLabels: ['openclaw CLI available'],
+      runtimeCheckLabels: ['openclaw CLI available']
+    });
+    expect(header).toEqual({
+      summarySchemaVersion: COMPAT_SUMMARY_SCHEMA_VERSION,
+      generatedAt: '2026-02-13T00:00:00.000Z',
+      mode: 'fixtures',
+      schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+      selectedCases: ['healthy'],
+      expectedCheckLabels: ['openclaw CLI available'],
+      runtimeCheckLabels: ['openclaw CLI available']
+    });
+    expect(() => buildCompatSummaryHeader({
+      generatedAt: '',
+      mode: 'unknown',
+      schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+      selectedCases: [],
+      expectedCheckLabels: [],
+      runtimeCheckLabels: []
+    })).toThrow('Unsupported summary mode');
   });
 
   it('validates build freshness for compatibility checks', () => {

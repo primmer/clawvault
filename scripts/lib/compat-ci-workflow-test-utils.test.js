@@ -123,6 +123,26 @@ jobs:
           NODE_VERSION: \${{ matrix.node }}
 `.trim();
 
+const NONSTANDARD_SECTION_INDENT_WORKFLOW_YAML = `
+name: Alt CI
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+jobs:
+    alpha:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Alpha Step
+              run: echo alpha
+    beta:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Beta Step
+              run: echo beta
+`.trim();
+
 describe('compat ci workflow test utils', () => {
   it('extracts workflow-level trigger metadata', () => {
     expect(extractWorkflowName(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe('CI');
@@ -136,6 +156,18 @@ describe('compat ci workflow test utils', () => {
     expect(extractOnTriggerSectionFieldNames(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'pull_request')).toEqual([]);
     expect(extractPushBranches(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(['main', 'master']);
     expect(hasPullRequestTrigger(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toBe(true);
+  });
+
+  it('extracts workflow trigger/jobs metadata with nonstandard section indentation', () => {
+    const workflowYaml = `\n${NONSTANDARD_SECTION_INDENT_WORKFLOW_YAML}\n`;
+    expect(extractOnTriggerNames(workflowYaml)).toEqual(['push', 'pull_request']);
+    expect(extractOnTriggerSectionFieldNames(workflowYaml, 'push')).toEqual(['branches']);
+    expect(extractPushBranches(workflowYaml)).toEqual(['main']);
+    expect(extractTopLevelJobNames(workflowYaml)).toEqual(['alpha', 'beta']);
+    expect(countJobNameOccurrences(workflowYaml, 'alpha')).toBe(1);
+    expect(countJobNameOccurrences(workflowYaml, 'beta')).toBe(1);
+    expect(extractStepNames(workflowYaml)).toEqual(['Alpha Step', 'Beta Step']);
+    expect(countStepNameOccurrences(workflowYaml, 'Beta Step')).toBe(1);
   });
 
   it('builds normalized workflow contract snapshot view', () => {

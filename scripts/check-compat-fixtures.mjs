@@ -73,8 +73,23 @@ function parseCompatReport(stdout, caseName) {
   }
 }
 
+function assertFixtureFiles(caseName, fixturePath) {
+  const requiredPaths = [
+    'package.json',
+    'SKILL.md',
+    path.join('hooks', 'clawvault', 'HOOK.md'),
+    path.join('hooks', 'clawvault', 'handler.js')
+  ];
+
+  const missing = requiredPaths.filter((relativePath) => !fs.existsSync(path.join(fixturePath, relativePath)));
+  if (missing.length > 0) {
+    throw new Error(`fixture=${caseName} missing required files: ${missing.join(', ')}`);
+  }
+}
+
 function runCase(testCase, env) {
   const fixturePath = path.join(fixturesRoot, testCase.name);
+  assertFixtureFiles(testCase.name, fixturePath);
   const result = spawnSync(
     process.execPath,
     ['./bin/clawvault.js', 'compat', '--strict', '--base-dir', fixturePath, '--json'],

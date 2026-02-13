@@ -14,6 +14,7 @@ import {
   extractOnTriggerSectionFieldNames,
   extractPushBranches,
   extractNestedSectionFieldNames,
+  extractNestedSectionListOrMultilineFieldValues,
   extractNestedSectionScalarFieldValue,
   extractTopLevelFieldNames,
   extractTopLevelJobNames,
@@ -78,6 +79,14 @@ const LIST_STYLE_UPLOAD_STEP_SNIPPET = `
     path:
       - \${{ runner.temp }}/reports/a.json
       - \${{ runner.temp }}/reports/b.json
+    if-no-files-found: ignore
+`.trim();
+
+const SCALAR_PATH_UPLOAD_STEP_SNIPPET = `
+- name: Upload
+  uses: actions/upload-artifact@v4
+  with:
+    path: \${{ runner.temp }}/reports/single.json
     if-no-files-found: ignore
 `.trim();
 
@@ -324,13 +333,25 @@ describe('compat ci workflow test utils', () => {
       '${{ runner.temp }}/reports/a.json',
       '${{ runner.temp }}/reports/b.json'
     ]);
-  });
-
-  it('extracts upload artifact paths from list-style path blocks', () => {
-    expect(extractUploadArtifactPaths(LIST_STYLE_UPLOAD_STEP_SNIPPET)).toEqual([
+    expect(extractNestedSectionListOrMultilineFieldValues(uploadStepBlock, 'with', 'path')).toEqual([
       '${{ runner.temp }}/reports/a.json',
       '${{ runner.temp }}/reports/b.json'
     ]);
+  });
+
+  it('extracts upload artifact paths from list-style path blocks', () => {
+    const expectedPaths = [
+      '${{ runner.temp }}/reports/a.json',
+      '${{ runner.temp }}/reports/b.json'
+    ];
+    expect(extractUploadArtifactPaths(LIST_STYLE_UPLOAD_STEP_SNIPPET)).toEqual(expectedPaths);
+    expect(extractNestedSectionListOrMultilineFieldValues(LIST_STYLE_UPLOAD_STEP_SNIPPET, 'with', 'path')).toEqual(expectedPaths);
+  });
+
+  it('extracts upload artifact paths from scalar path fields and keeps parity with specialized helper', () => {
+    const expectedPaths = ['${{ runner.temp }}/reports/single.json'];
+    expect(extractUploadArtifactPaths(SCALAR_PATH_UPLOAD_STEP_SNIPPET)).toEqual(expectedPaths);
+    expect(extractNestedSectionListOrMultilineFieldValues(SCALAR_PATH_UPLOAD_STEP_SNIPPET, 'with', 'path')).toEqual(expectedPaths);
   });
 
   it('returns null for missing steps/fields/path blocks', () => {

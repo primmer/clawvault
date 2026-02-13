@@ -45,6 +45,7 @@
 - Added consolidated `npm run ci` local gate and wired CI workflow to use it for parity with local validation.
 - Compatibility fixture matrix now validates additional hard-failure drift cases (missing required hook events, missing package hook registration) and asserts JSON report shape/signals.
 - Compatibility fixture matrix expectations are now declarative via `tests/compat-fixtures/cases.json` for easier extension.
+- Compatibility unit tests now assert command diagnostics against the declarative fixture expectations to keep CLI and fixture runner semantics aligned.
 
 ## [1.11.2] - 2026-02-12
 

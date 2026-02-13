@@ -19,6 +19,9 @@ import {
 import {
   parseValidatorCliArgs
 } from './lib/validator-cli-parser.mjs';
+import {
+  COMPAT_CONTRACT_PATHS
+} from './lib/compat-contract-paths.mjs';
 
 function parseCliArgs(argv) {
   const { parsed, positional } = parseValidatorCliArgs(argv, {
@@ -116,8 +119,8 @@ function main() {
   }
 
   const { summaryPath, reportDir } = resolvePaths(args);
-  const summarySchemaPath = resolveSchemaPath(args.summarySchemaPath, path.join('schemas', 'compat-summary.schema.json'));
-  const caseSchemaPath = resolveSchemaPath(args.caseSchemaPath, path.join('schemas', 'compat-case-report.schema.json'));
+  const summarySchemaPath = resolveSchemaPath(args.summarySchemaPath, COMPAT_CONTRACT_PATHS.summarySchema);
+  const caseSchemaPath = resolveSchemaPath(args.caseSchemaPath, COMPAT_CONTRACT_PATHS.caseReportSchema);
   const summary = loadJsonObject(summaryPath, 'compat summary');
   const ajv = createJsonSchemaAjv();
   const { validate: validateSummary } = compileSchemaFromPath(ajv, summarySchemaPath, 'compat summary');

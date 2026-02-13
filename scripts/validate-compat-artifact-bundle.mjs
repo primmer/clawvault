@@ -51,6 +51,10 @@ import {
 import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
 } from './lib/compat-artifact-bundle-contracts.mjs';
+import {
+  resolveCompatArtifactBundleManifestPath,
+  resolveCompatCaseReportSchemaPath
+} from './lib/compat-contract-paths.mjs';
 
 function parseCliArgs(argv) {
   return parseValidatorCliArgs(argv, {
@@ -99,7 +103,7 @@ function resolveManifestPath(args) {
   if (args.manifestPath && args.manifestPath.trim()) {
     return path.resolve(process.cwd(), args.manifestPath);
   }
-  return path.resolve(process.cwd(), 'schemas', 'compat-artifact-bundle.manifest.json');
+  return resolveCompatArtifactBundleManifestPath();
 }
 
 function main() {
@@ -189,7 +193,7 @@ function main() {
     validatorResultVerifierPayload,
     schemaValidatorPayload,
     artifactContracts,
-    expectedCaseSchemaPath: path.resolve(process.cwd(), 'schemas', 'compat-case-report.schema.json')
+    expectedCaseSchemaPath: resolveCompatCaseReportSchemaPath()
   });
   ensureRequireOkStatuses({
     requireOk,

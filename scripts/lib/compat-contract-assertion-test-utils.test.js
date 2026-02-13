@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   expectEachDomainValueOccursExactlyOnce,
+  expectUniqueDomainCountMapByKeyParity,
+  expectUniqueDomainCountMapParity,
   expectUnitCountMapByKeyParity,
   expectUnitCountMapParity
 } from './compat-contract-assertion-test-utils.js';
@@ -86,6 +88,64 @@ describe('compat contract assertion test utils', () => {
         ['alpha'],
         (value) => counts[value] ?? 0,
         'mismatched domain occurrence check'
+      );
+    }).toThrow();
+  });
+
+  it('asserts unique domain count-map parity', () => {
+    expectUniqueDomainCountMapParity(
+      ['alpha', 'beta'],
+      {
+        alpha: 1,
+        beta: 1
+      },
+      'unique domain parity'
+    );
+  });
+
+  it('asserts unique keyed domain count-map parity', () => {
+    expectUniqueDomainCountMapByKeyParity(
+      {
+        jobs: ['test', 'build'],
+        steps: ['checkout']
+      },
+      {
+        jobs: {
+          test: 1,
+          build: 1
+        },
+        steps: {
+          checkout: 1
+        }
+      },
+      'unique keyed domain parity'
+    );
+  });
+
+  it('throws when unique domain parity receives duplicate values', () => {
+    expect(() => {
+      expectUniqueDomainCountMapParity(
+        ['alpha', 'alpha'],
+        {
+          alpha: 1
+        },
+        'duplicate unique domain parity'
+      );
+    }).toThrow();
+  });
+
+  it('throws when unique keyed domain parity receives duplicate values', () => {
+    expect(() => {
+      expectUniqueDomainCountMapByKeyParity(
+        {
+          jobs: ['test', 'test']
+        },
+        {
+          jobs: {
+            test: 1
+          }
+        },
+        'duplicate unique keyed domain parity'
       );
     }).toThrow();
   });

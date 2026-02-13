@@ -86,8 +86,8 @@ import {
 } from './compat-ci-workflow-test-utils.js';
 import {
   expectEachDomainValueOccursExactlyOnce,
-  expectUnitCountMapByKeyParity,
-  expectUnitCountMapParity
+  expectUniqueDomainCountMapByKeyParity,
+  expectUniqueDomainCountMapParity
 } from './compat-contract-assertion-test-utils.js';
 
 function loadCiWorkflowYaml() {
@@ -123,7 +123,7 @@ describe('compat ci workflow contract', () => {
 
   it('keeps workflow top-level field count map aligned with uniqueness contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    expectUnitCountMapParity(
+    expectUniqueDomainCountMapParity(
       REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
       extractTopLevelFieldNameCounts(workflowYaml),
       'workflow top-level fields'
@@ -136,17 +136,17 @@ describe('compat ci workflow contract', () => {
       workflowYaml,
       jobNames: REQUIRED_COMPAT_CI_JOB_NAMES
     });
-    expectUnitCountMapParity(
+    expectUniqueDomainCountMapParity(
       REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
       consistencySnapshot.topLevelFieldNameCounts,
       'workflow consistency snapshot top-level fields'
     );
-    expectUnitCountMapParity(
+    expectUniqueDomainCountMapParity(
       REQUIRED_COMPAT_CI_JOB_NAMES,
       consistencySnapshot.jobNameCounts,
       'workflow consistency snapshot job names'
     );
-    expectUnitCountMapByKeyParity(
+    expectUniqueDomainCountMapByKeyParity(
       REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES,
       consistencySnapshot.stepNameCountsByJobName,
       'workflow consistency snapshot step-name counts by job'
@@ -310,7 +310,7 @@ describe('compat ci workflow contract', () => {
 
   it('keeps CI job count map aligned with required job uniqueness contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
-    expectUnitCountMapParity(
+    expectUniqueDomainCountMapParity(
       REQUIRED_COMPAT_CI_JOB_NAMES,
       extractJobNameCounts(workflowYaml),
       'workflow job-name counts'
@@ -382,7 +382,7 @@ describe('compat ci workflow contract', () => {
     for (const [jobName, requiredStepNames] of Object.entries(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES)) {
       const jobBlock = extractJobBlock(workflowYaml, jobName);
       expect(jobBlock, `missing CI workflow job: ${jobName}`).toBeTruthy();
-      expectUnitCountMapParity(
+      expectUniqueDomainCountMapParity(
         requiredStepNames,
         extractStepNameCounts(jobBlock),
         `step-name counts for ${jobName}`

@@ -1,0 +1,202 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import Ajv2020 from 'ajv/dist/2020.js';
+
+function parseCliArgs(argv) {
+  const parsed = {
+    summaryPath: '',
+    reportDir: '',
+    summarySchemaPath: '',
+    caseSchemaPath: '',
+    help: false,
+    allowMissingCaseReports: false
+  };
+  const positional = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === '--help' || value === '-h') {
+      parsed.help = true;
+      continue;
+    }
+    if (value === '--allow-missing-case-reports') {
+      parsed.allowMissingCaseReports = true;
+      continue;
+    }
+    if (value === '--summary') {
+      const nextValue = argv[index + 1];
+      if (!nextValue || nextValue.startsWith('--')) {
+        throw new Error('Missing value for --summary');
+      }
+      parsed.summaryPath = nextValue;
+      index += 1;
+      continue;
+    }
+    if (value === '--report-dir') {
+      const nextValue = argv[index + 1];
+      if (!nextValue || nextValue.startsWith('--')) {
+        throw new Error('Missing value for --report-dir');
+      }
+      parsed.reportDir = nextValue;
+      index += 1;
+      continue;
+    }
+    if (value === '--summary-schema') {
+      const nextValue = argv[index + 1];
+      if (!nextValue || nextValue.startsWith('--')) {
+        throw new Error('Missing value for --summary-schema');
+      }
+      parsed.summarySchemaPath = nextValue;
+      index += 1;
+      continue;
+    }
+    if (value === '--case-schema') {
+      const nextValue = argv[index + 1];
+      if (!nextValue || nextValue.startsWith('--')) {
+        throw new Error('Missing value for --case-schema');
+      }
+      parsed.caseSchemaPath = nextValue;
+      index += 1;
+      continue;
+    }
+    if (value.startsWith('--')) {
+      throw new Error(`Unknown option: ${value}`);
+    }
+    positional.push(value);
+  }
+
+  if (!parsed.summaryPath && positional.length > 0) {
+    parsed.summaryPath = positional[0];
+  }
+
+  return parsed;
+}
+
+function printHelp() {
+  console.log('Usage: node scripts/validate-compat-report-schemas.mjs [summary.json]');
+  console.log('       node scripts/validate-compat-report-schemas.mjs --summary <summary.json> [--report-dir <dir>]');
+  console.log('       node scripts/validate-compat-report-schemas.mjs --summary-schema <schema.json> --case-schema <schema.json>');
+  console.log('');
+  console.log('Resolution order:');
+  console.log('  summary path : --summary | positional arg | COMPAT_SUMMARY_PATH | COMPAT_REPORT_DIR/summary.json');
+  console.log('  report dir   : --report-dir | COMPAT_REPORT_DIR | dirname(summary path)');
+  console.log('  summary schema: --summary-schema | schemas/compat-summary.schema.json');
+  console.log('  case schema   : --case-schema | schemas/compat-case-report.schema.json');
+  console.log('  flags         : --allow-missing-case-reports');
+}
+
+function resolvePaths(args) {
+  const reportDir = args.reportDir && args.reportDir.trim()
+    ? path.resolve(process.cwd(), args.reportDir)
+    : (
+      process.env.COMPAT_REPORT_DIR && process.env.COMPAT_REPORT_DIR.trim()
+        ? path.resolve(process.cwd(), process.env.COMPAT_REPORT_DIR)
+        : ''
+    );
+
+  if (args.summaryPath && args.summaryPath.trim()) {
+    const summaryPath = path.resolve(process.cwd(), args.summaryPath);
+    return {
+      summaryPath,
+      reportDir: reportDir || path.dirname(summaryPath)
+    };
+  }
+
+  if (process.env.COMPAT_SUMMARY_PATH && process.env.COMPAT_SUMMARY_PATH.trim()) {
+    const summaryPath = path.resolve(process.cwd(), process.env.COMPAT_SUMMARY_PATH);
+    return {
+      summaryPath,
+      reportDir: reportDir || path.dirname(summaryPath)
+    };
+  }
+
+  if (reportDir) {
+    return {
+      summaryPath: path.join(reportDir, 'summary.json'),
+      reportDir
+    };
+  }
+
+  throw new Error('Missing summary path. Provide <summary.json>, COMPAT_SUMMARY_PATH, or COMPAT_REPORT_DIR.');
+}
+
+function resolveSchemaPath(value, fallback) {
+  if (value && value.trim()) {
+    return path.resolve(process.cwd(), value);
+  }
+  return path.resolve(process.cwd(), fallback);
+}
+
+function loadJsonObject(payloadPath, label) {
+  try {
+    const raw = fs.readFileSync(payloadPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label} must be a JSON object`);
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error(`Unable to read ${label} at ${payloadPath}: ${err?.message || String(err)}`);
+  }
+}
+
+function formatSchemaErrors(errors, label) {
+  return (errors ?? [])
+    .map((entry) => `${label} [${entry.keyword}] ${entry.instancePath || '/'} ${entry.message || ''}`.trim());
+}
+
+function validateWithCompiledSchema(validate, schemaPath, payload, label) {
+  const valid = validate(payload);
+  if (!valid) {
+    const details = formatSchemaErrors(validate.errors, label);
+    throw new Error(`Schema validation failed for ${label} using ${schemaPath}: ${details.join('; ')}`);
+  }
+}
+
+function main() {
+  const args = parseCliArgs(process.argv.slice(2));
+  if (args.help) {
+    printHelp();
+    return;
+  }
+
+  const { summaryPath, reportDir } = resolvePaths(args);
+  const summarySchemaPath = resolveSchemaPath(args.summarySchemaPath, path.join('schemas', 'compat-summary.schema.json'));
+  const caseSchemaPath = resolveSchemaPath(args.caseSchemaPath, path.join('schemas', 'compat-case-report.schema.json'));
+  const summary = loadJsonObject(summaryPath, 'compat summary');
+  const summarySchema = loadJsonObject(summarySchemaPath, 'compat summary schema');
+  const caseSchema = loadJsonObject(caseSchemaPath, 'compat case-report schema');
+
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validateSummary = ajv.compile(summarySchema);
+  const validateCaseReport = ajv.compile(caseSchema);
+  validateWithCompiledSchema(validateSummary, summarySchemaPath, summary, 'compat summary');
+
+  let validatedCaseReports = 0;
+  if (!args.allowMissingCaseReports && summary.mode === 'fixtures') {
+    const results = Array.isArray(summary.results) ? summary.results : [];
+    for (const result of results) {
+      const caseName = String(result?.name ?? '');
+      const caseReportPath = path.join(reportDir, `${caseName}.json`);
+      if (!fs.existsSync(caseReportPath)) {
+        throw new Error(`Missing case report for summary result: ${caseName}`);
+      }
+      const caseReport = loadJsonObject(caseReportPath, `compat case report (${caseName})`);
+      validateWithCompiledSchema(validateCaseReport, caseSchemaPath, caseReport, `compat case report (${caseName})`);
+      validatedCaseReports += 1;
+    }
+  }
+
+  const caseReportMode = args.allowMissingCaseReports ? 'skipped-case-reports' : 'validated-case-reports';
+  console.log(
+    `Compatibility report schema validation passed mode=${summary.mode} summary=${summaryPath} reportDir=${reportDir} validatedCaseReports=${validatedCaseReports} ${caseReportMode}`
+  );
+}
+
+try {
+  main();
+} catch (err) {
+  const message = err?.message || String(err);
+  console.error(message);
+  process.exit(1);
+}

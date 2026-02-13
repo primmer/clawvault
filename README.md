@@ -282,6 +282,8 @@ npm run test:compat-summary:verify -- /tmp/clawvault-compat-reports/summary.json
 npm run test:compat-validator-result:verify -- /tmp/clawvault-compat-reports/validator-result.json
 # explicit verifier CLI options:
 node scripts/validate-compat-validator-result.mjs --validator-result /tmp/clawvault-compat-reports/validator-result.json --json --out /tmp/verifier-result.json
+# enforce success-only validator-result status in strict automation paths
+node scripts/validate-compat-validator-result.mjs --validator-result /tmp/clawvault-compat-reports/validator-result.json --require-ok
 # use --help for verifier usage and path-resolution rules
 # or run fixture generation + standalone summary validation together
 npm run test:compat-summary:fast

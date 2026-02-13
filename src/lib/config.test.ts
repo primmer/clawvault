@@ -45,4 +45,33 @@ describe('config path resolution', () => {
       fs.rmSync(env, { recursive: true, force: true });
     }
   });
+
+  it('resolves env path before cwd discovery', () => {
+    const env = makeTempDir('clawvault-env-');
+    const cwdRoot = makeTempDir('clawvault-cwd-');
+    const nested = path.join(cwdRoot, 'nested');
+    fs.mkdirSync(nested, { recursive: true });
+    fs.writeFileSync(path.join(cwdRoot, '.clawvault.json'), '{}', 'utf-8');
+    process.env.CLAWVAULT_PATH = env;
+
+    try {
+      const resolved = resolveVaultPath({ cwd: nested });
+      expect(resolved).toBe(path.resolve(env));
+    } finally {
+      fs.rmSync(env, { recursive: true, force: true });
+      fs.rmSync(cwdRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when no explicit path, env, or discovered vault exists', () => {
+    const cwd = makeTempDir('clawvault-missing-');
+    delete process.env.CLAWVAULT_PATH;
+    try {
+      expect(() => resolveVaultPath({ cwd })).toThrow(
+        'No vault path found. Set CLAWVAULT_PATH, use --vault, or run inside a vault.'
+      );
+    } finally {
+      fs.rmSync(cwd, { recursive: true, force: true });
+    }
+  });
 });

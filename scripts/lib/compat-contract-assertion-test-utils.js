@@ -62,6 +62,20 @@ export function expectKeyedStringMapValueParity(valuesByKey, keyDomain, resolveE
   }
 }
 
+export function expectKeyedNonEmptyStringValues(valuesByKey, keyDomain, label, options = {}) {
+  const { requireExactKeyDomain = true } = options;
+  expect(valuesByKey && typeof valuesByKey === 'object', `${label} must be an object`).toBe(true);
+  expect(Array.isArray(valuesByKey), `${label} must not be an array`).toBe(false);
+  expectNonEmptyUniqueStringArray(keyDomain, `${label} key domain`);
+  if (requireExactKeyDomain) {
+    expectObjectKeyDomainParity(valuesByKey, keyDomain, `${label} exact key-domain`);
+  }
+  for (const key of keyDomain) {
+    expect(Object.hasOwn(valuesByKey, key), `${label} is missing key: ${key}`).toBe(true);
+    expectNonEmptyString(valuesByKey[key], `${label}[${key}] value`);
+  }
+}
+
 export function expectNonEmptyStringRecord(valuesByKey, label, options = {}) {
   const { requireNonEmpty = false } = options;
   expect(valuesByKey && typeof valuesByKey === 'object', `${label} must be an object`).toBe(true);

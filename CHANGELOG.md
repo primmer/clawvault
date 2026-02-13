@@ -22,6 +22,7 @@
 - Hook event matching now supports alias payload shapes (`event`, `eventName`, etc.) for better OpenClaw compatibility.
 - `link` and `entities` commands now consistently respect `--vault` without requiring `CLAWVAULT_PATH`.
 - Memory graph index now auto-refreshes on vault writes/reindex and link mutations, reducing stale graph context.
+- `doctor` and `status` now report memory graph index presence/staleness to aid long-running agent hygiene.
 
 ## [1.11.2] - 2026-02-12
 

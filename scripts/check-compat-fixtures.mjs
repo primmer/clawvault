@@ -24,6 +24,7 @@ const distEntryPath = path.join(repoRoot, 'dist', 'index.js');
 const compatReportDir = process.env.COMPAT_REPORT_DIR
   ? path.resolve(process.env.COMPAT_REPORT_DIR)
   : '';
+const validateOnly = process.env.COMPAT_VALIDATE_ONLY === '1';
 
 function createOpenClawShim() {
   const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-openclaw-shim-'));
@@ -148,6 +149,16 @@ function main() {
     const availableLabels = discoverCompatCheckLabels(env);
     validateDeclaredCheckLabels(manifest.expectedCheckLabels, availableLabels);
     validateExpectedCheckLabels(allCases, manifest.expectedCheckLabels);
+    if (validateOnly) {
+      writeSummaryReport({
+        generatedAt: new Date().toISOString(),
+        total: 0,
+        failures: 0,
+        results: []
+      });
+      console.log('Compatibility fixture contract validation passed.');
+      return;
+    }
     const results = cases.map((testCase) => runCase(testCase, env));
     writeSummaryReport({
       generatedAt: new Date().toISOString(),

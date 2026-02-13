@@ -127,6 +127,10 @@ Decision details`
   it('loads graph data from memory graph index when present', async () => {
     const vaultPath = makeTempVault();
     try {
+      writeVaultFile(vaultPath, 'decisions/use-clawvault.md', '# Placeholder');
+      writeVaultFile(vaultPath, 'projects/clawvault.md', '# Placeholder project');
+      const decisionMtime = fs.statSync(path.join(vaultPath, 'decisions/use-clawvault.md')).mtimeMs;
+      const projectMtime = fs.statSync(path.join(vaultPath, 'projects/clawvault.md')).mtimeMs;
       const indexPath = path.join(vaultPath, '.clawvault', 'graph-index.json');
       fs.mkdirSync(path.dirname(indexPath), { recursive: true });
       fs.writeFileSync(
@@ -134,7 +138,14 @@ Decision details`
         JSON.stringify({
           schemaVersion: 1,
           files: {
-            'decisions/use-clawvault.md': { relativePath: 'decisions/use-clawvault.md' }
+            'decisions/use-clawvault.md': {
+              relativePath: 'decisions/use-clawvault.md',
+              mtimeMs: decisionMtime
+            },
+            'projects/clawvault.md': {
+              relativePath: 'projects/clawvault.md',
+              mtimeMs: projectMtime
+            }
           },
           graph: {
             nodes: [
@@ -183,7 +194,59 @@ Decision details`
           label: 'related'
         }
       ]);
-      expect(graph.stats.fileCount).toBe(1);
+      expect(graph.stats.fileCount).toBe(2);
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to markdown parsing when memory graph index is stale', async () => {
+    const vaultPath = makeTempVault();
+    try {
+      writeVaultFile(vaultPath, 'projects/clawvault.md', '# ClawVault');
+      writeVaultFile(vaultPath, 'decisions/use-clawvault.md', 'See [[projects/clawvault]].');
+
+      const indexPath = path.join(vaultPath, '.clawvault', 'graph-index.json');
+      fs.mkdirSync(path.dirname(indexPath), { recursive: true });
+      fs.writeFileSync(
+        indexPath,
+        JSON.stringify({
+          schemaVersion: 1,
+          generatedAt: '2026-02-13T00:00:00.000Z',
+          files: {
+            'decisions/use-clawvault.md': { relativePath: 'decisions/use-clawvault.md', mtimeMs: 1 },
+            'projects/clawvault.md': { relativePath: 'projects/clawvault.md', mtimeMs: 1 }
+          },
+          graph: {
+            nodes: [
+              {
+                id: 'note:decisions/use-clawvault',
+                title: 'Old node',
+                type: 'decision',
+                category: 'decisions',
+                tags: [],
+                path: 'decisions/use-clawvault.md',
+                missing: false,
+                degree: 0
+              }
+            ],
+            edges: [],
+            stats: { generatedAt: '2026-02-13T00:00:00.000Z' }
+          }
+        }),
+        'utf8'
+      );
+
+      const graph = await buildVaultGraph(vaultPath);
+      const node = graph.nodes.find((candidate) => candidate.id === 'decisions/use-clawvault');
+      expect(node?.title).not.toBe('Old node');
+      expect(graph.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'decisions/use-clawvault',
+          target: 'projects/clawvault',
+          type: 'wiki_link'
+        })
+      ]));
     } finally {
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }

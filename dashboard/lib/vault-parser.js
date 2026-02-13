@@ -34,9 +34,13 @@ export async function buildVaultGraph(vaultPath, options = {}) {
   const includeDangling = options.includeDangling !== false;
   const root = path.resolve(vaultPath);
   const preferIndex = options.preferIndex !== false;
+  const validateIndexFreshness = options.validateIndexFreshness !== false;
 
   if (preferIndex) {
-    const indexedGraph = await loadGraphFromMemoryIndex(root, { includeDangling });
+    const indexedGraph = await loadGraphFromMemoryIndex(root, {
+      includeDangling,
+      validateFreshness: validateIndexFreshness
+    });
     if (indexedGraph) {
       return indexedGraph;
     }
@@ -208,6 +212,7 @@ export async function buildVaultGraph(vaultPath, options = {}) {
 
 async function loadGraphFromMemoryIndex(root, options = {}) {
   const includeDangling = options.includeDangling !== false;
+  const validateFreshness = options.validateFreshness !== false;
   const indexPath = path.join(root, ...MEMORY_GRAPH_INDEX_PATH);
 
   let parsed;
@@ -221,6 +226,13 @@ async function loadGraphFromMemoryIndex(root, options = {}) {
   const graph = parsed?.graph;
   if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
     return null;
+  }
+
+  if (validateFreshness) {
+    const fresh = await isIndexFresh(root, parsed);
+    if (!fresh) {
+      return null;
+    }
   }
 
   const nodeById = new Map();
@@ -299,6 +311,49 @@ async function loadGraphFromMemoryIndex(root, options = {}) {
       edgeTypeCounts
     }
   };
+}
+
+async function isIndexFresh(root, parsedIndex) {
+  const indexedFiles = parsedIndex?.files;
+  if (!indexedFiles || typeof indexedFiles !== 'object') {
+    return false;
+  }
+
+  const markdownFiles = await collectMarkdownFiles(root);
+  const normalizedCurrent = markdownFiles
+    .map((absolutePath) => toPosixPath(path.relative(root, absolutePath)))
+    .sort((a, b) => a.localeCompare(b));
+  const indexedPaths = Object.keys(indexedFiles).sort((a, b) => a.localeCompare(b));
+
+  if (normalizedCurrent.length !== indexedPaths.length) {
+    return false;
+  }
+
+  for (let index = 0; index < normalizedCurrent.length; index += 1) {
+    if (normalizedCurrent[index] !== indexedPaths[index]) {
+      return false;
+    }
+  }
+
+  for (const relativePath of indexedPaths) {
+    const fragment = indexedFiles[relativePath];
+    const expectedMtime = Number(fragment?.mtimeMs);
+    if (!Number.isFinite(expectedMtime)) {
+      return false;
+    }
+    const absolutePath = path.join(root, relativePath);
+    let stat;
+    try {
+      stat = await fs.stat(absolutePath);
+    } catch {
+      return false;
+    }
+    if (Math.abs(stat.mtimeMs - expectedMtime) > 1) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 async function collectMarkdownFiles(root) {

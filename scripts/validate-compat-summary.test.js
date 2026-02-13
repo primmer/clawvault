@@ -106,6 +106,31 @@ describe('validate-compat-summary script', () => {
       const result = runSummaryValidator([], { COMPAT_REPORT_DIR: root });
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('selected=1');
+      expect(result.stdout).toContain(`reportDir=${root}`);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('supports --summary and --report-dir overrides', () => {
+    const root = makeTempDir('compat-summary-script-');
+    try {
+      const summary = buildFixturesSummary();
+      const summaryRoot = path.join(root, 'summary-root');
+      const reportRoot = path.join(root, 'reports');
+      fs.mkdirSync(summaryRoot, { recursive: true });
+      fs.mkdirSync(reportRoot, { recursive: true });
+      const summaryPath = path.join(summaryRoot, 'summary.json');
+      fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf-8');
+      fs.writeFileSync(
+        path.join(reportRoot, 'healthy.json'),
+        JSON.stringify({ generatedAt: new Date().toISOString(), checks: [], warnings: 0, errors: 0 }, null, 2),
+        'utf-8'
+      );
+
+      const result = runSummaryValidator(['--summary', summaryPath, '--report-dir', reportRoot]);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(`reportDir=${reportRoot}`);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -118,5 +143,15 @@ describe('validate-compat-summary script', () => {
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Missing summary path');
+  });
+
+  it('fails with clear cli-argument errors for invalid options', () => {
+    const unknownOptionResult = runSummaryValidator(['--unknown']);
+    expect(unknownOptionResult.status).toBe(1);
+    expect(unknownOptionResult.stderr).toContain('Unknown option');
+
+    const missingReportDirResult = runSummaryValidator(['--report-dir']);
+    expect(missingReportDirResult.status).toBe(1);
+    expect(missingReportDirResult.stderr).toContain('Missing value for --report-dir');
   });
 });

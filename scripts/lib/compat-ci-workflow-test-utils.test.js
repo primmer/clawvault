@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractEnvField,
+  extractJobBlock,
+  extractJobMetadata,
   extractRunCommand,
   extractScalarField,
   extractStepBlock,
@@ -29,9 +31,25 @@ jobs:
             \${{ runner.temp }}/reports/a.json
             \${{ runner.temp }}/reports/b.json
           if-no-files-found: ignore
+  second-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Done
+        run: echo done
 `.trim();
 
 describe('compat ci workflow test utils', () => {
+  it('extracts job metadata/block boundaries and scalar fields', () => {
+    const metadata = extractJobMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'test-and-compat');
+    expect(metadata).toBeTruthy();
+    expect(metadata.startIndex).toBeGreaterThanOrEqual(0);
+    const jobBlock = extractJobBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'test-and-compat');
+    expect(jobBlock).toContain('runs-on: ubuntu-latest');
+    expect(jobBlock).toContain('- name: Upload');
+    expect(jobBlock).not.toContain('second-job:');
+    expect(extractScalarField(jobBlock, 'runs-on')).toBe('ubuntu-latest');
+  });
+
   it('extracts step metadata/block and run/env fields', () => {
     const metadata = extractStepMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Build');
     expect(metadata).toBeTruthy();
@@ -57,6 +75,8 @@ describe('compat ci workflow test utils', () => {
   it('returns null for missing steps/fields/path blocks', () => {
     const missingStepBlock = extractStepBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step');
     expect(missingStepBlock).toBe(null);
+    expect(extractJobBlock(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Job')).toBe(null);
+    expect(extractJobMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Job')).toBe(null);
     expect(extractStepMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step')).toBe(null);
     expect(extractScalarField('run: npm test', 'missing')).toBe(null);
     expect(extractUploadArtifactPaths('- name: Upload\n  uses: actions/upload-artifact@v4')).toBe(null);

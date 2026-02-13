@@ -2,6 +2,27 @@ export function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function extractJobMetadata(workflowYaml, jobName) {
+  const jobHeaderPattern = new RegExp(`\\n\\s{2}${escapeRegex(jobName)}:\\s*\\n`);
+  const headerMatch = jobHeaderPattern.exec(workflowYaml);
+  if (!headerMatch) {
+    return null;
+  }
+  const startIndex = headerMatch.index;
+  const remainder = workflowYaml.slice(startIndex + headerMatch[0].length);
+  const nextJobMatch = /\n  [A-Za-z0-9_-]+:\s*\n/.exec(remainder);
+  return {
+    startIndex,
+    block: nextJobMatch
+      ? workflowYaml.slice(startIndex, startIndex + headerMatch[0].length + nextJobMatch.index)
+      : workflowYaml.slice(startIndex)
+  };
+}
+
+export function extractJobBlock(workflowYaml, jobName) {
+  return extractJobMetadata(workflowYaml, jobName)?.block ?? null;
+}
+
 export function extractStepMetadata(workflowYaml, stepName) {
   const stepHeaderPattern = new RegExp(`\\n\\s+- name:\\s+${escapeRegex(stepName)}\\s*\\n`);
   const headerMatch = stepHeaderPattern.exec(workflowYaml);

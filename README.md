@@ -264,6 +264,8 @@ COMPAT_REPORT_DIR=/tmp/clawvault-compat-reports npm run test:compat-fixtures
 node scripts/validate-compat-summary.mjs /tmp/clawvault-compat-reports/summary.json
 # explicit option form (also supports custom case-report directory)
 node scripts/validate-compat-summary.mjs --summary /tmp/clawvault-compat-reports/summary.json --report-dir /tmp/clawvault-compat-reports
+# see validator usage/help
+node scripts/validate-compat-summary.mjs --help
 # equivalent npm wrapper (supports arg passthrough, env fallback)
 npm run test:compat-summary:verify -- /tmp/clawvault-compat-reports/summary.json
 # or run fixture generation + standalone summary validation together

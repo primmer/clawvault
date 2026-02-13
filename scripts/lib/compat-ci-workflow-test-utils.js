@@ -121,19 +121,64 @@ export function hasPullRequestTrigger(workflowYaml) {
 }
 
 export function extractJobMetadata(workflowYaml, jobName) {
-  const jobHeaderPattern = new RegExp(`\\n\\s{2}${escapeRegex(jobName)}:\\s*\\n`);
-  const headerMatch = jobHeaderPattern.exec(workflowYaml);
-  if (!headerMatch) {
+  const lines = workflowYaml.split('\n');
+  const lineStartIndexes = computeLineStartIndexes(lines);
+  const jobsLineIndex = lines.findIndex((line) => line.trim() === 'jobs:');
+  if (jobsLineIndex < 0) {
     return null;
   }
-  const startIndex = headerMatch.index;
-  const remainder = workflowYaml.slice(startIndex + headerMatch[0].length);
-  const nextJobMatch = /\n  [A-Za-z0-9_-]+:\s*\n/.exec(remainder);
+
+  let jobHeaderLineIndex = -1;
+  const jobHeaderPattern = /^([A-Za-z0-9_-]+):\s*$/;
+  for (let index = jobsLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent === 0) {
+      break;
+    }
+    if (lineIndent === 2) {
+      const headerMatch = jobHeaderPattern.exec(trimmedLine);
+      if (headerMatch && headerMatch[1] === jobName) {
+        jobHeaderLineIndex = index;
+        break;
+      }
+    }
+  }
+  if (jobHeaderLineIndex < 0) {
+    return null;
+  }
+
+  const jobHeaderIndent = countLeadingSpaces(lines[jobHeaderLineIndex]);
+  let blockEndLineIndex = lines.length;
+  for (let index = jobHeaderLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent < jobHeaderIndent) {
+      blockEndLineIndex = index;
+      break;
+    }
+    if (lineIndent === jobHeaderIndent && jobHeaderPattern.test(trimmedLine)) {
+      blockEndLineIndex = index;
+      break;
+    }
+    if (lineIndent === 0) {
+      blockEndLineIndex = index;
+      break;
+    }
+  }
+
+  const startIndex = lineStartIndexes[jobHeaderLineIndex];
   return {
     startIndex,
-    block: nextJobMatch
-      ? workflowYaml.slice(startIndex, startIndex + headerMatch[0].length + nextJobMatch.index)
-      : workflowYaml.slice(startIndex)
+    block: lines.slice(jobHeaderLineIndex, blockEndLineIndex).join('\n')
   };
 }
 
@@ -208,6 +253,16 @@ function countLeadingSpaces(line) {
   return line.length - line.trimStart().length;
 }
 
+function computeLineStartIndexes(lines) {
+  const lineStartIndexes = [];
+  let currentOffset = 0;
+  for (const line of lines) {
+    lineStartIndexes.push(currentOffset);
+    currentOffset += line.length + 1;
+  }
+  return lineStartIndexes;
+}
+
 export function extractNestedSectionFieldNames(stepBlock, sectionName) {
   const lines = stepBlock.split('\n');
   const sectionLineIndex = lines.findIndex((line) => {
@@ -269,16 +324,48 @@ export function countScalarFieldOccurrences(block, fieldName) {
 }
 
 export function extractStepMetadata(workflowYaml, stepName) {
-  const stepHeaderPattern = new RegExp(`\\n\\s+- name:\\s+${escapeRegex(stepName)}\\s*\\n`);
-  const headerMatch = stepHeaderPattern.exec(workflowYaml);
-  if (!headerMatch) {
+  const lines = workflowYaml.split('\n');
+  const lineStartIndexes = computeLineStartIndexes(lines);
+  let stepHeaderLineIndex = -1;
+  let stepHeaderIndent = 0;
+  const stepHeaderPattern = /^(\s*)-\s+name:\s+(.+?)\s*$/;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const headerMatch = stepHeaderPattern.exec(line);
+    if (!headerMatch) {
+      continue;
+    }
+    if (headerMatch[2].trim() === stepName) {
+      stepHeaderLineIndex = index;
+      stepHeaderIndent = headerMatch[1].length;
+      break;
+    }
+  }
+  if (stepHeaderLineIndex < 0) {
     return null;
   }
-  const startIndex = headerMatch.index;
-  const nextStepIndex = workflowYaml.indexOf('\n      - name:', startIndex + headerMatch[0].length);
+
+  let blockEndLineIndex = lines.length;
+  for (let index = stepHeaderLineIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+    const lineIndent = countLeadingSpaces(line);
+    if (lineIndent < stepHeaderIndent) {
+      blockEndLineIndex = index;
+      break;
+    }
+    if (lineIndent === stepHeaderIndent && /^\s*-\s+name:\s+/.test(line)) {
+      blockEndLineIndex = index;
+      break;
+    }
+  }
+
   return {
-    startIndex,
-    block: nextStepIndex < 0 ? workflowYaml.slice(startIndex) : workflowYaml.slice(startIndex, nextStepIndex)
+    startIndex: lineStartIndexes[stepHeaderLineIndex],
+    block: lines.slice(stepHeaderLineIndex, blockEndLineIndex).join('\n')
   };
 }
 

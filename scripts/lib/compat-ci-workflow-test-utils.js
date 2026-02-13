@@ -2,6 +2,14 @@ export function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function buildCountMap(values) {
+  return values.reduce((counts, value) => {
+    const existingCount = counts[value] ?? 0;
+    counts[value] = existingCount + 1;
+    return counts;
+  }, {});
+}
+
 function extractTopLevelFieldEntries(workflowYaml) {
   return workflowYaml
     .split('\n')
@@ -30,11 +38,7 @@ export function extractTopLevelFieldNames(workflowYaml) {
 }
 
 export function extractTopLevelFieldNameCounts(workflowYaml) {
-  return extractTopLevelFieldEntries(workflowYaml).reduce((counts, entry) => {
-    const existingCount = counts[entry.fieldName] ?? 0;
-    counts[entry.fieldName] = existingCount + 1;
-    return counts;
-  }, {});
+  return buildCountMap(extractTopLevelFieldEntries(workflowYaml).map((entry) => entry.fieldName));
 }
 
 function findSectionHeaderLineIndex(lines, sectionName) {
@@ -286,19 +290,11 @@ export function extractJobNameCounts(workflowYaml) {
   if (!Array.isArray(jobNames)) {
     return {};
   }
-  return jobNames.reduce((counts, jobName) => {
-    const existingCount = counts[jobName] ?? 0;
-    counts[jobName] = existingCount + 1;
-    return counts;
-  }, {});
+  return buildCountMap(jobNames);
 }
 
 export function extractStepNameCounts(workflowYamlOrJobBlock) {
-  return extractStepNames(workflowYamlOrJobBlock).reduce((counts, stepName) => {
-    const existingCount = counts[stepName] ?? 0;
-    counts[stepName] = existingCount + 1;
-    return counts;
-  }, {});
+  return buildCountMap(extractStepNames(workflowYamlOrJobBlock));
 }
 
 export function extractStepNames(workflowYamlOrJobBlock) {
@@ -440,16 +436,13 @@ export function countScalarFieldOccurrences(block, fieldName) {
 }
 
 export function extractScalarFieldNameCounts(block) {
-  return block
+  return buildCountMap(
+    block
     .split('\n')
     .map((line) => line.trim())
     .map((line) => /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line)?.[1] ?? null)
     .filter((fieldName) => typeof fieldName === 'string' && fieldName.length > 0)
-    .reduce((counts, fieldName) => {
-      const existingCount = counts[fieldName] ?? 0;
-      counts[fieldName] = existingCount + 1;
-      return counts;
-    }, {});
+  );
 }
 
 export function extractStepMetadata(workflowYaml, stepName) {

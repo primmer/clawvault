@@ -40,6 +40,26 @@ function loadCases() {
   return parsed;
 }
 
+function selectCases(cases) {
+  const rawSelection = process.env.COMPAT_CASES;
+  if (!rawSelection || !rawSelection.trim()) {
+    return cases;
+  }
+
+  const selected = rawSelection
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const selectedSet = new Set(selected);
+  const missing = selected.filter((name) => !cases.some((testCase) => testCase.name === name));
+  if (missing.length > 0) {
+    throw new Error(`Unknown COMPAT_CASES entries: ${missing.join(', ')}`);
+  }
+
+  return cases.filter((testCase) => selectedSet.has(testCase.name));
+}
+
 function createOpenClawShim() {
   const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-openclaw-shim-'));
   const shimPath = path.join(shimDir, 'openclaw');
@@ -139,7 +159,7 @@ function runCase(testCase, env) {
 }
 
 function main() {
-  const cases = loadCases();
+  const cases = selectCases(loadCases());
   const { shimDir } = createOpenClawShim();
   const env = {
     ...process.env,

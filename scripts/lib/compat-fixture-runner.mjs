@@ -244,6 +244,19 @@ export function parseCompatReport(stdout, caseName) {
   }
 }
 
+function loadJsonObject(filePath, label) {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label} must be a JSON object`);
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error(`Unable to read ${label} at ${filePath}: ${err?.message || String(err)}`);
+  }
+}
+
 function collectDuplicateValues(values) {
   return values
     .filter((value, index, array) => array.indexOf(value) !== index)
@@ -644,6 +657,26 @@ export function ensureCompatSummaryShape(summary) {
       }
       previousDurationMs = entry.durationMs;
     }
+  }
+}
+
+export function loadCompatSummary(summaryPath) {
+  const summary = loadJsonObject(summaryPath, 'compat summary');
+  ensureCompatSummaryShape(summary);
+  return summary;
+}
+
+export function validateCompatSummaryCaseReports(summary, reportDir) {
+  if (summary.mode !== 'fixtures') return;
+  if (!Array.isArray(summary.results) || summary.results.length === 0) return;
+
+  for (const result of summary.results) {
+    const reportPath = path.join(reportDir, `${result.name}.json`);
+    if (!fs.existsSync(reportPath)) {
+      throw new Error(`Missing case report for summary result: ${result.name}`);
+    }
+    const report = loadJsonObject(reportPath, `compat case report (${result.name})`);
+    ensureCompatReportShape(report, result.name);
   }
 }
 

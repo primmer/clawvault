@@ -13,11 +13,13 @@ import {
   evaluateCaseReport,
   ensureCompatReportShape,
   ensureCompatSummaryShape,
+  loadCompatSummary,
   loadCaseManifest,
   loadCases,
   parseCompatReport,
   selectCases,
   summarizeFixtureResults,
+  validateCompatSummaryCaseReports,
   validateCheckStatusCoverage,
   validateDeclaredCheckLabels,
   validateExpectedCheckLabels,
@@ -672,6 +674,8 @@ describe('compat fixture runner utilities', () => {
       expect(fs.existsSync(summaryPath)).toBe(true);
       expect(JSON.parse(fs.readFileSync(casePath, 'utf-8'))).toEqual(report);
       expect(JSON.parse(fs.readFileSync(summaryPath, 'utf-8'))).toEqual(summary);
+      expect(loadCompatSummary(summaryPath)).toEqual(summary);
+      expect(() => validateCompatSummaryCaseReports(summary, root)).not.toThrow();
 
       expect(() => ensureReportDir('')).not.toThrow();
       expect(() => writeCaseReport('', { name: 'healthy' }, report)).not.toThrow();
@@ -932,6 +936,52 @@ describe('compat fixture runner utilities', () => {
       }],
       passedCases: ['healthy']
     })).toThrow('contract summary must report zero total/failures');
+  });
+
+  it('validates fixtures summary case report artifacts from summary entries', () => {
+    const root = makeTempDir('compat-summary-artifact-');
+    try {
+      const fixturesSummary = {
+        ...buildCompatSummaryHeader({
+          generatedAt: '2026-02-13T00:00:00.000Z',
+          mode: 'fixtures',
+          schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+          selectedCases: ['healthy'],
+          expectedCheckLabels: ['openclaw CLI available'],
+          runtimeCheckLabels: ['openclaw CLI available']
+        }),
+        total: 1,
+        preflightDurationMs: 10,
+        totalDurationMs: 20,
+        averageDurationMs: 20,
+        overallDurationMs: 30,
+        slowestCases: [{ name: 'healthy', durationMs: 20 }],
+        failures: 0,
+        passedCases: ['healthy'],
+        failedCases: [],
+        results: [{
+          name: 'healthy',
+          expectedExitCode: 0,
+          actualExitCode: 0,
+          passed: true,
+          durationMs: 20,
+          mismatches: []
+        }]
+      };
+      const summaryPath = path.join(root, 'summary.json');
+      fs.writeFileSync(summaryPath, JSON.stringify(fixturesSummary, null, 2), 'utf-8');
+      expect(loadCompatSummary(summaryPath)).toEqual(fixturesSummary);
+
+      expect(() => validateCompatSummaryCaseReports(fixturesSummary, root)).toThrow('Missing case report');
+      fs.writeFileSync(
+        path.join(root, 'healthy.json'),
+        JSON.stringify({ generatedAt: new Date().toISOString(), checks: [], warnings: 0, errors: 0 }, null, 2),
+        'utf-8'
+      );
+      expect(() => validateCompatSummaryCaseReports(fixturesSummary, root)).not.toThrow();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('validates build freshness for compatibility checks', () => {

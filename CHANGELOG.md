@@ -56,6 +56,7 @@
 - Compatibility unit tests now assert expected diagnostic detail substrings from declarative cases, not only status/count outputs.
 - Added `npm run test:compat-smoke` for fast healthy-fixture compatibility checks during local iteration.
 - Compatibility fixture matrix now covers missing `SKILL.md` OpenClaw metadata as an explicit warning-drift scenario.
+- Compatibility fixture matrix now also covers unsafe hook handler conventions (`execSync` and missing `--profile auto` delegation) as warning-drift scenarios.
 
 ## [1.11.2] - 2026-02-12
 

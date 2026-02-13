@@ -18,3 +18,4 @@ Current fixture scenarios:
 - `missing-events` — error for missing required hook events.
 - `missing-package-hook` — error for missing `openclaw.hooks` registration.
 - `missing-skill-openclaw` — warning for missing `metadata.openclaw` in `SKILL.md`.
+- `unsafe-hook-handler` — warning for unsafe hook execution conventions (`execSync`, missing shared profile delegation).

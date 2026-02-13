@@ -218,6 +218,7 @@ npm run test:compat-fixtures
 # fixture manifest includes schemaVersion for explicit contract evolution
 # supports expected status, detail snippets, and hint snippets per check
 # each case also owns its scenario description (README coverage is validated)
+# expected check labels are validated against live compat output to catch stale contracts
 # includes a fresh build before running fixtures
 
 # Quick smoke check (healthy fixture only)

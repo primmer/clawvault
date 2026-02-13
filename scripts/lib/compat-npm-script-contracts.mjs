@@ -190,12 +190,23 @@ export const REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-artifact-bundle:verify:schema'
 ]);
 
+function deriveNpmRunTargets(sequence) {
+  return Object.freeze(
+    sequence
+      .filter((segment) => segment.startsWith('npm run '))
+      .map((segment) => segment.slice('npm run '.length).split(' ')[0])
+  );
+}
+
+export const REQUIRED_COMPAT_ARTIFACT_STACK_RUN_TARGETS = deriveNpmRunTargets(REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE);
+
 export const REQUIRED_COMPAT_REPORT_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-report-schemas:verify:report',
   'npm run test:compat-report-schemas:verify:schema',
   'npm run test:compat-validator-stack:fast',
   'npm run test:compat-artifact-stack:fast'
 ]);
+export const REQUIRED_COMPAT_REPORT_STACK_RUN_TARGETS = deriveNpmRunTargets(REQUIRED_COMPAT_REPORT_STACK_SEQUENCE);
 
 export const REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-validator-result:verify:report',
@@ -203,6 +214,7 @@ export const REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-schema-validator-result:verify',
   'npm run test:compat-validator-result:verify:schema'
 ]);
+export const REQUIRED_COMPAT_VALIDATOR_STACK_RUN_TARGETS = deriveNpmRunTargets(REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE);
 
 export const REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-script-stack-contract:fast',
@@ -210,6 +222,7 @@ export const REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE = Object.freeze([
   'node scripts/validate-compat-summary.mjs --out',
   'npm run test:compat-report-stack:fast'
 ]);
+export const REQUIRED_COMPAT_SUMMARY_STACK_RUN_TARGETS = deriveNpmRunTargets(REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE);
 
 export const REQUIRED_COMPAT_CI_SEQUENCE = Object.freeze([
   'npm run test:compat-script-stack-contract:fast',
@@ -219,6 +232,7 @@ export const REQUIRED_COMPAT_CI_SEQUENCE = Object.freeze([
   'npm run test:compat-contract:fast',
   'npm run test:compat-summary:fast'
 ]);
+export const REQUIRED_COMPAT_CI_RUN_TARGETS = deriveNpmRunTargets(REQUIRED_COMPAT_CI_SEQUENCE);
 
 export const REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS = Object.freeze([
   Object.freeze({

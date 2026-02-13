@@ -4,14 +4,19 @@ import * as path from 'path';
 import {
   REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS,
   REQUIRED_COMPAT_CI_REACHABLE_SCRIPT_NAMES,
+  REQUIRED_COMPAT_CI_RUN_TARGETS,
   REQUIRED_COMPAT_CI_SEQUENCE,
   REQUIRED_COMPAT_ARTIFACT_CLI_DRIFT_PATHS,
+  REQUIRED_COMPAT_ARTIFACT_STACK_RUN_TARGETS,
   REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE,
   REQUIRED_COMPAT_NPM_SCRIPT_NAMES,
+  REQUIRED_COMPAT_REPORT_STACK_RUN_TARGETS,
   REQUIRED_COMPAT_REPORT_STACK_SEQUENCE,
   REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS,
   REQUIRED_COMPAT_SCRIPT_REFERENCE_SOURCES,
+  REQUIRED_COMPAT_SUMMARY_STACK_RUN_TARGETS,
   REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE,
+  REQUIRED_COMPAT_VALIDATOR_STACK_RUN_TARGETS,
   REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE
 } from './compat-npm-script-contracts.mjs';
 import {
@@ -118,6 +123,7 @@ describe('compat npm script stack contracts', () => {
       REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE,
       'test:compat-artifact-stack:fast'
     );
+    expect(collectNpmRunTargets(artifactStackScript)).toEqual(REQUIRED_COMPAT_ARTIFACT_STACK_RUN_TARGETS);
   });
 
   it('keeps fast report stack chained through validator/artifact stacks', () => {
@@ -129,6 +135,7 @@ describe('compat npm script stack contracts', () => {
       REQUIRED_COMPAT_REPORT_STACK_SEQUENCE,
       'test:compat-report-stack:fast'
     );
+    expect(collectNpmRunTargets(reportStackScript)).toEqual(REQUIRED_COMPAT_REPORT_STACK_RUN_TARGETS);
   });
 
   it('keeps fast validator stack sequence ordered for verifier/schema gates', () => {
@@ -140,6 +147,7 @@ describe('compat npm script stack contracts', () => {
       REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE,
       'test:compat-validator-stack:fast'
     );
+    expect(collectNpmRunTargets(validatorStackScript)).toEqual(REQUIRED_COMPAT_VALIDATOR_STACK_RUN_TARGETS);
   });
 
   it('keeps fast summary stack chained through report stack', () => {
@@ -151,6 +159,7 @@ describe('compat npm script stack contracts', () => {
       REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE,
       'test:compat-summary:fast'
     );
+    expect(collectNpmRunTargets(summaryFastScript)).toEqual(REQUIRED_COMPAT_SUMMARY_STACK_RUN_TARGETS);
   });
 
   it('keeps ci script ordered through core + compat gates', () => {
@@ -162,6 +171,7 @@ describe('compat npm script stack contracts', () => {
       REQUIRED_COMPAT_CI_SEQUENCE,
       'ci'
     );
+    expect(collectNpmRunTargets(ciScript)).toEqual(REQUIRED_COMPAT_CI_RUN_TARGETS);
   });
 
   it('keeps artifact producers ordered before their consumer gates', () => {

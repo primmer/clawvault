@@ -535,6 +535,25 @@ export function ensureCompatSummaryShape(summary) {
   if (summary.total !== summary.passedCases.length + summary.failedCases.length) {
     throw new Error('compat summary total must equal passedCases.length + failedCases.length');
   }
+
+  if (summary.mode === 'contract') {
+    if (summary.total !== 0 || summary.failures !== 0) {
+      throw new Error('contract summary must report zero total/failures');
+    }
+    if (summary.passedCases.length > 0 || summary.failedCases.length > 0 || summary.results.length > 0) {
+      throw new Error('contract summary must not include case result entries');
+    }
+    if (summary.slowestCases.length > 0) {
+      throw new Error('contract summary must not include slowestCases entries');
+    }
+  } else {
+    if (summary.total !== summary.selectedTotal) {
+      throw new Error('fixtures summary total must equal selectedTotal');
+    }
+    if (summary.slowestCases.length > Math.min(3, summary.total)) {
+      throw new Error('fixtures summary slowestCases length exceeds allowed limit');
+    }
+  }
 }
 
 export function assertBuildFreshness(sourcePath, buildPath, label = 'build artifact') {

@@ -393,6 +393,22 @@ export function buildFixtureRunTelemetry(results, preflightDurationMs) {
   };
 }
 
+export function summarizeFixtureResults(results) {
+  const failedCases = results
+    .filter((result) => !result.passed)
+    .map((result) => String(result.name ?? ''));
+  const passedCases = results
+    .filter((result) => result.passed)
+    .map((result) => String(result.name ?? ''));
+
+  return {
+    total: results.length,
+    failures: failedCases.length,
+    passedCases,
+    failedCases
+  };
+}
+
 export function assertBuildFreshness(sourcePath, buildPath, label = 'build artifact') {
   if (!fs.existsSync(buildPath)) {
     throw new Error(`Missing ${label}: ${buildPath}. Run \`npm run build\` before compatibility checks.`);

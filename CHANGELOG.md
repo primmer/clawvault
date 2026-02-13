@@ -125,6 +125,7 @@
 - Compatibility report parsing/validation now enforces per-check schema (`label` uniqueness, valid statuses, optional detail/hint typing) and count coherence (`warnings`/`errors` must match status tallies).
 - Standalone summary validator now supports `--allow-missing-case-reports` for summary-only validation contexts where per-case report files are unavailable.
 - Standalone summary validator now supports `--json` output for machine-readable automation workflows.
+- Validator JSON mode now emits schema-versioned success payloads and structured error payloads (`status:error`) for automation-friendly failure handling.
 
 ## [1.11.2] - 2026-02-12
 

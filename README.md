@@ -268,6 +268,7 @@ node scripts/validate-compat-summary.mjs --summary /tmp/clawvault-compat-reports
 node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --allow-missing-case-reports
 # machine-readable success output for automation
 node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --json
+# json output is schema-versioned and also used for machine-readable error payloads
 # see validator usage/help
 node scripts/validate-compat-summary.mjs --help
 # equivalent npm wrapper (supports arg passthrough, env fallback)

@@ -8,6 +8,9 @@ import {
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_STEP_NAME,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_USES,
+  REQUIRED_COMPAT_CI_WORKFLOW_NAME,
+  REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
+  REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES,
   REQUIRED_COMPAT_CI_JOB_NAME,
   REQUIRED_COMPAT_CI_JOB_RUNS_ON,
   REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES,
@@ -96,6 +99,20 @@ describe('compat npm script contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_USES.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND).toBe('string');
     expect(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND.length).toBeGreaterThan(0);
+    expect(typeof REQUIRED_COMPAT_CI_WORKFLOW_NAME).toBe('string');
+    expect(REQUIRED_COMPAT_CI_WORKFLOW_NAME.length).toBeGreaterThan(0);
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES, 'REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES');
+    expect(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES).toEqual(expect.arrayContaining([
+      'name',
+      'on',
+      'jobs'
+    ]));
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES, 'REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES');
+    expect(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES).toEqual(expect.arrayContaining([
+      'main',
+      'master',
+      'cursor/**'
+    ]));
     expect(typeof REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_CHECKOUT_USES).toBe('string');

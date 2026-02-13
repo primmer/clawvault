@@ -49,6 +49,18 @@ export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES = Object.freeze([
   'artifact-bundle-manifest-validator-result.json'
 ]);
 
+export const REQUIRED_COMPAT_CI_WORKFLOW_NAME = 'CI';
+export const REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES = Object.freeze([
+  'name',
+  'on',
+  'jobs'
+]);
+export const REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES = Object.freeze([
+  'main',
+  'master',
+  'cursor/**'
+]);
+
 export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX = '${{ runner.temp }}/compat-reports/';
 export const REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME = 'Upload compatibility summary artifact';
 export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME = 'compat-summary';

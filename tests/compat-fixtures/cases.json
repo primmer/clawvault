@@ -71,6 +71,18 @@
     "expectedDetailIncludes": {
       "skill metadata": "Missing metadata.openclaw"
     }
+  },
+  {
+    "name": "unsafe-hook-handler",
+    "expectedExitCode": 1,
+    "expectedWarnings": 1,
+    "expectedErrors": 0,
+    "expectedCheckStatuses": {
+      "hook handler safety": "warn"
+    },
+    "expectedDetailIncludes": {
+      "hook handler safety": "execFileSync-only execution path"
+    }
   }
   ]
 }

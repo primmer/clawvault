@@ -39,6 +39,7 @@
     "test:compat-fixtures:fast:report": "COMPAT_REPORT_DIR=${COMPAT_REPORT_DIR:-.compat-reports} npm run test:compat-fixtures:fast",
     "test:compat-contract": "npm run build && COMPAT_VALIDATE_ONLY=1 node scripts/check-compat-fixtures.mjs",
     "test:compat-contract:fast": "COMPAT_VALIDATE_ONLY=1 node scripts/check-compat-fixtures.mjs",
+    "test:compat-summary:verify": "node scripts/validate-compat-summary.mjs",
     "test:compat-summary": "COMPAT_REPORT_DIR=${COMPAT_REPORT_DIR:-.compat-reports} npm run test:compat-fixtures && COMPAT_REPORT_DIR=${COMPAT_REPORT_DIR:-.compat-reports} node scripts/validate-compat-summary.mjs",
     "test:compat-summary:fast": "COMPAT_REPORT_DIR=${COMPAT_REPORT_DIR:-.compat-reports} npm run test:compat-fixtures:fast && COMPAT_REPORT_DIR=${COMPAT_REPORT_DIR:-.compat-reports} node scripts/validate-compat-summary.mjs",
     "test:compat-smoke": "npm run test:compat-contract:fast && COMPAT_CASES=healthy npm run test:compat-fixtures:fast",

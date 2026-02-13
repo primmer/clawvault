@@ -161,6 +161,26 @@ describe('compat artifact bundle validator output payload contracts', () => {
 
     expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
       outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'ok',
+      reportDir: '/tmp/reports',
+      summaryMode: 'fixtures',
+      requireOk: true,
+      summaryPath: '/tmp/reports/summary.json',
+      validatorResultPath: '/tmp/reports/validator-result.json',
+      reportSchemaValidatorResultPath: '/tmp/reports/report-schema-validator-result.json',
+      schemaValidatorResultPath: '/tmp/reports/schema-validator-result.json',
+      validatorResultVerifierResultPath: '/tmp/reports/validator-result-verifier-result.json',
+      artifactBundleManifestValidatorResultPath: '/tmp/reports/artifact-bundle-manifest-validator-result.json',
+      verifiedArtifacts: artifactContracts.map((entry) => entry.artifactName),
+      artifactContracts: artifactContracts.map((entry) => (
+        entry.artifactName === 'summary.json'
+          ? { ...entry, versionField: 'outputSchemaVersion' }
+          : entry
+      ))
+    })).toThrow('artifactContracts entry for summary.json must use versionField=summarySchemaVersion');
+
+    expect(() => ensureCompatArtifactBundleValidatorPayloadShape({
+      outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION,
       status: 'error',
       error: ''
     })).toThrow('field "error"');

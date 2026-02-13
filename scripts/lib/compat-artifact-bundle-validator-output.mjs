@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import {
-  REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
 export const COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION = 1;
@@ -114,6 +115,13 @@ export function ensureCompatArtifactBundleValidatorPayloadShape(payload) {
         throw new Error(
           `compat artifact bundle validator payload ${fieldName} must match artifactContracts path for ${artifactName} `
           + `(expected ${entry.artifactPath}, received ${payload[fieldName]})`
+        );
+      }
+      const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[artifactName];
+      if (entry.versionField !== expectedVersionField) {
+        throw new Error(
+          `compat artifact bundle validator payload artifactContracts entry for ${artifactName} `
+          + `must use versionField=${expectedVersionField}`
         );
       }
     }

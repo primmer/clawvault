@@ -129,6 +129,128 @@
           "artifactBundleManifestValidatorResultPath",
           "verifiedArtifacts",
           "artifactContracts"
+        ],
+        "allOf": [
+          {
+            "properties": {
+              "verifiedArtifacts": {
+                "contains": { "const": "summary.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "verifiedArtifacts": {
+                "contains": { "const": "report-schema-validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "verifiedArtifacts": {
+                "contains": { "const": "validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "verifiedArtifacts": {
+                "contains": { "const": "schema-validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "verifiedArtifacts": {
+                "contains": { "const": "validator-result-verifier-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "verifiedArtifacts": {
+                "contains": { "const": "artifact-bundle-manifest-validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifactContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "summary.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifactContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "report-schema-validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifactContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifactContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "schema-validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifactContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "validator-result-verifier-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifactContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "artifact-bundle-manifest-validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          }
         ]
       }
     },

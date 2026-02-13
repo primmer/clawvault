@@ -105,6 +105,31 @@ describe('compat fixture runner utilities', () => {
     }
   });
 
+  it('rejects invalid openclawExitCode metadata', () => {
+    const root = makeTempDir('compat-cases-');
+    const file = path.join(root, 'cases.json');
+    fs.writeFileSync(file, JSON.stringify({
+      schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+      expectedCheckLabels: ['hook handler safety'],
+      cases: [
+        {
+          name: 'bad-openclaw-exit-code',
+          description: 'fixture with invalid openclawExitCode metadata.',
+          expectedExitCode: 1,
+          expectedWarnings: 1,
+          expectedErrors: 0,
+          expectedCheckStatuses: { 'hook handler safety': 'warn' },
+          openclawExitCode: 999
+        }
+      ]
+    }), 'utf-8');
+    try {
+      expect(() => loadCases(file)).toThrow('openclawExitCode');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects invalid expectedHintIncludes metadata', () => {
     const root = makeTempDir('compat-cases-');
     const file = path.join(root, 'cases.json');

@@ -25,6 +25,23 @@
     }
   },
   {
+    "name": "broken-openclaw-cli",
+    "description": "warning when openclaw CLI exists but is not runnable.",
+    "openclawExitCode": 2,
+    "expectedExitCode": 1,
+    "expectedWarnings": 1,
+    "expectedErrors": 0,
+    "expectedCheckStatuses": {
+      "openclaw CLI available": "warn"
+    },
+    "expectedDetailIncludes": {
+      "openclaw CLI available": "exited with code 2"
+    },
+    "expectedHintIncludes": {
+      "openclaw CLI available": "runnable in PATH"
+    }
+  },
+  {
     "name": "missing-requires-bin",
     "description": "warning for missing metadata.openclaw.requires.bins.",
     "expectedExitCode": 1,

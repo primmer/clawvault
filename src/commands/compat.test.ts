@@ -176,7 +176,6 @@ describe('checkOpenClawCompatibility', () => {
   });
 
   it('matches declarative compatibility fixture expectations', async () => {
-    spawnSyncMock.mockReturnValue({ error: undefined });
     const { checkOpenClawCompatibility, compatibilityExitCode } = await loadCompatModule();
     const casesPath = path.resolve(process.cwd(), 'tests', 'compat-fixtures', 'cases.json');
     const manifest = JSON.parse(fs.readFileSync(casesPath, 'utf-8')) as {
@@ -191,11 +190,16 @@ describe('checkOpenClawCompatibility', () => {
         expectedCheckStatuses: Record<string, 'ok' | 'warn' | 'error'>;
         expectedDetailIncludes?: Record<string, string>;
         expectedHintIncludes?: Record<string, string>;
+        openclawExitCode?: number;
       }>;
     };
     const cases = manifest.cases;
 
     for (const testCase of cases) {
+      const spawnResult = testCase.openclawExitCode === undefined
+        ? { error: undefined, status: 0 }
+        : { error: undefined, status: testCase.openclawExitCode };
+      spawnSyncMock.mockReturnValueOnce(spawnResult);
       const fixtureRoot = path.resolve(process.cwd(), 'tests', 'compat-fixtures', testCase.name);
       const report = checkOpenClawCompatibility({ baseDir: fixtureRoot });
       expect(report.checks.map((check) => check.label)).toEqual(manifest.expectedCheckLabels);

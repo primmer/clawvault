@@ -125,6 +125,12 @@ export function loadCaseManifest(casesPath) {
         throw new Error(`compat fixture case[${index}] allowMissingFiles must be an array of non-empty strings`);
       }
     }
+
+    if (testCase.openclawExitCode !== undefined) {
+      if (!Number.isInteger(testCase.openclawExitCode) || testCase.openclawExitCode < 0 || testCase.openclawExitCode > 255) {
+        throw new Error(`compat fixture case[${index}] openclawExitCode must be an integer between 0 and 255`);
+      }
+    }
   }
 
   return {

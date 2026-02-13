@@ -36,7 +36,15 @@ const validateOnly = process.env.COMPAT_VALIDATE_ONLY === '1';
 function createOpenClawShim() {
   const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-openclaw-shim-'));
   const shimPath = path.join(shimDir, 'openclaw');
-  fs.writeFileSync(shimPath, '#!/usr/bin/env bash\nexit 0\n', 'utf-8');
+  fs.writeFileSync(
+    shimPath,
+    [
+      '#!/usr/bin/env bash',
+      'code="${OPENCLAW_SHIM_EXIT_CODE:-0}"',
+      'exit "$code"'
+    ].join('\n') + '\n',
+    'utf-8'
+  );
   fs.chmodSync(shimPath, 0o755);
   return { shimDir, shimPath };
 }
@@ -44,12 +52,16 @@ function createOpenClawShim() {
 function runCase(testCase, env) {
   const fixturePath = path.join(fixturesRoot, testCase.name);
   assertFixtureFiles(testCase.name, fixturePath, undefined, testCase.allowMissingFiles ?? []);
+  const caseEnv = {
+    ...env,
+    OPENCLAW_SHIM_EXIT_CODE: String(testCase.openclawExitCode ?? 0)
+  };
   const result = spawnSync(
     process.execPath,
     ['./bin/clawvault.js', 'compat', '--strict', '--base-dir', fixturePath, '--json'],
     {
       cwd: repoRoot,
-      env,
+      env: caseEnv,
       encoding: 'utf-8'
     }
   );

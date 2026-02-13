@@ -50,8 +50,12 @@ export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES = Object.freeze([
 
 export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX = '${{ runner.temp }}/compat-reports/';
 export const REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME = 'Upload compatibility summary artifact';
+export const REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME = 'compat-summary';
+export const REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND = 'ignore';
 export const REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME = 'Run quality and compatibility checks';
 export const REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND = 'npm run ci';
+export const REQUIRED_COMPAT_CI_REPORT_DIR_ENV_KEY = 'COMPAT_REPORT_DIR';
+export const REQUIRED_COMPAT_CI_REPORT_DIR_ENV_VALUE = '${{ runner.temp }}/compat-reports';
 
 export const REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE = Object.freeze([
   'npm run test:compat-artifact-alignment:fast',

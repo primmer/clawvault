@@ -3,8 +3,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND,
+  REQUIRED_COMPAT_CI_REPORT_DIR_ENV_KEY,
+  REQUIRED_COMPAT_CI_REPORT_DIR_ENV_VALUE,
   REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME,
+  REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME,
   REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES,
+  REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND,
   REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX,
   REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME
 } from './compat-npm-script-contracts.mjs';
@@ -39,6 +43,24 @@ function extractRunCommand(stepBlock, stepName) {
   return runLine.replace(/^run:\s*/, '').trim();
 }
 
+function extractScalarField(stepBlock, fieldName, stepName) {
+  const line = stepBlock
+    .split('\n')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${fieldName}:`));
+  expect(line, `step "${stepName}" must include ${fieldName}`).toBeTruthy();
+  return line.replace(new RegExp(`^${escapeRegex(fieldName)}:\\s*`), '').trim();
+}
+
+function extractEnvField(stepBlock, envKey, stepName) {
+  const line = stepBlock
+    .split('\n')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${envKey}:`));
+  expect(line, `step "${stepName}" must define env ${envKey}`).toBeTruthy();
+  return line.replace(new RegExp(`^${escapeRegex(envKey)}:\\s*`), '').trim();
+}
+
 function extractUploadArtifactPaths(stepBlock, stepName) {
   const lines = stepBlock.split('\n').map((line) => line.trim());
   const pathLineIndex = lines.findIndex((line) => line === 'path:' || line === 'path: |');
@@ -65,16 +87,26 @@ describe('compat ci workflow contract', () => {
     const workflowYaml = loadCiWorkflowYaml();
     const stepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME);
     const runCommand = extractRunCommand(stepBlock, REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME);
+    const reportDirValue = extractEnvField(
+      stepBlock,
+      REQUIRED_COMPAT_CI_REPORT_DIR_ENV_KEY,
+      REQUIRED_COMPAT_CI_PRIMARY_RUN_STEP_NAME
+    );
     expect(runCommand).toBe(REQUIRED_COMPAT_CI_PRIMARY_RUN_COMMAND);
+    expect(reportDirValue).toBe(REQUIRED_COMPAT_CI_REPORT_DIR_ENV_VALUE);
   });
 
   it('uploads required compatibility artifact files in canonical order', () => {
     const workflowYaml = loadCiWorkflowYaml();
     const stepBlock = extractStepBlock(workflowYaml, REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
+    const artifactName = extractScalarField(stepBlock, 'name', REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
+    const ifNoFilesFoundValue = extractScalarField(stepBlock, 'if-no-files-found', REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
     const uploadPaths = extractUploadArtifactPaths(stepBlock, REQUIRED_COMPAT_CI_UPLOAD_STEP_NAME);
     const expectedPaths = REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES.map(
       (artifactFile) => `${REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_PATH_PREFIX}${artifactFile}`
     );
+    expect(artifactName).toBe(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_NAME);
+    expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND);
     expect(uploadPaths).toEqual(expectedPaths);
   });
 });

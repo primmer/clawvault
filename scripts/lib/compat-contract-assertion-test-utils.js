@@ -14,6 +14,19 @@ export function expectUnitCountMapByKeyParity(valuesByKey, actualCountMapByKey, 
   expect(actualCountMapByKey, `${label} keyed count-map parity mismatch`).toEqual(expectedCountMapByKey);
 }
 
+export function expectNonEmptyUniqueStringArray(values, label, options = {}) {
+  const { requireNonEmpty = true } = options;
+  expect(Array.isArray(values), `${label} must be an array`).toBe(true);
+  if (requireNonEmpty) {
+    expect(values.length, `${label} must not be empty`).toBeGreaterThan(0);
+  }
+  expect(
+    values.every((value) => typeof value === 'string' && value.length > 0),
+    `${label} must contain non-empty strings`
+  ).toBe(true);
+  expect(new Set(values).size, `${label} must be unique`).toBe(values.length);
+}
+
 export function expectEachDomainValueOccursExactlyOnce(values, resolveCount, label) {
   expect(Array.isArray(values), `${label} must receive array values`).toBe(true);
   for (const value of values) {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { expectNonEmptyUniqueStringArray } from './compat-contract-assertion-test-utils.js';
 import {
   REQUIRED_COMPAT_CI_JOB_NAME,
   REQUIRED_COMPAT_CI_JOB_NAMES,
@@ -87,26 +88,20 @@ describe('compat ci workflow contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_WORKFLOW_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_WORKFLOW_NAME.length).toBeGreaterThan(0);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES).size).toBe(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.length);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES).size).toBe(REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES.length);
+    expectNonEmptyUniqueStringArray(
+      REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES,
+      'REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES'
+    );
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES, 'REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES');
     expect(REQUIRED_COMPAT_CI_WORKFLOW_FIELD_NAMES).toEqual(REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES).size).toBe(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES.length);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_TRIGGER_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_TRIGGER_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_TRIGGER_NAMES).size).toBe(REQUIRED_COMPAT_CI_TRIGGER_NAMES.length);
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES, 'REQUIRED_COMPAT_CI_TRIGGER_PUSH_BRANCHES');
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_TRIGGER_NAMES, 'REQUIRED_COMPAT_CI_TRIGGER_NAMES');
     expect(Object.keys(REQUIRED_COMPAT_CI_TRIGGER_SECTION_FIELD_NAME_SEQUENCES).sort()).toEqual(
       [...REQUIRED_COMPAT_CI_TRIGGER_NAMES].sort()
     );
     for (const [triggerName, fieldNames] of Object.entries(REQUIRED_COMPAT_CI_TRIGGER_SECTION_FIELD_NAME_SEQUENCES)) {
       expect(REQUIRED_COMPAT_CI_TRIGGER_NAMES).toContain(triggerName);
-      expect(Array.isArray(fieldNames)).toBe(true);
-      expect(new Set(fieldNames).size).toBe(fieldNames.length);
+      expectNonEmptyUniqueStringArray(fieldNames, `trigger field-name sequence ${triggerName}`, { requireNonEmpty: false });
     }
     expect(typeof REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME.length).toBeGreaterThan(0);
@@ -114,27 +109,21 @@ describe('compat ci workflow contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_CHECKOUT_USES.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_JOB_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_JOB_NAME.length).toBeGreaterThan(0);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_JOB_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_JOB_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_JOB_NAMES).size).toBe(REQUIRED_COMPAT_CI_JOB_NAMES.length);
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_JOB_NAMES, 'REQUIRED_COMPAT_CI_JOB_NAMES');
     expect(REQUIRED_COMPAT_CI_JOB_NAMES).toContain(REQUIRED_COMPAT_CI_JOB_NAME);
     expect(Object.keys(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAME_SEQUENCES).sort()).toEqual(
       [...REQUIRED_COMPAT_CI_JOB_NAMES].sort()
     );
     for (const [jobName, fieldNames] of Object.entries(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAME_SEQUENCES)) {
       expect(REQUIRED_COMPAT_CI_JOB_NAMES).toContain(jobName);
-      expect(Array.isArray(fieldNames)).toBe(true);
-      expect(fieldNames.length).toBeGreaterThan(0);
-      expect(new Set(fieldNames).size).toBe(fieldNames.length);
+      expectNonEmptyUniqueStringArray(fieldNames, `job unique field-name sequence ${jobName}`);
     }
     expect(Object.keys(REQUIRED_COMPAT_CI_JOB_FIELD_NAME_SEQUENCES).sort()).toEqual(
       [...REQUIRED_COMPAT_CI_JOB_NAMES].sort()
     );
     for (const [jobName, fieldNames] of Object.entries(REQUIRED_COMPAT_CI_JOB_FIELD_NAME_SEQUENCES)) {
       expect(REQUIRED_COMPAT_CI_JOB_NAMES).toContain(jobName);
-      expect(Array.isArray(fieldNames)).toBe(true);
-      expect(fieldNames.length).toBeGreaterThan(0);
-      expect(new Set(fieldNames).size).toBe(fieldNames.length);
+      expectNonEmptyUniqueStringArray(fieldNames, `job field-name sequence ${jobName}`);
     }
     expect(Object.keys(REQUIRED_COMPAT_CI_JOB_TOP_LEVEL_SCALAR_VALUE_CONTRACTS).sort()).toEqual(
       [...REQUIRED_COMPAT_CI_JOB_NAMES].sort()
@@ -153,12 +142,8 @@ describe('compat ci workflow contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_JOB_RUNS_ON.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES).toBe('string');
     expect(REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES.length).toBeGreaterThan(0);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES).size).toBe(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES.length);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_JOB_FIELD_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_JOB_FIELD_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_JOB_FIELD_NAMES).size).toBe(REQUIRED_COMPAT_CI_JOB_FIELD_NAMES.length);
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES, 'REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES');
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_JOB_FIELD_NAMES, 'REQUIRED_COMPAT_CI_JOB_FIELD_NAMES');
     expect(REQUIRED_COMPAT_CI_JOB_FIELD_NAMES).toEqual(REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES);
     expect(typeof REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME).toBe('string');
     expect(REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME.length).toBeGreaterThan(0);
@@ -172,42 +157,30 @@ describe('compat ci workflow contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_INSTALL_STEP_NAME.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_INSTALL_COMMAND).toBe('string');
     expect(REQUIRED_COMPAT_CI_INSTALL_COMMAND.length).toBeGreaterThan(0);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_STEP_SEQUENCE)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_STEP_SEQUENCE.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_STEP_SEQUENCE).size).toBe(REQUIRED_COMPAT_CI_STEP_SEQUENCE.length);
-    expect(Array.isArray(REQUIRED_COMPAT_CI_STEP_NAMES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_STEP_NAMES.length).toBeGreaterThan(0);
-    expect(new Set(REQUIRED_COMPAT_CI_STEP_NAMES).size).toBe(REQUIRED_COMPAT_CI_STEP_NAMES.length);
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_STEP_SEQUENCE, 'REQUIRED_COMPAT_CI_STEP_SEQUENCE');
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_STEP_NAMES, 'REQUIRED_COMPAT_CI_STEP_NAMES');
     expect(REQUIRED_COMPAT_CI_STEP_NAMES).toEqual(REQUIRED_COMPAT_CI_STEP_SEQUENCE);
     expect(Object.keys(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES).sort()).toEqual(
       [...REQUIRED_COMPAT_CI_JOB_NAMES].sort()
     );
     for (const [jobName, stepNames] of Object.entries(REQUIRED_COMPAT_CI_JOB_STEP_NAME_SEQUENCES)) {
       expect(REQUIRED_COMPAT_CI_JOB_NAMES).toContain(jobName);
-      expect(Array.isArray(stepNames)).toBe(true);
-      expect(stepNames.length).toBeGreaterThan(0);
-      expect(new Set(stepNames).size).toBe(stepNames.length);
+      expectNonEmptyUniqueStringArray(stepNames, `job step-name sequence ${jobName}`);
     }
     expect(Object.keys(REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES).sort()).toEqual(
       [...REQUIRED_COMPAT_CI_STEP_NAMES].sort()
     );
     for (const fieldNameSequence of Object.values(REQUIRED_COMPAT_CI_STEP_FIELD_NAME_SEQUENCES)) {
-      expect(Array.isArray(fieldNameSequence)).toBe(true);
-      expect(fieldNameSequence.length).toBeGreaterThan(0);
-      expect(new Set(fieldNameSequence).size).toBe(fieldNameSequence.length);
+      expectNonEmptyUniqueStringArray(fieldNameSequence, 'step field-name sequence');
       expect(fieldNameSequence[0]).toBe('name');
     }
     for (const [stepName, fieldNameSequence] of Object.entries(REQUIRED_COMPAT_CI_STEP_WITH_FIELD_NAME_SEQUENCES)) {
       expect(REQUIRED_COMPAT_CI_STEP_NAMES).toContain(stepName);
-      expect(Array.isArray(fieldNameSequence)).toBe(true);
-      expect(fieldNameSequence.length).toBeGreaterThan(0);
-      expect(new Set(fieldNameSequence).size).toBe(fieldNameSequence.length);
+      expectNonEmptyUniqueStringArray(fieldNameSequence, `step with field-name sequence ${stepName}`);
     }
     for (const [stepName, fieldNameSequence] of Object.entries(REQUIRED_COMPAT_CI_STEP_ENV_FIELD_NAME_SEQUENCES)) {
       expect(REQUIRED_COMPAT_CI_STEP_NAMES).toContain(stepName);
-      expect(Array.isArray(fieldNameSequence)).toBe(true);
-      expect(fieldNameSequence.length).toBeGreaterThan(0);
-      expect(new Set(fieldNameSequence).size).toBe(fieldNameSequence.length);
+      expectNonEmptyUniqueStringArray(fieldNameSequence, `step env field-name sequence ${stepName}`);
     }
     for (const [stepName, scalarValueContracts] of Object.entries(REQUIRED_COMPAT_CI_STEP_TOP_LEVEL_SCALAR_VALUE_CONTRACTS)) {
       expect(REQUIRED_COMPAT_CI_STEP_NAMES).toContain(stepName);
@@ -242,12 +215,7 @@ describe('compat ci workflow contracts constants', () => {
   });
 
   it('keeps required upload artifact file domain unique and non-empty', () => {
-    expect(Array.isArray(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES)).toBe(true);
-    expect(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES.length).toBeGreaterThan(0);
-    expect(
-      REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES.every((artifactFile) => typeof artifactFile === 'string' && artifactFile.length > 0)
-    ).toBe(true);
-    expect(new Set(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES).size).toBe(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES.length);
+    expectNonEmptyUniqueStringArray(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES, 'REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES');
     expect(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES).toContain('artifact-bundle-validator-result.json');
     expect(REQUIRED_COMPAT_CI_UPLOAD_ARTIFACT_FILES).toContain('summary.json');
   });

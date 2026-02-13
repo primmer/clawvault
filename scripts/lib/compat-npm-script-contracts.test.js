@@ -69,13 +69,7 @@ import {
   REQUIRED_COMPAT_VALIDATOR_STACK_RUN_TARGETS,
   REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE
 } from './compat-npm-script-contracts.mjs';
-
-function expectNonEmptyUniqueStringArray(values, label) {
-  expect(Array.isArray(values), `${label} must be an array`).toBe(true);
-  expect(values.length, `${label} must not be empty`).toBeGreaterThan(0);
-  expect(values.every((value) => typeof value === 'string' && value.length > 0), `${label} must contain non-empty strings`).toBe(true);
-  expect(new Set(values).size, `${label} must be unique`).toBe(values.length);
-}
+import { expectNonEmptyUniqueStringArray } from './compat-contract-assertion-test-utils.js';
 
 describe('compat npm script contracts constants', () => {
   it('keeps required script names unique and non-empty', () => {

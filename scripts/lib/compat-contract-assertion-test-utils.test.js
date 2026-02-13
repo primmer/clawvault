@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   expectEachDomainValueOccursExactlyOnce,
+  expectNonEmptyUniqueStringArray,
   expectUniqueDomainCountMapByKeyParity,
   expectUniqueDomainCountMapParity,
   expectUnitCountMapByKeyParity,
@@ -147,6 +148,23 @@ describe('compat contract assertion test utils', () => {
         },
         'duplicate unique keyed domain parity'
       );
+    }).toThrow();
+  });
+
+  it('asserts non-empty unique string arrays', () => {
+    expectNonEmptyUniqueStringArray(['alpha', 'beta'], 'string-array domain');
+    expectNonEmptyUniqueStringArray([], 'empty-allowed string-array domain', { requireNonEmpty: false });
+  });
+
+  it('throws when non-empty unique string arrays are invalid', () => {
+    expect(() => {
+      expectNonEmptyUniqueStringArray(['alpha', 'alpha'], 'duplicate string-array domain');
+    }).toThrow();
+    expect(() => {
+      expectNonEmptyUniqueStringArray(['alpha', ''], 'empty-entry string-array domain');
+    }).toThrow();
+    expect(() => {
+      expectNonEmptyUniqueStringArray([], 'empty string-array domain');
     }).toThrow();
   });
 });

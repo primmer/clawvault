@@ -50,6 +50,7 @@ function createOpenClawShim() {
 }
 
 function runCase(testCase, env) {
+  const startedAtMs = Date.now();
   const fixturePath = path.join(fixturesRoot, testCase.name);
   assertFixtureFiles(testCase.name, fixturePath, undefined, testCase.allowMissingFiles ?? []);
   const caseEnv = {
@@ -87,7 +88,8 @@ function runCase(testCase, env) {
   }
 
   const passed = evaluation.passed;
-  const summary = `${passed ? '✓' : '✗'} fixture=${testCase.name} expectedExit=${testCase.expectedExitCode} actualExit=${actualExitCode}`;
+  const durationMs = Date.now() - startedAtMs;
+  const summary = `${passed ? '✓' : '✗'} fixture=${testCase.name} expectedExit=${testCase.expectedExitCode} actualExit=${actualExitCode} durationMs=${durationMs}`;
   console.log(summary);
 
   if (!passed) {
@@ -106,6 +108,7 @@ function runCase(testCase, env) {
     name: testCase.name,
     expectedExitCode: testCase.expectedExitCode,
     actualExitCode,
+    durationMs,
     mismatches: evaluation.mismatches
   };
 }
@@ -167,12 +170,14 @@ function main() {
       return;
     }
     const results = cases.map((testCase) => runCase(testCase, env));
+    const totalDurationMs = results.reduce((sum, result) => sum + (result.durationMs ?? 0), 0);
     writeSummaryReport(compatReportDir, {
       generatedAt: new Date().toISOString(),
       mode: 'fixtures',
       schemaVersion: manifest.schemaVersion,
       selectedCases: cases.map((testCase) => testCase.name),
       total: results.length,
+      totalDurationMs,
       failures: results.filter((result) => !result.passed).length,
       results
     });

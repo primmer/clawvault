@@ -105,6 +105,9 @@ describe('compat payload json schema contracts', () => {
   it('keeps compat artifact-bundle manifest schema in sync with runtime contract versions', () => {
     const schema = readSchema('compat-artifact-bundle.manifest.schema.json');
     expect(schema.properties.schemaVersion.const).toBe(COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION);
+    expect(schema.properties.artifacts.minItems).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
+    expect(schema.properties.artifacts.maxItems).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
+    expect(schema.properties.artifacts.items.properties.artifactName.enum).toEqual(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
       const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[artifactName];
       expect(

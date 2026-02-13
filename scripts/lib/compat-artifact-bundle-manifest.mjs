@@ -7,6 +7,7 @@ import {
 export const COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION = 1;
 
 const VALID_VERSION_FIELDS = new Set(['summarySchemaVersion', 'outputSchemaVersion']);
+const REQUIRED_ARTIFACT_NAME_SET = new Set(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
 
 function assertNonEmptyString(value, fieldName) {
   if (typeof value !== 'string' || value.length === 0) {
@@ -40,6 +41,9 @@ export function ensureCompatArtifactBundleManifestShape(manifest) {
     if (!VALID_VERSION_FIELDS.has(entry.versionField)) {
       throw new Error(`compat artifact bundle manifest artifacts[${index}].versionField has invalid value`);
     }
+    if (!REQUIRED_ARTIFACT_NAME_SET.has(entry.artifactName)) {
+      throw new Error(`compat artifact bundle manifest has unsupported artifactName: ${entry.artifactName}`);
+    }
 
     if (artifactNames.has(entry.artifactName)) {
       throw new Error(`compat artifact bundle manifest has duplicate artifactName: ${entry.artifactName}`);
@@ -62,6 +66,11 @@ export function ensureCompatArtifactBundleManifestShape(manifest) {
         `compat artifact bundle manifest required artifact ${requiredArtifactName} must use versionField=${expectedVersionField}`
       );
     }
+  }
+  if (manifest.artifacts.length !== REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length) {
+    throw new Error(
+      `compat artifact bundle manifest artifacts length must be ${REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length}`
+    );
   }
 }
 

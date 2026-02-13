@@ -77,5 +77,19 @@ describe('compat artifact bundle manifest contracts', () => {
       schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
       artifacts: versionFieldDriftArtifacts
     })).toThrow('required artifact summary.json must use versionField=summarySchemaVersion');
+
+    expect(() => ensureCompatArtifactBundleManifestShape({
+      schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
+      artifacts: [
+        ...buildRequiredManifestArtifacts(),
+        {
+          artifactName: 'extra-artifact.json',
+          artifactFile: 'extra-artifact.json',
+          schemaPath: 'schemas/extra.schema.json',
+          schemaId: 'https://clawvault.dev/schemas/extra.schema.json',
+          versionField: 'outputSchemaVersion'
+        }
+      ]
+    })).toThrow('unsupported artifactName: extra-artifact.json');
   });
 });

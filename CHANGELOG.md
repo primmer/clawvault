@@ -124,6 +124,7 @@
 - Standalone summary validator now provides explicit `--help` output and stricter unknown/missing-option-value argument handling.
 - Compatibility report parsing/validation now enforces per-check schema (`label` uniqueness, valid statuses, optional detail/hint typing) and count coherence (`warnings`/`errors` must match status tallies).
 - Standalone summary validator now supports `--allow-missing-case-reports` for summary-only validation contexts where per-case report files are unavailable.
+- Standalone summary validator now supports `--json` output for machine-readable automation workflows.
 
 ## [1.11.2] - 2026-02-12
 

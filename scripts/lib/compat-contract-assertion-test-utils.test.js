@@ -11,6 +11,7 @@ import {
   expectNonEmptyStringRecord,
   expectNonEmptyUniqueStringArray,
   expectObjectKeyDomainParity,
+  expectStringSegmentPairOrderedAndUnique,
   expectStringContainsSegmentsExactlyOnce,
   expectStringContainsSegmentsExactlyOnceInOrder,
   expectStringContainsSegmentsInOrder,
@@ -540,6 +541,34 @@ describe('compat contract assertion test utils', () => {
         'npm run alpha && npm run alpha',
         ['npm run alpha'],
         'duplicate string segment uniqueness domain'
+      );
+    }).toThrow();
+  });
+
+  it('asserts ordered unique string segment pairs', () => {
+    expectStringSegmentPairOrderedAndUnique(
+      'npm run producer && npm run consumer',
+      'npm run producer',
+      'npm run consumer',
+      'ordered unique string segment pair domain'
+    );
+  });
+
+  it('throws when ordered unique string segment pairs are invalid', () => {
+    expect(() => {
+      expectStringSegmentPairOrderedAndUnique(
+        'npm run consumer && npm run producer',
+        'npm run producer',
+        'npm run consumer',
+        'misordered unique string segment pair domain'
+      );
+    }).toThrow();
+    expect(() => {
+      expectStringSegmentPairOrderedAndUnique(
+        'npm run producer && npm run consumer',
+        'npm run producer',
+        'npm run producer',
+        'equal unique string segment pair domain'
       );
     }).toThrow();
   });

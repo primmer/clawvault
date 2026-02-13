@@ -121,6 +121,7 @@
 - Expanded summary-artifact utility tests to cover malformed summary loading and fixtures-summary case-report validation failures, strengthening error-path contract confidence.
 - GitHub Actions now uploads the generated compatibility `summary.json` artifact on every CI run (`compat-summary`) while retaining full report uploads on failures.
 - Standalone summary validator CLI now supports explicit `--summary` and `--report-dir` options (with tested argument error handling), improving artifact-validation ergonomics.
+- Standalone summary validator now provides explicit `--help` output and stricter unknown/missing-option-value argument handling.
 
 ## [1.11.2] - 2026-02-12
 

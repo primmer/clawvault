@@ -1,7 +1,7 @@
 ---
 name: clawvault
-version: 1.11.2
-description: Agent memory system with checkpoint/recover, structured storage, semantic search, session transcript repair, and optional cloud sync. Use when: storing/searching memories, preventing context death, repairing broken sessions. Don't use when: general file I/O.
+version: 2.0.0
+description: Agent memory system with memory graph, context profiles, checkpoint/recover, structured storage, semantic search, and observational memory. Use when: storing/searching memories, preventing context death, graph-aware context retrieval, repairing broken sessions. Don't use when: general file I/O.
 author: Versatly
 repository: https://github.com/Versatly/clawvault
 homepage: https://clawvault.dev
@@ -65,6 +65,56 @@ clawvault sleep "PR review + type guards" --next "respond to CI" --blocked "wait
 
 # Health check when something feels off
 clawvault doctor
+```
+
+## New in v2.0.0
+
+### Memory Graph
+
+ClawVault builds a typed knowledge graph from wiki-links, tags, and frontmatter:
+
+```bash
+# View graph summary
+clawvault graph
+
+# Refresh graph index
+clawvault graph --refresh
+```
+
+Graph is stored at `.clawvault/graph-index.json` — schema versioned, incremental rebuild.
+
+### Graph-Aware Context Retrieval
+
+```bash
+# Default context (semantic + graph neighbors)
+clawvault context "database decision"
+
+# With a profile preset
+clawvault context --profile planning "Q1 roadmap"
+clawvault context --profile incident "production outage"
+clawvault context --profile handoff "session end"
+
+# Auto profile (used by OpenClaw hook)
+clawvault context --profile auto "current task"
+```
+
+### Context Profiles
+
+| Profile | Purpose |
+|---------|---------|
+| `default` | Balanced retrieval |
+| `planning` | Broader strategic context |
+| `incident` | Recent events, blockers, urgent items |
+| `handoff` | Session transition context |
+
+### OpenClaw Compat Diagnostics
+
+```bash
+# Check hook wiring, event routing, handler safety
+clawvault compat
+
+# Strict mode for CI
+clawvault compat --strict
 ```
 
 ## Core Commands
@@ -227,6 +277,8 @@ Backups are created automatically (use `--no-backup` to skip).
 - **Inbox backlog warning** — process or archive inbox items
 - **"unexpected tool_use_id" error** — run `clawvault repair-session`
 - **OpenClaw integration drift** — run `clawvault compat`
+- **Graph out of date** — run `clawvault graph --refresh`
+- **Wrong context for task** — try `clawvault context --profile incident` or `--profile planning`
 
 ## Integration with qmd
 

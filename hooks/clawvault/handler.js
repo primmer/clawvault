@@ -19,9 +19,6 @@ const MAX_CONTEXT_SNIPPET_LENGTH = 220;
 const MAX_RECAP_RESULTS = 6;
 const MAX_RECAP_SNIPPET_LENGTH = 220;
 const EVENT_NAME_SEPARATOR_RE = /[.:/]/g;
-const INCIDENT_PROMPT_RE = /\b(outage|incident|sev[1-4]|p[0-3]|broken|failure|urgent|rollback|hotfix|degraded)\b/i;
-const PLANNING_PROMPT_RE = /\b(plan|planning|design|architecture|roadmap|proposal|spec|migrate|migration|approach)\b/i;
-const HANDOFF_PROMPT_RE = /\b(resume|continue|handoff|pick up|where (did|was) i|last session)\b/i;
 
 // Sanitize string for safe display (prevent prompt injection via control chars)
 function sanitizeForDisplay(str) {
@@ -141,14 +138,6 @@ function truncateRecapSnippet(snippet) {
   const safe = sanitizeForDisplay(snippet).replace(/\s+/g, ' ').trim();
   if (safe.length <= MAX_RECAP_SNIPPET_LENGTH) return safe;
   return `${safe.slice(0, MAX_RECAP_SNIPPET_LENGTH - 3).trimEnd()}...`;
-}
-
-function inferContextProfile(prompt) {
-  if (!prompt) return 'default';
-  if (INCIDENT_PROMPT_RE.test(prompt)) return 'incident';
-  if (HANDOFF_PROMPT_RE.test(prompt)) return 'handoff';
-  if (PLANNING_PROMPT_RE.test(prompt)) return 'planning';
-  return 'default';
 }
 
 function parseContextJson(output) {
@@ -482,12 +471,11 @@ async function handleSessionStart(event) {
 
   if (prompt) {
     console.log('[clawvault] Fetching vault memories for session start prompt');
-    const profile = inferContextProfile(prompt);
     const contextResult = runClawvault([
       'context',
       prompt,
       '--format', 'json',
-      '--profile', profile,
+      '--profile', 'auto',
       '-v', vaultPath
     ]);
 

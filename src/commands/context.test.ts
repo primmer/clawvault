@@ -255,4 +255,67 @@ describe('buildContext profiles', () => {
     expect(result.context[0]?.source).toBe('search');
     expect(result.context.some((entry) => entry.source === 'graph')).toBe(true);
   });
+
+  it('auto profile infers incident ordering from task prompt', async () => {
+    const modified = new Date('2026-02-11T08:00:00.000Z');
+    loadMock.mockResolvedValue(undefined);
+    listMock.mockResolvedValue([
+      {
+        path: '/vault/projects/core-api.md',
+        title: 'Core API',
+        category: 'projects',
+        content: 'Graph neighbor details',
+        modified,
+        frontmatter: {}
+      },
+      {
+        path: '/vault/decisions/use-postgres.md',
+        title: 'Use Postgres',
+        category: 'decisions',
+        content: 'Decision content',
+        modified,
+        frontmatter: {}
+      }
+    ]);
+    vsearchMock.mockResolvedValue([
+      {
+        score: 0.95,
+        snippet: 'Postgres selected for reliability',
+        document: {
+          path: '/vault/decisions/use-postgres.md',
+          title: 'Use Postgres',
+          category: 'decisions',
+          content: '',
+          modified,
+          frontmatter: {}
+        }
+      }
+    ]);
+    readObservationsMock.mockReturnValue('## 2026-02-11');
+    parseObservationLinesMock.mockReturnValue([
+      { priority: '🔴', content: '09:10 Critical outage update', date: '2026-02-11' }
+    ]);
+    getMemoryGraphMock.mockResolvedValue({
+      nodes: [
+        { id: 'note:decisions/use-postgres', title: 'Use Postgres', type: 'decision', category: 'decisions', path: 'decisions/use-postgres.md' },
+        { id: 'note:projects/core-api', title: 'Core API', type: 'project', category: 'projects', path: 'projects/core-api.md' }
+      ],
+      edges: [
+        {
+          id: 'wiki_link:note:decisions/use-postgres->note:projects/core-api',
+          source: 'note:decisions/use-postgres',
+          target: 'note:projects/core-api',
+          type: 'wiki_link'
+        }
+      ]
+    });
+
+    const result = await buildContext('URGENT outage: postgres rollback failed', {
+      vaultPath: '/vault',
+      profile: 'auto'
+    });
+
+    expect(result.profile).toBe('incident');
+    expect(result.context[0]?.source).toBe('observation');
+  });
 });

@@ -42,7 +42,7 @@ export {
   formatContextMarkdown,
   registerContextCommand
 } from './commands/context.js';
-export type { ContextFormat, ContextProfile, ContextOptions, ContextEntry, ContextResult } from './commands/context.js';
+export type { ContextFormat, ContextProfile, ContextProfileOption, ContextOptions, ContextEntry, ContextResult } from './commands/context.js';
 export { observeCommand, registerObserveCommand } from './commands/observe.js';
 export type { ObserveCommandOptions } from './commands/observe.js';
 export {

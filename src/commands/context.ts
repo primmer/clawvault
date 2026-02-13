@@ -4,6 +4,12 @@ import { ClawVault } from '../lib/vault.js';
 import { parseObservationLines, readObservations } from '../lib/observation-reader.js';
 import { estimateTokens, fitWithinBudget } from '../lib/token-counter.js';
 import { getMemoryGraph, type MemoryGraph, type MemoryGraphEdge } from '../lib/memory-graph.js';
+import {
+  resolveContextProfile,
+  normalizeContextProfileInput,
+  type ContextProfileInput,
+  type ResolvedContextProfile
+} from '../lib/context-profile.js';
 import type { Document, SearchResult } from '../types.js';
 
 const DEFAULT_LIMIT = 5;
@@ -16,7 +22,8 @@ const STOP_WORDS = new Set([
 ]);
 
 export type ContextFormat = 'markdown' | 'json';
-export type ContextProfile = 'default' | 'planning' | 'incident' | 'handoff';
+export type ContextProfile = ResolvedContextProfile;
+export type ContextProfileOption = ContextProfile | 'auto';
 
 export interface ContextOptions {
   vaultPath: string;
@@ -25,7 +32,7 @@ export interface ContextOptions {
   recent?: boolean;
   includeObservations?: boolean;
   budget?: number;
-  profile?: ContextProfile;
+  profile?: ContextProfileOption;
 }
 
 export interface ContextEntry {
@@ -456,13 +463,6 @@ function dedupeContextItems(items: PrioritizedContextItem[]): PrioritizedContext
   return [...deduped.values()];
 }
 
-function normalizeProfile(profile: string | undefined): ContextProfile {
-  if (profile === 'planning' || profile === 'incident' || profile === 'handoff') {
-    return profile;
-  }
-  return 'default';
-}
-
 function applySourceCaps(items: PrioritizedContextItem[], caps: Partial<Record<ContextEntry['source'], number>>): PrioritizedContextItem[] {
   const counts: Partial<Record<ContextEntry['source'], number>> = {};
   const capped: PrioritizedContextItem[] = [];
@@ -556,7 +556,7 @@ export async function buildContext(task: string, options: ContextOptions): Promi
   const limit = Math.max(1, options.limit ?? DEFAULT_LIMIT);
   const recent = options.recent ?? true;
   const includeObservations = options.includeObservations ?? true;
-  const profile = normalizeProfile(options.profile);
+  const profile = resolveContextProfile(options.profile, normalizedTask);
   const queryKeywords = extractKeywords(normalizedTask);
   const allDocuments = await vault.list();
 
@@ -657,7 +657,7 @@ export function registerContextCommand(program: Command): void {
     .option('--recent', 'Boost recent documents (enabled by default)', true)
     .option('--include-observations', 'Include observation memories in output', true)
     .option('--budget <number>', 'Optional token budget for assembled context')
-    .option('--profile <profile>', 'Context profile (default|planning|incident|handoff)', 'default')
+    .option('--profile <profile>', 'Context profile (default|planning|incident|handoff|auto)', 'default')
     .option('-v, --vault <path>', 'Vault path')
     .action(async (
       task: string,
@@ -687,7 +687,7 @@ export function registerContextCommand(program: Command): void {
         recent: rawOptions.recent ?? true,
         includeObservations: rawOptions.includeObservations ?? true,
         budget,
-        profile: normalizeProfile(rawOptions.profile)
+        profile: normalizeContextProfileInput(rawOptions.profile)
       });
     });
 }

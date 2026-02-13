@@ -120,7 +120,7 @@ describe('clawvault hook handler', () => {
     await handler(event);
 
     const contextCall = execFileSyncMock.mock.calls.find((call) => call[1]?.[0] === 'context');
-    expect(contextCall?.[1]).toEqual(expect.arrayContaining(['--profile', 'planning']));
+    expect(contextCall?.[1]).toEqual(expect.arrayContaining(['--profile', 'auto']));
 
     const injected = event.messages.find((message) => message.role === 'system');
     expect(injected?.content).toContain('Session context restored');
@@ -131,7 +131,7 @@ describe('clawvault hook handler', () => {
     fs.rmSync(vaultPath, { recursive: true, force: true });
   });
 
-  it('uses incident profile for urgent outage prompts', async () => {
+  it('delegates profile selection to context auto mode for urgent prompts', async () => {
     const vaultPath = makeVaultFixture();
     process.env.CLAWVAULT_PATH = vaultPath;
 
@@ -154,7 +154,7 @@ describe('clawvault hook handler', () => {
     });
 
     const contextCall = execFileSyncMock.mock.calls.find((call) => call[1]?.[0] === 'context');
-    expect(contextCall?.[1]).toEqual(expect.arrayContaining(['--profile', 'incident']));
+    expect(contextCall?.[1]).toEqual(expect.arrayContaining(['--profile', 'auto']));
 
     fs.rmSync(vaultPath, { recursive: true, force: true });
   });

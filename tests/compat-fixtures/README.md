@@ -6,6 +6,7 @@ Summary artifacts include `summarySchemaVersion` to support stable downstream pa
 Summary header generation rejects malformed/duplicate array entries for case and check-label lists, keeping report metadata contract-safe.
 Fixture runner validates full summary artifact shape/invariants before writing (schema version, totals/failures coherence, telemetry/result array structure).
 Standalone summary artifact validation is available via `scripts/validate-compat-summary.mjs` for post-run/CI artifact checks.
+Validator CLI supports both positional and explicit options (`--summary`, `--report-dir`) for artifact location control.
 Use `npm run test:compat-summary:verify -- <path-to-summary.json>` to validate existing summary artifacts without re-running fixture generation.
 Standalone validator behavior is unit-tested in `scripts/validate-compat-summary.test.js` (success/failure/env fallback paths).
 Summary workflow scripts respect `COMPAT_REPORT_DIR` from the caller environment (falling back to `.compat-reports` when unset).

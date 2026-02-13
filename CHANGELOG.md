@@ -97,6 +97,7 @@
 - Compatibility fixture case selection now rejects duplicate `COMPAT_CASES` entries, preventing ambiguous targeted-run semantics.
 - Compatibility fixture runner now logs the resolved case selection set before execution, improving observability for targeted `COMPAT_CASES` runs.
 - Fixture manifest validation now restricts `allowMissingFiles` entries to known required fixture paths, preventing typo-induced false assumptions in drift scenarios.
+- Fixture manifest now enforces lowercase kebab-case identifiers for fixture case names, improving consistency between declarative contracts and directory naming.
 
 ## [1.11.2] - 2026-02-12
 

@@ -5,6 +5,7 @@ Use `npm run test:compat-contract` when you only need contract validation (manif
 
 - `cases.json` is the source of truth for expected outcomes.
   - includes `schemaVersion` for explicit contract evolution (current: `2`).
+  - case `name` values must be lowercase kebab-case identifiers.
   - includes `expectedCheckLabels` to lock the compatibility check-label contract.
   - supports `expectedCheckStatuses`, `expectedDetailIncludes`, and `expectedHintIncludes`.
   - `expectedDetailIncludes` / `expectedHintIncludes` labels must also exist in `expectedCheckStatuses`.

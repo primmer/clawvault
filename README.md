@@ -214,6 +214,7 @@ clawvault compat --strict --base-dir ./tests/compat-fixtures/healthy
 
 # Run strict compatibility fixture matrix (healthy + intentional drift cases)
 npm run test:compat-fixtures
+# fixture expectations are defined in tests/compat-fixtures/cases.json
 
 # Run full local CI gate (typecheck + tests + compat fixtures)
 npm run ci

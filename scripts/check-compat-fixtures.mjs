@@ -8,13 +8,15 @@ import {
   loadCases,
   parseCompatReport,
   selectCases,
-  validateFixtureDirectoryCoverage
+  validateFixtureDirectoryCoverage,
+  validateFixtureReadmeCoverage
 } from './lib/compat-fixture-runner.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const fixturesRoot = path.join(repoRoot, 'tests', 'compat-fixtures');
 const fixtureCasesPath = path.join(fixturesRoot, 'cases.json');
+const fixtureReadmePath = path.join(fixturesRoot, 'README.md');
 const distEntryPath = path.join(repoRoot, 'dist', 'index.js');
 const compatReportDir = process.env.COMPAT_REPORT_DIR
   ? path.resolve(process.env.COMPAT_REPORT_DIR)
@@ -113,6 +115,7 @@ function main() {
 
   const allCases = loadCases(fixtureCasesPath);
   validateFixtureDirectoryCoverage(fixturesRoot, allCases);
+  validateFixtureReadmeCoverage(fixtureReadmePath, allCases);
   const cases = selectCases(allCases, process.env.COMPAT_CASES);
   ensureReportDir();
   const { shimDir } = createOpenClawShim();

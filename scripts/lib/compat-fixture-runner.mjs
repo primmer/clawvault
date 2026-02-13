@@ -148,3 +148,28 @@ export function validateFixtureDirectoryCoverage(fixturesRoot, cases) {
     throw new Error(`Unreferenced fixture directories found: ${unreferencedDirs.join(', ')}`);
   }
 }
+
+export function validateFixtureReadmeCoverage(readmePath, cases) {
+  const readme = fs.readFileSync(readmePath, 'utf-8');
+  const documented = new Set(
+    readme
+      .split(/\r?\n/)
+      .map((line) => {
+        const match = /^\s*-\s+`([^`]+)`\s+—/.exec(line);
+        return match?.[1] ?? '';
+      })
+      .filter(Boolean)
+  );
+
+  const caseNames = cases.map((testCase) => testCase.name);
+  const caseNameSet = new Set(caseNames);
+  const missingReadmeEntries = caseNames.filter((name) => !documented.has(name));
+  if (missingReadmeEntries.length > 0) {
+    throw new Error(`Undocumented fixture cases in README: ${missingReadmeEntries.join(', ')}`);
+  }
+
+  const unknownReadmeEntries = [...documented].filter((name) => !caseNameSet.has(name));
+  if (unknownReadmeEntries.length > 0) {
+    throw new Error(`README lists unknown fixture cases: ${unknownReadmeEntries.join(', ')}`);
+  }
+}

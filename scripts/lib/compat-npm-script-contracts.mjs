@@ -31,6 +31,7 @@ export const REQUIRED_COMPAT_ARTIFACT_CLI_DRIFT_PATHS = Object.freeze([
 ]);
 
 export const REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS = Object.freeze([
+  'scripts/lib/compat-contract-test-utils.test.js',
   'scripts/lib/compat-npm-script-contracts.test.js',
   'scripts/lib/compat-npm-script-graph-utils.test.js',
   'scripts/lib/compat-npm-script-stack-contract.test.js',

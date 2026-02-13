@@ -16,6 +16,7 @@ const STOP_WORDS = new Set([
 ]);
 
 export type ContextFormat = 'markdown' | 'json';
+export type ContextProfile = 'default' | 'planning' | 'incident' | 'handoff';
 
 export interface ContextOptions {
   vaultPath: string;
@@ -24,6 +25,7 @@ export interface ContextOptions {
   recent?: boolean;
   includeObservations?: boolean;
   budget?: number;
+  profile?: ContextProfile;
 }
 
 export interface ContextEntry {
@@ -41,6 +43,7 @@ export interface ContextEntry {
 
 export interface ContextResult {
   task: string;
+  profile: ContextProfile;
   generated: string;
   context: ContextEntry[];
   markdown: string;
@@ -91,6 +94,30 @@ interface PrioritizedContextItem {
   entry: ContextEntry;
   priority: number;
 }
+
+interface ContextProfileOrdering {
+  order: Array<'red' | 'daily' | 'search' | 'graph' | 'yellow' | 'green'>;
+  caps: Partial<Record<ContextEntry['source'], number>>;
+}
+
+const PROFILE_ORDERING: Record<ContextProfile, ContextProfileOrdering> = {
+  default: {
+    order: ['red', 'daily', 'search', 'graph', 'yellow', 'green'],
+    caps: {}
+  },
+  planning: {
+    order: ['search', 'graph', 'red', 'yellow', 'daily', 'green'],
+    caps: { observation: 12, graph: 12 }
+  },
+  incident: {
+    order: ['red', 'search', 'yellow', 'daily', 'graph', 'green'],
+    caps: { observation: 20, graph: 8 }
+  },
+  handoff: {
+    order: ['daily', 'red', 'yellow', 'search', 'graph', 'green'],
+    caps: { 'daily-note': 2, observation: 15 }
+  }
+};
 
 function extractKeywords(text: string): string[] {
   const raw = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
@@ -429,6 +456,33 @@ function dedupeContextItems(items: PrioritizedContextItem[]): PrioritizedContext
   return [...deduped.values()];
 }
 
+function normalizeProfile(profile: string | undefined): ContextProfile {
+  if (profile === 'planning' || profile === 'incident' || profile === 'handoff') {
+    return profile;
+  }
+  return 'default';
+}
+
+function applySourceCaps(items: PrioritizedContextItem[], caps: Partial<Record<ContextEntry['source'], number>>): PrioritizedContextItem[] {
+  const counts: Partial<Record<ContextEntry['source'], number>> = {};
+  const capped: PrioritizedContextItem[] = [];
+
+  for (const item of items) {
+    const source = item.entry.source;
+    const limit = caps[source];
+    if (limit !== undefined) {
+      const current = counts[source] ?? 0;
+      if (current >= limit) {
+        continue;
+      }
+      counts[source] = current + 1;
+    }
+    capped.push(item);
+  }
+
+  return capped;
+}
+
 function renderEntryBlock(entry: ContextEntry): string {
   return `### ${entry.title} (${entry.source}, score: ${entry.score.toFixed(2)}, ${entry.age})\n${entry.snippet}\n\n`;
 }
@@ -502,6 +556,7 @@ export async function buildContext(task: string, options: ContextOptions): Promi
   const limit = Math.max(1, options.limit ?? DEFAULT_LIMIT);
   const recent = options.recent ?? true;
   const includeObservations = options.includeObservations ?? true;
+  const profile = normalizeProfile(options.profile);
   const queryKeywords = extractKeywords(normalizedTask);
   const allDocuments = await vault.list();
 
@@ -533,20 +588,27 @@ export async function buildContext(task: string, options: ContextOptions): Promi
   const sortedDailyItems = [...dailyItems].sort(byScoreDesc);
   const sortedSearchItems = [...searchItems].sort(byScoreDesc);
   const sortedGraphItems = [...graphItems].sort(byScoreDesc);
-
-  const ordered = dedupeContextItems([
-    ...redObservations,
-    ...sortedDailyItems,
-    ...sortedSearchItems,
-    ...sortedGraphItems,
-    ...yellowObservations,
-    ...greenObservations
-  ]);
+  const grouped: Record<'red' | 'daily' | 'search' | 'graph' | 'yellow' | 'green', PrioritizedContextItem[]> = {
+    red: redObservations,
+    daily: sortedDailyItems,
+    search: sortedSearchItems,
+    graph: sortedGraphItems,
+    yellow: yellowObservations,
+    green: greenObservations
+  };
+  const ordering = PROFILE_ORDERING[profile];
+  const ordered = dedupeContextItems(
+    applySourceCaps(
+      ordering.order.flatMap((group) => grouped[group]),
+      ordering.caps
+    )
+  );
 
   const { context, markdown } = applyTokenBudget(ordered, normalizedTask, options.budget);
 
   return {
     task: normalizedTask,
+    profile,
     generated: new Date().toISOString(),
     context,
     markdown
@@ -567,6 +629,7 @@ export async function contextCommand(task: string, options: ContextOptions): Pro
     }));
     console.log(JSON.stringify({
       task: result.task,
+      profile: result.profile,
       generated: result.generated,
       count: context.length,
       context
@@ -594,6 +657,7 @@ export function registerContextCommand(program: Command): void {
     .option('--recent', 'Boost recent documents (enabled by default)', true)
     .option('--include-observations', 'Include observation memories in output', true)
     .option('--budget <number>', 'Optional token budget for assembled context')
+    .option('--profile <profile>', 'Context profile (default|planning|incident|handoff)', 'default')
     .option('-v, --vault <path>', 'Vault path')
     .action(async (
       task: string,
@@ -603,6 +667,7 @@ export function registerContextCommand(program: Command): void {
         recent?: boolean;
         includeObservations?: boolean;
         budget?: string;
+        profile?: string;
         vault?: string;
       }
     ) => {
@@ -621,7 +686,8 @@ export function registerContextCommand(program: Command): void {
         format,
         recent: rawOptions.recent ?? true,
         includeObservations: rawOptions.includeObservations ?? true,
-        budget
+        budget,
+        profile: normalizeProfile(rawOptions.profile)
       });
     });
 }

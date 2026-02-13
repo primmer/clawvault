@@ -9,6 +9,8 @@
   - includes explain signals/rationale in JSON output.
 - **`clawvault compat`** command for OpenClaw compatibility diagnostics.
 - **`clawvault graph`** command for graph summary/refresh diagnostics.
+- **Context profiles** for `clawvault context`:
+  - `default`, `planning`, `incident`, `handoff`.
 - Doctor now includes an **OpenClaw compatibility** check summary.
 - Dashboard graph parser now emits:
   - typed nodes,

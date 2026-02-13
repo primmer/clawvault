@@ -38,9 +38,9 @@ import {
   hasPullRequestTrigger
 } from './compat-ci-workflow-test-utils.js';
 import {
-  buildUnitCountMap,
-  buildUnitCountMapByKey
-} from './compat-contract-test-utils.js';
+  expectUnitCountMapByKeyParity,
+  expectUnitCountMapParity
+} from './compat-contract-assertion-test-utils.js';
 
 const SAMPLE_WORKFLOW_YAML = `
 name: CI
@@ -179,8 +179,10 @@ describe('compat ci workflow test utils', () => {
   });
 
   it('builds top-level field-name counts for uniqueness-domain checks', () => {
-    expect(extractTopLevelFieldNameCounts(`\n${SAMPLE_WORKFLOW_YAML}\n`)).toEqual(
-      buildUnitCountMap(['name', 'on', 'jobs'])
+    expectUnitCountMapParity(
+      ['name', 'on', 'jobs'],
+      extractTopLevelFieldNameCounts(`\n${SAMPLE_WORKFLOW_YAML}\n`),
+      'sample workflow top-level field counts'
     );
     expect(extractTopLevelFieldNameCounts(`\n${DUPLICATE_TOP_LEVEL_FIELDS_WORKFLOW_YAML}\n`)).toEqual({
       name: 2,
@@ -199,10 +201,15 @@ describe('compat ci workflow test utils', () => {
       expect(countTopLevelFieldOccurrences(workflowYaml, fieldName)).toBe(topLevelFieldNameCounts[fieldName]);
     }
     expect(Object.keys(topLevelFieldNameCounts)).toEqual(topLevelFieldNames);
+    expectUnitCountMapParity(
+      topLevelFieldNames,
+      topLevelFieldNameCounts,
+      'top-level field names/count parity'
+    );
 
     const jobNames = extractTopLevelJobNames(workflowYaml);
     const jobNameCounts = extractJobNameCounts(workflowYaml);
-    expect(jobNameCounts).toEqual(buildUnitCountMap(jobNames));
+    expectUnitCountMapParity(jobNames, jobNameCounts, 'job names/count parity');
     for (const jobName of jobNames) {
       expect(countJobNameOccurrences(workflowYaml, jobName)).toBe(
         jobNames.filter((candidateJobName) => candidateJobName === jobName).length
@@ -214,7 +221,7 @@ describe('compat ci workflow test utils', () => {
 
     const stepNames = extractStepNames(workflowYaml);
     const stepNameCounts = extractStepNameCounts(workflowYaml);
-    expect(stepNameCounts).toEqual(buildUnitCountMap(stepNames));
+    expectUnitCountMapParity(stepNames, stepNameCounts, 'step names/count parity');
     for (const stepName of stepNames) {
       expect(countStepNameOccurrences(workflowYaml, stepName)).toBe(
         stepNames.filter((candidateStepName) => candidateStepName === stepName).length
@@ -235,12 +242,43 @@ describe('compat ci workflow test utils', () => {
     });
     expect(snapshot).toEqual({
       topLevelFieldNames: ['name', 'on', 'jobs'],
-      topLevelFieldNameCounts: buildUnitCountMap(['name', 'on', 'jobs']),
+      topLevelFieldNameCounts: {
+        name: 1,
+        on: 1,
+        jobs: 1
+      },
       jobNames: ['test-and-compat', 'second-job'],
-      jobNameCounts: buildUnitCountMap(['test-and-compat', 'second-job']),
+      jobNameCounts: {
+        'test-and-compat': 1,
+        'second-job': 1
+      },
       stepNamesByJobName: expectedStepNamesByJobName,
-      stepNameCountsByJobName: buildUnitCountMapByKey(expectedStepNamesByJobName)
+      stepNameCountsByJobName: {
+        'test-and-compat': {
+          'First Step': 1,
+          Build: 1,
+          Upload: 1
+        },
+        'second-job': {
+          Done: 1
+        }
+      }
     });
+    expectUnitCountMapParity(
+      snapshot.topLevelFieldNames,
+      snapshot.topLevelFieldNameCounts,
+      'domain snapshot top-level field names/count parity'
+    );
+    expectUnitCountMapParity(
+      snapshot.jobNames,
+      snapshot.jobNameCounts,
+      'domain snapshot job names/count parity'
+    );
+    expectUnitCountMapByKeyParity(
+      snapshot.stepNamesByJobName,
+      snapshot.stepNameCountsByJobName,
+      'domain snapshot step names/counts parity'
+    );
   });
 
   it('extracts workflow trigger/jobs metadata with nonstandard section indentation', () => {

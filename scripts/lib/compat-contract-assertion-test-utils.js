@@ -50,6 +50,23 @@ export function expectObjectKeyDomainParity(valuesByKey, expectedKeys, label) {
   expect(Object.keys(valuesByKey).sort(), `${label} key-domain parity mismatch`).toEqual([...expectedKeys].sort());
 }
 
+export function expectArrayOfRecordsWithRequiredStringFields(records, requiredFields, label, options = {}) {
+  const { requireNonEmpty = true } = options;
+  expect(Array.isArray(records), `${label} must be an array`).toBe(true);
+  expectNonEmptyUniqueStringArray(requiredFields, `${label} required field domain`);
+  if (requireNonEmpty) {
+    expect(records.length, `${label} must not be empty`).toBeGreaterThan(0);
+  }
+  for (const record of records) {
+    expect(record && typeof record === 'object', `${label} entries must be objects`).toBe(true);
+    expect(Array.isArray(record), `${label} entries must not be arrays`).toBe(false);
+    for (const fieldName of requiredFields) {
+      expect(typeof record[fieldName], `${label} field=${fieldName} must be a string`).toBe('string');
+      expect(record[fieldName].length, `${label} field=${fieldName} must be non-empty`).toBeGreaterThan(0);
+    }
+  }
+}
+
 export function expectEachDomainValueOccursExactlyOnce(values, resolveCount, label) {
   expect(Array.isArray(values), `${label} must receive array values`).toBe(true);
   for (const value of values) {

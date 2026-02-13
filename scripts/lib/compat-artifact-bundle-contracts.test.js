@@ -9,9 +9,19 @@ import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS,
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
+import {
+  expectArrayOfRecordsWithRequiredStringFields,
+  expectNonEmptyUniqueStringArray,
+  expectObjectKeyDomainParity
+} from './compat-contract-assertion-test-utils.js';
 
 describe('compat artifact bundle contracts constants', () => {
   it('keeps canonical artifact definitions unique and ordered', () => {
+    expectArrayOfRecordsWithRequiredStringFields(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS,
+      ['artifactName', 'artifactFile', 'schemaPath', 'schemaId', 'versionField'],
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS'
+    );
     expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS.length).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT);
     const artifactNames = REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS.map((entry) => entry.artifactName);
     expect(new Set(artifactNames).size).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT);
@@ -19,15 +29,19 @@ describe('compat artifact bundle contracts constants', () => {
   });
 
   it('keeps required artifact names unique and non-empty', () => {
-    expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length).toBeGreaterThan(0);
-    expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
-    expect(new Set(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES).size).toBe(
-      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length
+    expectNonEmptyUniqueStringArray(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES'
     );
-    expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.every((value) => typeof value === 'string' && value.length > 0)).toBe(true);
+    expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_COUNT).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length);
   });
 
   it('keeps required path bindings aligned with required artifact set', () => {
+    expectArrayOfRecordsWithRequiredStringFields(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS,
+      ['fieldName', 'artifactName'],
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS'
+    );
     const boundArtifactNames = REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS.map((entry) => entry.artifactName);
     expect(new Set(boundArtifactNames).size).toBe(REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS.length);
     expect(new Set(REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS.map((entry) => entry.fieldName)).size).toBe(
@@ -37,8 +51,10 @@ describe('compat artifact bundle contracts constants', () => {
   });
 
   it('keeps required version-field bindings aligned with required artifact set', () => {
-    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS).sort()).toEqual(
-      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    expectObjectKeyDomainParity(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS,
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS'
     );
     expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS['summary.json']).toBe('summarySchemaVersion');
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.filter((name) => name !== 'summary.json')) {
@@ -47,8 +63,10 @@ describe('compat artifact bundle contracts constants', () => {
   });
 
   it('keeps required artifact-file bindings aligned with required artifact set', () => {
-    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES).sort()).toEqual(
-      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    expectObjectKeyDomainParity(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES,
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES'
     );
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
       expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_FILES[artifactName]).toBe(artifactName);
@@ -56,11 +74,15 @@ describe('compat artifact bundle contracts constants', () => {
   });
 
   it('keeps required schema path/id bindings aligned with required artifact set', () => {
-    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS).sort()).toEqual(
-      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    expectObjectKeyDomainParity(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS,
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS'
     );
-    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS).sort()).toEqual(
-      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    expectObjectKeyDomainParity(
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS,
+      REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+      'REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_IDS'
     );
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
       const schemaPath = REQUIRED_COMPAT_ARTIFACT_BUNDLE_SCHEMA_PATHS[artifactName];

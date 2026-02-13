@@ -70,6 +70,7 @@ import {
   REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE
 } from './compat-npm-script-contracts.mjs';
 import {
+  expectArrayOfRecordsWithRequiredStringFields,
   expectNonEmptyStringRecord,
   expectObjectKeyDomainParity,
   expectNonEmptyUniqueStringArray
@@ -288,17 +289,12 @@ describe('compat npm script contracts constants', () => {
     expect(REQUIRED_COMPAT_CI_REPORT_DIR_ENV_KEY.length).toBeGreaterThan(0);
     expect(typeof REQUIRED_COMPAT_CI_REPORT_DIR_ENV_VALUE).toBe('string');
     expect(REQUIRED_COMPAT_CI_REPORT_DIR_ENV_VALUE.length).toBeGreaterThan(0);
-    expect(Array.isArray(REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS)).toBe(true);
-    expect(REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS.length).toBeGreaterThan(0);
+    expectArrayOfRecordsWithRequiredStringFields(
+      REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS,
+      ['scriptName', 'artifactFile', 'producerSegment', 'consumerSegment'],
+      'REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS'
+    );
     for (const contract of REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS) {
-      expect(typeof contract.scriptName).toBe('string');
-      expect(contract.scriptName.length).toBeGreaterThan(0);
-      expect(typeof contract.artifactFile).toBe('string');
-      expect(contract.artifactFile.length).toBeGreaterThan(0);
-      expect(typeof contract.producerSegment).toBe('string');
-      expect(contract.producerSegment.length).toBeGreaterThan(0);
-      expect(typeof contract.consumerSegment).toBe('string');
-      expect(contract.consumerSegment.length).toBeGreaterThan(0);
       expect(contract.producerSegment).not.toBe(contract.consumerSegment);
     }
   });

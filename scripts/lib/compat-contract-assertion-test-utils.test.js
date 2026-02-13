@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  expectArrayOfRecordsWithRequiredStringFields,
   expectEachDomainValueOccursExactlyOnce,
   expectNonEmptyStringRecord,
   expectNonEmptyUniqueStringArray,
@@ -218,6 +219,47 @@ describe('compat contract assertion test utils', () => {
         },
         ['alpha', 'beta'],
         'mismatched object key-domain parity'
+      );
+    }).toThrow();
+  });
+
+  it('asserts array-of-records required string fields', () => {
+    expectArrayOfRecordsWithRequiredStringFields(
+      [
+        { name: 'alpha', value: 'one' },
+        { name: 'beta', value: 'two' }
+      ],
+      ['name', 'value'],
+      'array-of-records string-field domain'
+    );
+    expectArrayOfRecordsWithRequiredStringFields(
+      [],
+      ['name'],
+      'empty-allowed array-of-records string-field domain',
+      { requireNonEmpty: false }
+    );
+  });
+
+  it('throws when array-of-records required string fields are invalid', () => {
+    expect(() => {
+      expectArrayOfRecordsWithRequiredStringFields(
+        [{ name: '' }],
+        ['name'],
+        'empty-field array-of-records string-field domain'
+      );
+    }).toThrow();
+    expect(() => {
+      expectArrayOfRecordsWithRequiredStringFields(
+        [{ name: 'alpha' }],
+        ['name', 'value'],
+        'missing-field array-of-records string-field domain'
+      );
+    }).toThrow();
+    expect(() => {
+      expectArrayOfRecordsWithRequiredStringFields(
+        [],
+        ['name'],
+        'empty-required array-of-records string-field domain'
       );
     }).toThrow();
   });

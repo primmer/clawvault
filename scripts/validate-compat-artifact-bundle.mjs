@@ -48,6 +48,9 @@ import {
   ensureRequiredArtifactNamesPresent,
   ensureRequireOkStatuses
 } from './lib/compat-artifact-bundle-coherence.mjs';
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+} from './lib/compat-artifact-bundle-contracts.mjs';
 
 function parseCliArgs(argv) {
   return parseValidatorCliArgs(argv, {
@@ -115,15 +118,7 @@ function main() {
     artifactPath: path.join(reportDir, entry.artifactFile),
     schemaPathResolved: path.resolve(process.cwd(), entry.schemaPath)
   }));
-  const requiredArtifactNames = [
-    'summary.json',
-    'report-schema-validator-result.json',
-    'validator-result.json',
-    'schema-validator-result.json',
-    'validator-result-verifier-result.json',
-    'artifact-bundle-manifest-validator-result.json'
-  ];
-  ensureRequiredArtifactNamesPresent(artifactContracts, requiredArtifactNames);
+  ensureRequiredArtifactNamesPresent(artifactContracts, REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES);
   const artifactPathByName = new Map(artifactContracts.map((entry) => [entry.artifactName, entry.artifactPath]));
 
   const artifactPayloadsByName = new Map();

@@ -1,4 +1,7 @@
 import * as fs from 'fs';
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS
+} from './compat-artifact-bundle-contracts.mjs';
 
 export const COMPAT_ARTIFACT_BUNDLE_VALIDATOR_OUTPUT_SCHEMA_VERSION = 1;
 
@@ -102,15 +105,7 @@ export function ensureCompatArtifactBundleValidatorPayloadShape(payload) {
       throw new Error('compat artifact bundle validator payload verifiedArtifacts must match artifactContracts artifactName order');
     }
     const artifactContractsByName = new Map(payload.artifactContracts.map((entry) => [entry.artifactName, entry]));
-    const artifactPathContracts = [
-      ['summaryPath', 'summary.json'],
-      ['validatorResultPath', 'validator-result.json'],
-      ['reportSchemaValidatorResultPath', 'report-schema-validator-result.json'],
-      ['schemaValidatorResultPath', 'schema-validator-result.json'],
-      ['validatorResultVerifierResultPath', 'validator-result-verifier-result.json'],
-      ['artifactBundleManifestValidatorResultPath', 'artifact-bundle-manifest-validator-result.json']
-    ];
-    for (const [fieldName, artifactName] of artifactPathContracts) {
+    for (const { fieldName, artifactName } of REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS) {
       const entry = artifactContractsByName.get(artifactName);
       if (!entry) {
         throw new Error(`compat artifact bundle validator payload artifactContracts missing required artifact: ${artifactName}`);

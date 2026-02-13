@@ -286,6 +286,16 @@ describe('compat fixture runner utilities', () => {
       expect(() => validateFixtureReadmeCoverage(readmePath, [
         { name: 'healthy', description: 'ok' }
       ])).toThrow('descriptions out of sync');
+
+      fs.writeFileSync(
+        readmePath,
+        ['- `missing-events` — bad', '- `healthy` — ok'].join('\n'),
+        'utf-8'
+      );
+      expect(() => validateFixtureReadmeCoverage(readmePath, [
+        { name: 'healthy', description: 'ok' },
+        { name: 'missing-events', description: 'bad' }
+      ])).toThrow('scenario order is out of sync');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

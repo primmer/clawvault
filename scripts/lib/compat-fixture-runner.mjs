@@ -255,15 +255,18 @@ export function validateFixtureDirectoryCoverage(fixturesRoot, cases) {
 
 export function validateFixtureReadmeCoverage(readmePath, cases) {
   const readme = fs.readFileSync(readmePath, 'utf-8');
+  const documentedEntries = readme
+    .split(/\r?\n/)
+    .map((line) => {
+      const match = /^\s*-\s+`([^`]+)`\s+—\s+(.+?)\s*$/.exec(line);
+      if (!match) return null;
+      return { name: match[1], description: match[2] };
+    })
+    .filter(Boolean);
+
   const documented = new Map(
-    readme
-      .split(/\r?\n/)
-      .map((line) => {
-        const match = /^\s*-\s+`([^`]+)`\s+—\s+(.+?)\s*$/.exec(line);
-        if (!match) return null;
-        return [match[1], match[2]];
-      })
-      .filter(Boolean)
+    documentedEntries
+      .map((entry) => [entry.name, entry.description])
   );
 
   const caseNames = cases.map((testCase) => testCase.name);
@@ -276,6 +279,15 @@ export function validateFixtureReadmeCoverage(readmePath, cases) {
   const unknownReadmeEntries = [...documented.keys()].filter((name) => !caseNameSet.has(name));
   if (unknownReadmeEntries.length > 0) {
     throw new Error(`README lists unknown fixture cases: ${unknownReadmeEntries.join(', ')}`);
+  }
+
+  const documentedCaseOrder = documentedEntries
+    .map((entry) => entry.name)
+    .filter((name) => caseNameSet.has(name));
+  const orderMismatch = documentedCaseOrder.length !== caseNames.length
+    || documentedCaseOrder.some((name, index) => name !== caseNames[index]);
+  if (orderMismatch) {
+    throw new Error('README scenario order is out of sync with declarative case order');
   }
 
   const descriptionMismatches = cases

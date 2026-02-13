@@ -111,6 +111,7 @@
 - Compatibility summary validation now enforces pass/fail result semantics (failed cases must carry mismatch details, and passed cases must keep expected/actual exit-code parity).
 - Summary artifact writing now centrally validates summary shape in `writeSummaryReport`, ensuring all report emitters share one enforcement path.
 - Fixture manifest validation now requires `expectedCheckStatuses` labels to be declared in `expectedCheckLabels`, tightening declarative contract integrity.
+- Added standalone compatibility summary artifact validator script (`scripts/validate-compat-summary.mjs`) plus convenience workflows (`test:compat-summary`, `test:compat-summary:fast`) for post-run/CI artifact contract checks.
 
 ## [1.11.2] - 2026-02-12
 

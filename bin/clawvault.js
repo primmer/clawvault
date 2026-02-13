@@ -1062,7 +1062,7 @@ program
       }
       
       const { entitiesCommand } = await import('../dist/commands/entities.js');
-      await entitiesCommand({ json: options.json });
+      await entitiesCommand({ json: options.json, vaultPath });
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
       process.exit(1);
@@ -1093,7 +1093,8 @@ program
         dryRun: options.dryRun,
         backlinks: options.backlinks,
         orphans: options.orphans,
-        rebuild: options.rebuild
+        rebuild: options.rebuild,
+        vaultPath
       });
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));

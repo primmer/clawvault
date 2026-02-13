@@ -71,6 +71,7 @@ import {
   extractOnTriggerNames,
   extractOnTriggerSectionFieldNames,
   extractNestedSectionFieldNames,
+  extractNestedSectionListOrMultilineFieldValues,
   extractNestedSectionScalarFieldValue,
   extractStepNames,
   extractUploadArtifactPaths,
@@ -413,6 +414,7 @@ describe('compat ci workflow contract', () => {
     expect(stepUses).toBe(REQUIRED_COMPAT_CI_UPLOAD_USES);
     expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_UPLOAD_IF_NO_FILES_FOUND);
     expect(uploadPaths).toEqual(expectedPaths);
+    expect(extractNestedSectionListOrMultilineFieldValues(stepBlock, 'with', 'path')).toEqual(expectedPaths);
   });
 
   it('keeps failure artifact upload step aligned with compat report directory contracts', () => {
@@ -425,11 +427,13 @@ describe('compat ci workflow contract', () => {
     const artifactName = extractScalarField(stepBlock, 'name');
     const stepUses = extractUsesField(stepBlock);
     const uploadPath = extractScalarField(stepBlock, 'path');
+    const uploadPathList = extractNestedSectionListOrMultilineFieldValues(stepBlock, 'with', 'path');
     const ifNoFilesFoundValue = extractScalarField(stepBlock, 'if-no-files-found');
     expect(ifCondition).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_CONDITION);
     expect(artifactName).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_ARTIFACT_NAME);
     expect(stepUses).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_USES);
     expect(uploadPath).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH);
+    expect(uploadPathList).toEqual([REQUIRED_COMPAT_CI_FAILURE_UPLOAD_PATH]);
     expect(ifNoFilesFoundValue).toBe(REQUIRED_COMPAT_CI_FAILURE_UPLOAD_IF_NO_FILES_FOUND);
   });
 });

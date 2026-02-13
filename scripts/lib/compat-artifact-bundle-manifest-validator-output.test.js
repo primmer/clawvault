@@ -96,6 +96,19 @@ describe('compat artifact bundle manifest validator output payload contracts', (
       outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,
       status: 'ok',
       manifestPath: '/tmp/manifest.json',
+      artifactCount: REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length,
+      artifacts: REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+      schemaContracts: buildRequiredSchemaContracts().map((entry) => (
+        entry.artifactName === 'summary.json'
+          ? { ...entry, versionField: 'outputSchemaVersion' }
+          : entry
+      ))
+    })).toThrow('schemaContracts entry for summary.json must use versionField=summarySchemaVersion');
+
+    expect(() => ensureCompatArtifactBundleManifestValidatorPayloadShape({
+      outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'ok',
+      manifestPath: '/tmp/manifest.json',
       artifactCount: 2,
       artifacts: ['summary.json', 'validator-result.json'],
       schemaContracts: [

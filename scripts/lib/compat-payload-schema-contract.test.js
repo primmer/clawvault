@@ -27,7 +27,8 @@ import {
   COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION
 } from './compat-artifact-bundle-manifest-validator-output.mjs';
 import {
-  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
 function readSchema(schemaFileName) {
@@ -101,9 +102,13 @@ describe('compat payload json schema contracts', () => {
     const schema = readSchema('compat-artifact-bundle.manifest.schema.json');
     expect(schema.properties.schemaVersion.const).toBe(COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION);
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
+      const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[artifactName];
       expect(
         schema.properties.artifacts.allOf?.some(
-          (entry) => entry?.contains?.properties?.artifactName?.const === artifactName
+          (entry) => (
+            entry?.contains?.properties?.artifactName?.const === artifactName
+            && entry?.contains?.properties?.versionField?.const === expectedVersionField
+          )
         )
       ).toBe(true);
     }
@@ -118,11 +123,15 @@ describe('compat payload json schema contracts', () => {
       (entry) => entry?.if?.properties?.status?.const === 'ok'
     )?.then;
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
+      const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[artifactName];
       expect(
         okBranch?.allOf?.some((entry) => entry?.properties?.artifacts?.contains?.const === artifactName)
       ).toBe(true);
       expect(
-        okBranch?.allOf?.some((entry) => entry?.properties?.schemaContracts?.contains?.properties?.artifactName?.const === artifactName)
+        okBranch?.allOf?.some((entry) => (
+          entry?.properties?.schemaContracts?.contains?.properties?.artifactName?.const === artifactName
+          && entry?.properties?.schemaContracts?.contains?.properties?.versionField?.const === expectedVersionField
+        ))
       ).toBe(true);
     }
     expect(schema.additionalProperties).toBe(false);

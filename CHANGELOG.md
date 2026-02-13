@@ -167,6 +167,7 @@
 - Required compatibility artifact-name coverage is now enforced directly in the artifact-bundle manifest shape validator (`ensureCompatArtifactBundleManifestShape`), so manifest consumers fail fast before downstream bundle-validation orchestration.
 - `compat-artifact-bundle.manifest.schema.json` now also encodes required artifact-name presence via `contains` constraints, tightening standalone schema-validation guarantees for manifest completeness.
 - `compat-artifact-bundle-manifest-validator-output` runtime/schema contracts now both encode required artifact-name presence (`artifacts` + `schemaContracts`), strengthening standalone validation guarantees for emitted manifest-validator artifacts.
+- Manifest and manifest-validator output contracts now also pin per-artifact `versionField` expectations for required artifacts (`summary.json` → `summarySchemaVersion`, all others → `outputSchemaVersion`) across both runtime shape guards and JSON-schema constraints.
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

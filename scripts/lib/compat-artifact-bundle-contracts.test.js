@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
-  REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
 describe('compat artifact bundle contracts constants', () => {
@@ -20,5 +21,15 @@ describe('compat artifact bundle contracts constants', () => {
       REQUIRED_COMPAT_ARTIFACT_BUNDLE_PATH_FIELDS.length
     );
     expect(boundArtifactNames).toEqual(expect.arrayContaining(REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES));
+  });
+
+  it('keeps required version-field bindings aligned with required artifact set', () => {
+    expect(Object.keys(REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS).sort()).toEqual(
+      [...REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES].sort()
+    );
+    expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS['summary.json']).toBe('summarySchemaVersion');
+    for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.filter((name) => name !== 'summary.json')) {
+      expect(REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[artifactName]).toBe('outputSchemaVersion');
+    }
   });
 });

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import {
-  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS
 } from './compat-artifact-bundle-contracts.mjs';
 
 export const COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION = 1;
@@ -53,6 +54,13 @@ export function ensureCompatArtifactBundleManifestShape(manifest) {
   for (const requiredArtifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
     if (!artifactNames.has(requiredArtifactName)) {
       throw new Error(`compat artifact bundle manifest is missing required artifactName: ${requiredArtifactName}`);
+    }
+    const entry = manifest.artifacts.find((artifact) => artifact.artifactName === requiredArtifactName);
+    const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[requiredArtifactName];
+    if (entry.versionField !== expectedVersionField) {
+      throw new Error(
+        `compat artifact bundle manifest required artifact ${requiredArtifactName} must use versionField=${expectedVersionField}`
+      );
     }
   }
 }

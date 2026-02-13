@@ -67,5 +67,15 @@ describe('compat artifact bundle manifest contracts', () => {
       schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
       artifacts: buildRequiredManifestArtifacts().slice(1)
     })).toThrow('missing required artifactName: summary.json');
+
+    const versionFieldDriftArtifacts = buildRequiredManifestArtifacts().map((entry) => (
+      entry.artifactName === 'summary.json'
+        ? { ...entry, versionField: 'outputSchemaVersion' }
+        : entry
+    ));
+    expect(() => ensureCompatArtifactBundleManifestShape({
+      schemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_SCHEMA_VERSION,
+      artifacts: versionFieldDriftArtifacts
+    })).toThrow('required artifact summary.json must use versionField=summarySchemaVersion');
   });
 });

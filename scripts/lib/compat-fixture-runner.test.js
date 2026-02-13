@@ -9,7 +9,8 @@ import {
   loadCases,
   parseCompatReport,
   selectCases,
-  validateFixtureDirectoryCoverage
+  validateFixtureDirectoryCoverage,
+  validateFixtureReadmeCoverage
 } from './compat-fixture-runner.mjs';
 
 function makeTempDir(prefix) {
@@ -127,6 +128,30 @@ describe('compat fixture runner utilities', () => {
         .toThrow('Unreferenced fixture directories');
       expect(() => validateFixtureDirectoryCoverage(root, [{ name: 'healthy' }, { name: 'missing-package-hook' }]))
         .toThrow('Missing fixture directories');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('validates README coverage against declarative cases', () => {
+    const root = makeTempDir('compat-readme-');
+    const readmePath = path.join(root, 'README.md');
+    try {
+      fs.writeFileSync(readmePath, ['- `healthy` — ok', '- `missing-events` — bad'].join('\n'), 'utf-8');
+      expect(() => validateFixtureReadmeCoverage(readmePath, [
+        { name: 'healthy' },
+        { name: 'missing-events' }
+      ])).not.toThrow();
+
+      expect(() => validateFixtureReadmeCoverage(readmePath, [
+        { name: 'healthy' },
+        { name: 'missing-package-hook' }
+      ])).toThrow('Undocumented fixture cases');
+
+      fs.writeFileSync(readmePath, ['- `healthy` — ok', '- `extra-fixture` — stale'].join('\n'), 'utf-8');
+      expect(() => validateFixtureReadmeCoverage(readmePath, [
+        { name: 'healthy' }
+      ])).toThrow('README lists unknown fixture cases');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

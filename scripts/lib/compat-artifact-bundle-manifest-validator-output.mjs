@@ -1,4 +1,7 @@
 import * as fs from 'fs';
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+} from './compat-artifact-bundle-contracts.mjs';
 
 export const COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION = 1;
 
@@ -93,6 +96,18 @@ export function ensureCompatArtifactBundleManifestValidatorPayloadShape(payload)
       throw new Error(
         'compat artifact bundle manifest validator payload schemaContracts artifactName order must match artifacts'
       );
+    }
+    for (const requiredArtifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
+      if (!payload.artifacts.includes(requiredArtifactName)) {
+        throw new Error(
+          `compat artifact bundle manifest validator payload artifacts is missing required artifactName: ${requiredArtifactName}`
+        );
+      }
+      if (!schemaContractArtifactNames.includes(requiredArtifactName)) {
+        throw new Error(
+          `compat artifact bundle manifest validator payload schemaContracts is missing required artifactName: ${requiredArtifactName}`
+        );
+      }
     }
     return;
   }

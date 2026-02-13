@@ -312,20 +312,15 @@ describe('validate-compat-artifact-bundle script', () => {
       });
       const manifestValidatorResultPath = path.join(root, 'artifact-bundle-manifest-validator-result.json');
       const manifestValidatorPayload = JSON.parse(fs.readFileSync(manifestValidatorResultPath, 'utf-8'));
-      manifestValidatorPayload.artifacts = [
-        ...manifestValidatorPayload.artifacts.slice(0, -1),
-        'drifted-artifact.json'
+      const reorderedArtifacts = [
+        manifestValidatorPayload.artifacts[1],
+        manifestValidatorPayload.artifacts[0],
+        ...manifestValidatorPayload.artifacts.slice(2)
       ];
-      manifestValidatorPayload.schemaContracts = manifestValidatorPayload.schemaContracts.map((entry, index, allEntries) => {
-        if (index !== allEntries.length - 1) {
-          return entry;
-        }
-        return {
-          ...entry,
-          artifactName: 'drifted-artifact.json',
-          artifactFile: 'drifted-artifact.json'
-        };
-      });
+      manifestValidatorPayload.artifacts = reorderedArtifacts;
+      manifestValidatorPayload.schemaContracts = reorderedArtifacts.map((artifactName) => (
+        manifestValidatorPayload.schemaContracts.find((entry) => entry.artifactName === artifactName)
+      ));
       fs.writeFileSync(manifestValidatorResultPath, JSON.stringify(manifestValidatorPayload, null, 2), 'utf-8');
 
       const result = runArtifactBundleValidator([], { COMPAT_REPORT_DIR: root });

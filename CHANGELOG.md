@@ -166,6 +166,7 @@
 - Canonical compatibility contract paths are now centralized in `scripts/lib/compat-contract-paths.mjs` (summary schema, case-report schema, artifact-bundle manifest), and validator scripts now consume these helpers instead of duplicating fallback literals.
 - Required compatibility artifact-name coverage is now enforced directly in the artifact-bundle manifest shape validator (`ensureCompatArtifactBundleManifestShape`), so manifest consumers fail fast before downstream bundle-validation orchestration.
 - `compat-artifact-bundle.manifest.schema.json` now also encodes required artifact-name presence via `contains` constraints, tightening standalone schema-validation guarantees for manifest completeness.
+- `compat-artifact-bundle-manifest-validator-output` runtime/schema contracts now both encode required artifact-name presence (`artifacts` + `schemaContracts`), strengthening standalone validation guarantees for emitted manifest-validator artifacts.
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

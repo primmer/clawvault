@@ -9,23 +9,29 @@ import {
   ensureCompatArtifactBundleManifestValidatorPayloadShape,
   loadCompatArtifactBundleManifestValidatorPayload
 } from './compat-artifact-bundle-manifest-validator-output.mjs';
+import {
+  REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES
+} from './compat-artifact-bundle-contracts.mjs';
+
+function buildRequiredSchemaContracts() {
+  return REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.map((artifactName) => ({
+    artifactName,
+    artifactFile: artifactName,
+    schemaPath: `/tmp/schemas/${artifactName}.schema.json`,
+    schemaId: `https://clawvault.dev/schemas/${artifactName}.schema.json`,
+    versionField: artifactName === 'summary.json' ? 'summarySchemaVersion' : 'outputSchemaVersion',
+    expectedSchemaVersion: 1
+  }));
+}
 
 describe('compat artifact bundle manifest validator output payload contracts', () => {
   it('builds and validates success payloads', () => {
+    const schemaContracts = buildRequiredSchemaContracts();
     const payload = buildCompatArtifactBundleManifestValidatorSuccessPayload({
       manifestPath: '/tmp/manifest.json',
-      artifactCount: 1,
-      artifacts: ['summary.json'],
-      schemaContracts: [
-        {
-          artifactName: 'summary.json',
-          artifactFile: 'summary.json',
-          schemaPath: '/tmp/schemas/compat-summary.schema.json',
-          schemaId: 'https://clawvault.dev/schemas/compat-summary.schema.json',
-          versionField: 'summarySchemaVersion',
-          expectedSchemaVersion: 1
-        }
-      ]
+      artifactCount: schemaContracts.length,
+      artifacts: schemaContracts.map((entry) => entry.artifactName),
+      schemaContracts
     });
     expect(payload.outputSchemaVersion).toBe(COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION);
     expect(() => ensureCompatArtifactBundleManifestValidatorPayloadShape(payload)).not.toThrow();
@@ -46,8 +52,8 @@ describe('compat artifact bundle manifest validator output payload contracts', (
       outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,
       status: 'ok',
       manifestPath: '/tmp/manifest.json',
-      artifactCount: 1,
-      artifacts: ['summary.json'],
+      artifactCount: REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length,
+      artifacts: REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES,
       schemaContracts: []
     })).toThrow('schemaContracts.length');
 
@@ -76,6 +82,15 @@ describe('compat artifact bundle manifest validator output payload contracts', (
         }
       ]
     })).toThrow('artifacts.length must match artifactCount');
+
+    expect(() => ensureCompatArtifactBundleManifestValidatorPayloadShape({
+      outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,
+      status: 'ok',
+      manifestPath: '/tmp/manifest.json',
+      artifactCount: REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.length - 1,
+      artifacts: REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES.filter((name) => name !== 'summary.json'),
+      schemaContracts: buildRequiredSchemaContracts().filter((entry) => entry.artifactName !== 'summary.json')
+    })).toThrow('artifacts is missing required artifactName: summary.json');
 
     expect(() => ensureCompatArtifactBundleManifestValidatorPayloadShape({
       outputSchemaVersion: COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION,

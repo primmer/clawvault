@@ -258,6 +258,11 @@ COMPAT_REPORT_DIR=/tmp/clawvault-compat-reports npm run test:compat-fixtures
 # validator now also enforces result-entry schema and passed/failed list coherence with selected case ordering
 # slowestCases telemetry is also validated against case-result durations and sort order
 # summary validation is enforced centrally in summary artifact writing, so all emitters share one contract path
+
+# Optional: validate an existing compatibility summary artifact set
+node scripts/validate-compat-summary.mjs /tmp/clawvault-compat-reports/summary.json
+# or run fixture generation + standalone summary validation together
+npm run test:compat-summary:fast
 ```
 
 

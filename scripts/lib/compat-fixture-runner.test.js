@@ -641,7 +641,26 @@ describe('compat fixture runner utilities', () => {
   it('writes optional compat report artifacts when report directory is provided', () => {
     const root = makeTempDir('compat-report-artifacts-');
     try {
-      const summary = { generatedAt: new Date().toISOString(), total: 1, failures: 0, results: [] };
+      const summary = {
+        ...buildCompatSummaryHeader({
+          generatedAt: '2026-02-13T00:00:00.000Z',
+          mode: 'contract',
+          schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+          selectedCases: ['healthy'],
+          expectedCheckLabels: ['openclaw CLI available'],
+          runtimeCheckLabels: ['openclaw CLI available']
+        }),
+        total: 0,
+        preflightDurationMs: 1,
+        totalDurationMs: 1,
+        averageDurationMs: 0,
+        overallDurationMs: 1,
+        slowestCases: [],
+        failures: 0,
+        passedCases: [],
+        failedCases: [],
+        results: []
+      };
       const report = { generatedAt: new Date().toISOString(), checks: [], warnings: 0, errors: 0 };
       ensureReportDir(root);
       writeCaseReport(root, { name: 'healthy' }, report);
@@ -657,6 +676,7 @@ describe('compat fixture runner utilities', () => {
       expect(() => ensureReportDir('')).not.toThrow();
       expect(() => writeCaseReport('', { name: 'healthy' }, report)).not.toThrow();
       expect(() => writeSummaryReport('', summary)).not.toThrow();
+      expect(() => writeSummaryReport(root, { generatedAt: 'invalid' })).toThrow('compat summary');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

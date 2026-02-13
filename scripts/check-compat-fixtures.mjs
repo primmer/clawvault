@@ -8,7 +8,6 @@ import {
   assertFixtureFiles,
   buildCompatSummaryHeader,
   buildFixtureRunTelemetry,
-  ensureCompatSummaryShape,
   ensureReportDir,
   evaluateCaseReport,
   loadCaseManifest,
@@ -192,7 +191,6 @@ function main() {
         failedCases: [],
         results: []
       };
-      ensureCompatSummaryShape(summary);
       writeSummaryReport(compatReportDir, summary);
       console.log(`Compatibility contract runtime: ${preflightDurationMs}ms`);
       console.log('Compatibility fixture contract validation passed.');
@@ -218,7 +216,6 @@ function main() {
       failedCases: resultSummary.failedCases,
       results
     };
-    ensureCompatSummaryShape(summary);
     writeSummaryReport(compatReportDir, summary);
     const failures = resultSummary.failures;
 

@@ -420,8 +420,11 @@ export function writeCaseReport(compatReportDir, testCase, report) {
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8');
 }
 
-export function writeSummaryReport(compatReportDir, summary) {
+export function writeSummaryReport(compatReportDir, summary, options = {}) {
   if (!compatReportDir) return;
+  if (options.validate !== false) {
+    ensureCompatSummaryShape(summary);
+  }
   const summaryPath = path.join(compatReportDir, 'summary.json');
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf-8');
 }

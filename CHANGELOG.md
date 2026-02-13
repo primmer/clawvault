@@ -180,6 +180,7 @@
 - Required artifact schema-contract metadata is now centralized (`artifactName` → canonical `schemaPath`/`schemaId`) and enforced across manifest, manifest-validator output, and bundle-validator output runtime contracts to reduce cross-layer drift risk.
 - Manifest and validator output JSON schemas now also pin required per-artifact schema IDs (and schema-path suffix contracts for resolved payloads), aligning standalone schema validation with stricter runtime schema-contract invariants.
 - Required artifact contract metadata is now published as canonical ordered definitions (`REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_DEFINITIONS`) and reused by compatibility validator test fixtures, reducing duplicated artifact-contract literals and drift-prone fixture maintenance.
+- Added a dedicated manifest drift-guard test (`compat-artifact-bundle-manifest-contract-alignment`) to enforce that `schemas/compat-artifact-bundle.manifest.json` remains fully aligned with canonical required artifact definitions (including order and per-artifact contract fields).
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

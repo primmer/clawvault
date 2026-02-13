@@ -185,6 +185,7 @@
 - Added dedicated output-schema drift-guard coverage (`compat-artifact-bundle-output-schema-alignment`) to enforce that bundle-validator and manifest-validator output schemas remain aligned with canonical artifact definitions across enum domains, fixed-order `prefixItems`, and per-artifact `contains` constraints.
 - Extracted shared schema-alignment test helpers (`compat-artifact-bundle-schema-alignment-test-utils`) and refactored manifest/output drift-guard suites to reuse them, reducing repeated assertion logic and keeping contract-governance tests easier to extend safely.
 - Artifact-bundle validator CLI coverage now includes explicit `--manifest` override drift failures for required `schemaPath` and `schemaId` mappings, ensuring custom manifest paths cannot bypass canonical schema-contract enforcement.
+- Added `test:compat-artifact-alignment:fast` and wired it into `test:compat-artifact-stack:fast`, so artifact contract alignment drift guards now run as a first-class fast compatibility stack gate (not only via the full unit-test suite).
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

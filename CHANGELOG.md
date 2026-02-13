@@ -146,6 +146,7 @@
 - Artifact-bundle validator output now embeds an `artifactContracts` manifest (artifact path + schema path/ID + version-field expected/actual values) to provide explicit contract-version traceability for external release gates.
 - Artifact-bundle validation is now manifest-driven (`schemas/compat-artifact-bundle.manifest.json` + `scripts/lib/compat-artifact-bundle-manifest.mjs`) with schema validation (`schemas/compat-artifact-bundle.manifest.schema.json`, `test:compat-artifact-bundle:manifest:schema`) and optional `--manifest` override for controlled contract experiments.
 - Shared validator CLI output plumbing is now centralized in `scripts/lib/validator-cli-utils.mjs` (JSON-mode detection, best-effort `--out` recovery, and validated payload writing) to reduce duplicated error-handling/path-writing logic across validator scripts.
+- Shared JSON schema operations are now centralized in `scripts/lib/json-schema-utils.mjs` (JSON load helpers, Ajv factory, schema compilation, normalized schema-error formatting, and schema const/id extraction), reducing duplicated validator internals and hardening cross-validator consistency.
 
 ## [1.11.2] - 2026-02-12
 

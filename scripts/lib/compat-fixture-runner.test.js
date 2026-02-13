@@ -715,6 +715,7 @@ describe('compat fixture runner utilities', () => {
       mode: 'fixtures',
       schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
       selectedCases: ['healthy'],
+      selectedTotal: 1,
       expectedCheckLabels: ['openclaw CLI available'],
       runtimeCheckLabels: ['openclaw CLI available']
     });

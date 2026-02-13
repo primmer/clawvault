@@ -435,6 +435,7 @@ export function buildCompatSummaryHeader({
     mode,
     schemaVersion,
     selectedCases,
+    selectedTotal: selectedCases.length,
     expectedCheckLabels,
     runtimeCheckLabels
   };

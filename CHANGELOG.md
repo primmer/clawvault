@@ -101,6 +101,7 @@
 - Compatibility summary generation now uses a shared fixture pass/fail summarizer utility, and summary artifacts explicitly include `passedCases` / `failedCases` lists for triage.
 - Contract-only and full fixture summary artifacts now share a consistent telemetry field set (`averageDurationMs`, `overallDurationMs`, `slowestCases`, pass/fail lists) for stable downstream parsing.
 - Compatibility summary artifacts are now explicitly schema-versioned (`summarySchemaVersion`) and built via a shared summary-header utility for contract/fixtures mode consistency.
+- Fixture manifest validation now requires `expectedCheckStatuses` labels to be declared in `expectedCheckLabels`, tightening declarative contract integrity.
 
 ## [1.11.2] - 2026-02-12
 

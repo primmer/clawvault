@@ -8,6 +8,7 @@ Summary artifacts include `summarySchemaVersion` to support stable downstream pa
   - includes `schemaVersion` for explicit contract evolution (current: `2`).
   - case `name` values must be lowercase kebab-case identifiers.
   - includes `expectedCheckLabels` to lock the compatibility check-label contract.
+  - `expectedCheckStatuses` labels must be declared in `expectedCheckLabels`.
   - supports `expectedCheckStatuses`, `expectedDetailIncludes`, and `expectedHintIncludes`.
   - `expectedDetailIncludes` / `expectedHintIncludes` labels must also exist in `expectedCheckStatuses`.
   - supports `openclawExitCode` to simulate non-zero OpenClaw CLI behavior per fixture case.

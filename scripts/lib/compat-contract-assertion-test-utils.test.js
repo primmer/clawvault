@@ -10,6 +10,9 @@ import {
   expectNonEmptyStringRecord,
   expectNonEmptyUniqueStringArray,
   expectObjectKeyDomainParity,
+  expectStringContainsSegmentsExactlyOnce,
+  expectStringContainsSegmentsExactlyOnceInOrder,
+  expectStringContainsSegmentsInOrder,
   expectUniqueStringFieldAcrossRecords,
   expectUniqueDomainCountMapByKeyParity,
   expectUniqueDomainCountMapParity,
@@ -464,6 +467,31 @@ describe('compat contract assertion test utils', () => {
         'left',
         'right',
         'missing right field-pair domain'
+      );
+    }).toThrow();
+  });
+
+  it('asserts string segment ordering and uniqueness', () => {
+    const value = 'npm run alpha && npm run beta && npm run gamma';
+    const segments = ['npm run alpha', 'npm run beta', 'npm run gamma'];
+    expectStringContainsSegmentsInOrder(value, segments, 'string segment order domain');
+    expectStringContainsSegmentsExactlyOnce(value, segments, 'string segment uniqueness domain');
+    expectStringContainsSegmentsExactlyOnceInOrder(value, segments, 'string segment exact-order domain');
+  });
+
+  it('throws when string segment ordering or uniqueness fails', () => {
+    expect(() => {
+      expectStringContainsSegmentsInOrder(
+        'npm run beta && npm run alpha',
+        ['npm run alpha', 'npm run beta'],
+        'misordered string segment order domain'
+      );
+    }).toThrow();
+    expect(() => {
+      expectStringContainsSegmentsExactlyOnce(
+        'npm run alpha && npm run alpha',
+        ['npm run alpha'],
+        'duplicate string segment uniqueness domain'
       );
     }).toThrow();
   });

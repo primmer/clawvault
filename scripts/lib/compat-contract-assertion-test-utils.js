@@ -173,6 +173,32 @@ export function expectDistinctStringFieldsPerRecord(records, leftFieldName, righ
   }
 }
 
+export function expectStringContainsSegmentsInOrder(value, segments, label) {
+  expectNonEmptyString(value, `${label} value`);
+  expectNonEmptyUniqueStringArray(segments, `${label} segments`);
+  let cursor = -1;
+  for (const segment of segments) {
+    const nextIndex = value.indexOf(segment, cursor + 1);
+    expect(nextIndex, `${label} is missing segment: ${segment}`).toBeGreaterThanOrEqual(0);
+    cursor = nextIndex;
+  }
+}
+
+export function expectStringContainsSegmentsExactlyOnce(value, segments, label) {
+  expectNonEmptyString(value, `${label} value`);
+  expectNonEmptyUniqueStringArray(segments, `${label} segments`);
+  for (const segment of segments) {
+    const firstIndex = value.indexOf(segment);
+    expect(firstIndex, `${label} contains no occurrence for segment: ${segment}`).toBeGreaterThanOrEqual(0);
+    expect(firstIndex, `${label} contains duplicate segment occurrence: ${segment}`).toBe(value.lastIndexOf(segment));
+  }
+}
+
+export function expectStringContainsSegmentsExactlyOnceInOrder(value, segments, label) {
+  expectStringContainsSegmentsInOrder(value, segments, label);
+  expectStringContainsSegmentsExactlyOnce(value, segments, label);
+}
+
 export function expectEachDomainValueOccursExactlyOnce(values, resolveCount, label) {
   expect(Array.isArray(values), `${label} must receive array values`).toBe(true);
   for (const value of values) {

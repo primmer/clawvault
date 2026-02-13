@@ -114,6 +114,17 @@ describe('compat payload json schema contracts', () => {
     const schema = readSchema('compat-artifact-bundle-manifest-validator-output.schema.json');
     expect(schema.properties.outputSchemaVersion.const).toBe(COMPAT_ARTIFACT_BUNDLE_MANIFEST_VALIDATOR_OUTPUT_SCHEMA_VERSION);
     expect(schema.properties.status.enum).toEqual(['ok', 'error']);
+    const okBranch = schema.allOf.find(
+      (entry) => entry?.if?.properties?.status?.const === 'ok'
+    )?.then;
+    for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
+      expect(
+        okBranch?.allOf?.some((entry) => entry?.properties?.artifacts?.contains?.const === artifactName)
+      ).toBe(true);
+      expect(
+        okBranch?.allOf?.some((entry) => entry?.properties?.schemaContracts?.contains?.properties?.artifactName?.const === artifactName)
+      ).toBe(true);
+    }
     expect(schema.additionalProperties).toBe(false);
   });
 });

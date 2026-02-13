@@ -73,6 +73,128 @@
           "artifactCount",
           "artifacts",
           "schemaContracts"
+        ],
+        "allOf": [
+          {
+            "properties": {
+              "artifacts": {
+                "contains": { "const": "summary.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifacts": {
+                "contains": { "const": "report-schema-validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifacts": {
+                "contains": { "const": "validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifacts": {
+                "contains": { "const": "schema-validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifacts": {
+                "contains": { "const": "validator-result-verifier-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "artifacts": {
+                "contains": { "const": "artifact-bundle-manifest-validator-result.json" }
+              }
+            }
+          },
+          {
+            "properties": {
+              "schemaContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "summary.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "schemaContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "report-schema-validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "schemaContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "schemaContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "schema-validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "schemaContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "validator-result-verifier-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "schemaContracts": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "artifactName": { "const": "artifact-bundle-manifest-validator-result.json" }
+                  },
+                  "required": ["artifactName"]
+                }
+              }
+            }
+          }
         ]
       }
     },

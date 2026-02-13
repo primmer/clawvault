@@ -37,6 +37,12 @@ function writeCaseReport(testCase, report) {
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8');
 }
 
+function writeSummaryReport(summary) {
+  if (!compatReportDir) return;
+  const summaryPath = path.join(compatReportDir, 'summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf-8');
+}
+
 function runCase(testCase, env) {
   const fixturePath = path.join(fixturesRoot, testCase.name);
   assertFixtureFiles(testCase.name, fixturePath);
@@ -90,7 +96,12 @@ function runCase(testCase, env) {
     console.error(result.stderr);
   }
 
-  return passed;
+  return {
+    passed,
+    name: testCase.name,
+    expectedExitCode: testCase.expectedExitCode,
+    actualExitCode
+  };
 }
 
 function main() {
@@ -103,9 +114,14 @@ function main() {
   };
 
   try {
-    const failures = cases
-      .map((testCase) => runCase(testCase, env))
-      .filter((passed) => !passed).length;
+    const results = cases.map((testCase) => runCase(testCase, env));
+    writeSummaryReport({
+      generatedAt: new Date().toISOString(),
+      total: results.length,
+      failures: results.filter((result) => !result.passed).length,
+      results
+    });
+    const failures = results.filter((result) => !result.passed).length;
 
     if (failures > 0) {
       console.error(`Compatibility fixture check failed: ${failures} case(s).`);

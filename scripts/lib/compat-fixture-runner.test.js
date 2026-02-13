@@ -181,6 +181,48 @@ describe('compat fixture runner utilities', () => {
     }
   });
 
+  it('requires openclaw readiness warning status for non-ready CLI simulations', () => {
+    const root = makeTempDir('compat-cases-');
+    const file = path.join(root, 'cases.json');
+    try {
+      fs.writeFileSync(file, JSON.stringify({
+        schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+        expectedCheckLabels: ['openclaw CLI available'],
+        cases: [
+          {
+            name: 'bad-openclaw-exit-status',
+            description: 'non-zero openclaw exit without warning expectation.',
+            expectedExitCode: 1,
+            expectedWarnings: 1,
+            expectedErrors: 0,
+            expectedCheckStatuses: { 'openclaw CLI available': 'ok' },
+            openclawExitCode: 2
+          }
+        ]
+      }), 'utf-8');
+      expect(() => loadCases(file)).toThrow('non-ready openclaw simulation');
+
+      fs.writeFileSync(file, JSON.stringify({
+        schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+        expectedCheckLabels: ['openclaw CLI available'],
+        cases: [
+          {
+            name: 'bad-openclaw-signal-status',
+            description: 'signal openclaw exit without warning expectation.',
+            expectedExitCode: 1,
+            expectedWarnings: 1,
+            expectedErrors: 0,
+            expectedCheckStatuses: { 'openclaw CLI available': 'ok' },
+            openclawSignal: 'SIGTERM'
+          }
+        ]
+      }), 'utf-8');
+      expect(() => loadCases(file)).toThrow('non-ready openclaw simulation');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects invalid expectedHintIncludes metadata', () => {
     const root = makeTempDir('compat-cases-');
     const file = path.join(root, 'cases.json');

@@ -118,6 +118,7 @@
 - Standalone summary validator script coverage now also includes explicit missing-input failure behavior to keep CLI error guidance stable.
 - Compatibility summary workflow scripts now honor caller-provided `COMPAT_REPORT_DIR` (with `.compat-reports` fallback), aligning local/CI artifact destinations.
 - Added `test:compat-summary:verify` for validating pre-existing summary artifacts directly (with optional path argument), enabling artifact-only checks without fixture re-execution.
+- Expanded summary-artifact utility tests to cover malformed summary loading and fixtures-summary case-report validation failures, strengthening error-path contract confidence.
 
 ## [1.11.2] - 2026-02-12
 

@@ -273,6 +273,7 @@ npm run test:compat-summary:fast
 # script behavior is covered by dedicated unit tests (success + failure + env fallback)
 # validator exits with a clear error when no summary path/source input is provided
 # summary scripts respect COMPAT_REPORT_DIR (defaults to .compat-reports when unset)
+# report parsing now validates per-check schema and warning/error count coherence before artifact evaluation
 ```
 
 

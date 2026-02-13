@@ -39,58 +39,24 @@ import {
   validateWithCompiledSchema
 } from './lib/json-schema-utils.mjs';
 import {
-  readRequiredOptionValue
-} from './lib/validator-arg-utils.mjs';
+  parseValidatorCliArgs
+} from './lib/validator-cli-parser.mjs';
 
 function parseCliArgs(argv) {
-  const parsed = {
-    reportDir: '',
-    manifestPath: '',
-    help: false,
-    json: false,
-    outPath: '',
-    allowErrorStatus: false
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const value = argv[index];
-    if (value === '--help' || value === '-h') {
-      parsed.help = true;
-      continue;
-    }
-    if (value === '--json') {
-      parsed.json = true;
-      continue;
-    }
-    if (value === '--allow-error-status') {
-      parsed.allowErrorStatus = true;
-      continue;
-    }
-    if (value === '--out') {
-      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
-      parsed.outPath = outPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--manifest') {
-      const { value: manifestPath, nextIndex } = readRequiredOptionValue(argv, index, '--manifest');
-      parsed.manifestPath = manifestPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--report-dir') {
-      const { value: reportDir, nextIndex } = readRequiredOptionValue(argv, index, '--report-dir');
-      parsed.reportDir = reportDir;
-      index = nextIndex;
-      continue;
-    }
-    if (value.startsWith('--')) {
-      throw new Error(`Unknown option: ${value}`);
-    }
-    throw new Error(`Unexpected positional argument: ${value}`);
-  }
-
-  return parsed;
+  return parseValidatorCliArgs(argv, {
+    initialValues: {
+      reportDir: '',
+      manifestPath: '',
+      allowErrorStatus: false
+    },
+    valueOptions: [
+      { name: '--report-dir', key: 'reportDir' },
+      { name: '--manifest', key: 'manifestPath' }
+    ],
+    booleanOptions: [
+      { name: '--allow-error-status', key: 'allowErrorStatus' }
+    ]
+  }).parsed;
 }
 
 function printHelp() {

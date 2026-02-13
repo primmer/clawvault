@@ -13,50 +13,23 @@ import {
   writeValidatedJsonPayload
 } from './lib/validator-cli-utils.mjs';
 import {
-  readRequiredOptionValue
-} from './lib/validator-arg-utils.mjs';
+  parseValidatorCliArgs
+} from './lib/validator-cli-parser.mjs';
 
 function parseCliArgs(argv) {
-  const parsed = {
-    payloadPath: '',
-    help: false,
-    json: false,
-    outPath: '',
-    requireOk: false
-  };
-  const positional = [];
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const value = argv[index];
-    if (value === '--help' || value === '-h') {
-      parsed.help = true;
-      continue;
-    }
-    if (value === '--json') {
-      parsed.json = true;
-      continue;
-    }
-    if (value === '--require-ok') {
-      parsed.requireOk = true;
-      continue;
-    }
-    if (value === '--out') {
-      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
-      parsed.outPath = outPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--validator-result') {
-      const { value: payloadPath, nextIndex } = readRequiredOptionValue(argv, index, '--validator-result');
-      parsed.payloadPath = payloadPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value.startsWith('--')) {
-      throw new Error(`Unknown option: ${value}`);
-    }
-    positional.push(value);
-  }
+  const { parsed, positional } = parseValidatorCliArgs(argv, {
+    allowPositional: true,
+    initialValues: {
+      payloadPath: '',
+      requireOk: false
+    },
+    valueOptions: [
+      { name: '--validator-result', key: 'payloadPath' }
+    ],
+    booleanOptions: [
+      { name: '--require-ok', key: 'requireOk' }
+    ]
+  });
 
   if (!parsed.payloadPath && positional.length > 0) {
     parsed.payloadPath = positional[0];

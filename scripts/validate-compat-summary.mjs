@@ -14,57 +14,25 @@ import {
   writeValidatedJsonPayload
 } from './lib/validator-cli-utils.mjs';
 import {
-  readRequiredOptionValue
-} from './lib/validator-arg-utils.mjs';
+  parseValidatorCliArgs
+} from './lib/validator-cli-parser.mjs';
 
 function parseCliArgs(argv) {
-  const parsed = {
-    summaryPath: '',
-    reportDir: '',
-    help: false,
-    allowMissingCaseReports: false,
-    json: false,
-    outPath: ''
-  };
-  const positional = [];
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const value = argv[index];
-    if (value === '--help' || value === '-h') {
-      parsed.help = true;
-      continue;
-    }
-    if (value === '--allow-missing-case-reports') {
-      parsed.allowMissingCaseReports = true;
-      continue;
-    }
-    if (value === '--json') {
-      parsed.json = true;
-      continue;
-    }
-    if (value === '--out') {
-      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
-      parsed.outPath = outPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--summary') {
-      const { value: summaryPath, nextIndex } = readRequiredOptionValue(argv, index, '--summary');
-      parsed.summaryPath = summaryPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--report-dir') {
-      const { value: reportDir, nextIndex } = readRequiredOptionValue(argv, index, '--report-dir');
-      parsed.reportDir = reportDir;
-      index = nextIndex;
-      continue;
-    }
-    if (value.startsWith('--')) {
-      throw new Error(`Unknown option: ${value}`);
-    }
-    positional.push(value);
-  }
+  const { parsed, positional } = parseValidatorCliArgs(argv, {
+    allowPositional: true,
+    initialValues: {
+      summaryPath: '',
+      reportDir: '',
+      allowMissingCaseReports: false
+    },
+    valueOptions: [
+      { name: '--summary', key: 'summaryPath' },
+      { name: '--report-dir', key: 'reportDir' }
+    ],
+    booleanOptions: [
+      { name: '--allow-missing-case-reports', key: 'allowMissingCaseReports' }
+    ]
+  });
 
   if (!parsed.summaryPath && positional.length > 0) {
     parsed.summaryPath = positional[0];

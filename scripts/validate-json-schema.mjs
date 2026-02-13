@@ -14,52 +14,21 @@ import {
   loadJsonValue
 } from './lib/json-schema-utils.mjs';
 import {
-  readRequiredOptionValue
-} from './lib/validator-arg-utils.mjs';
+  parseValidatorCliArgs
+} from './lib/validator-cli-parser.mjs';
 
 function parseCliArgs(argv) {
-  const parsed = {
-    schemaPath: '',
-    dataPath: '',
-    json: false,
-    outPath: '',
-    help: false
-  };
-  const positional = [];
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const value = argv[index];
-    if (value === '--help' || value === '-h') {
-      parsed.help = true;
-      continue;
-    }
-    if (value === '--json') {
-      parsed.json = true;
-      continue;
-    }
-    if (value === '--schema') {
-      const { value: schemaPath, nextIndex } = readRequiredOptionValue(argv, index, '--schema');
-      parsed.schemaPath = schemaPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--data') {
-      const { value: dataPath, nextIndex } = readRequiredOptionValue(argv, index, '--data');
-      parsed.dataPath = dataPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value === '--out') {
-      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
-      parsed.outPath = outPath;
-      index = nextIndex;
-      continue;
-    }
-    if (value.startsWith('--')) {
-      throw new Error(`Unknown option: ${value}`);
-    }
-    positional.push(value);
-  }
+  const { parsed, positional } = parseValidatorCliArgs(argv, {
+    allowPositional: true,
+    initialValues: {
+      schemaPath: '',
+      dataPath: ''
+    },
+    valueOptions: [
+      { name: '--schema', key: 'schemaPath' },
+      { name: '--data', key: 'dataPath' }
+    ]
+  });
 
   if (!parsed.schemaPath && positional.length > 0) {
     parsed.schemaPath = positional[0];

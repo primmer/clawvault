@@ -7,12 +7,17 @@ import {
 function parseCliArgs(argv) {
   const parsed = {
     summaryPath: '',
-    reportDir: ''
+    reportDir: '',
+    help: false
   };
   const positional = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
+    if (value === '--help' || value === '-h') {
+      parsed.help = true;
+      continue;
+    }
     if (value === '--summary') {
       const nextValue = argv[index + 1];
       if (!nextValue || nextValue.startsWith('--')) {
@@ -42,6 +47,15 @@ function parseCliArgs(argv) {
   }
 
   return parsed;
+}
+
+function printHelp() {
+  console.log('Usage: node scripts/validate-compat-summary.mjs [summary.json]');
+  console.log('       node scripts/validate-compat-summary.mjs --summary <summary.json> [--report-dir <dir>]');
+  console.log('');
+  console.log('Resolution order:');
+  console.log('  summary path: --summary | positional arg | COMPAT_SUMMARY_PATH | COMPAT_REPORT_DIR/summary.json');
+  console.log('  report dir : --report-dir | COMPAT_REPORT_DIR | dirname(summary path)');
 }
 
 function resolvePaths(args) {
@@ -81,6 +95,10 @@ function resolvePaths(args) {
 
 function main() {
   const args = parseCliArgs(process.argv.slice(2));
+  if (args.help) {
+    printHelp();
+    return;
+  }
   const { summaryPath, reportDir } = resolvePaths(args);
   const summary = loadCompatSummary(summaryPath);
   validateCompatSummaryCaseReports(summary, reportDir);

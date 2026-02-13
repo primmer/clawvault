@@ -154,4 +154,11 @@ describe('validate-compat-summary script', () => {
     expect(missingReportDirResult.status).toBe(1);
     expect(missingReportDirResult.stderr).toContain('Missing value for --report-dir');
   });
+
+  it('prints usage help and exits successfully for --help', () => {
+    const result = runSummaryValidator(['--help']);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Usage: node scripts/validate-compat-summary.mjs');
+    expect(result.stdout).toContain('--summary <summary.json>');
+  });
 });

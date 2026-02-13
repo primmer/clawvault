@@ -411,6 +411,14 @@ export function validateFixtureReadmeCoverage(readmePath, cases) {
     })
     .filter(Boolean);
 
+  const duplicateEntries = documentedEntries
+    .map((entry) => entry.name)
+    .filter((name, index, values) => values.indexOf(name) !== index)
+    .filter((name, index, values) => values.indexOf(name) === index);
+  if (duplicateEntries.length > 0) {
+    throw new Error(`README lists duplicate fixture cases: ${duplicateEntries.join(', ')}`);
+  }
+
   const documented = new Map(
     documentedEntries
       .map((entry) => [entry.name, entry.description])

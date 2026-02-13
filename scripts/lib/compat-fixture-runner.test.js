@@ -711,6 +711,15 @@ describe('compat fixture runner utilities', () => {
         { name: 'healthy', description: 'ok' },
         { name: 'missing-events', description: 'bad' }
       ])).toThrow('scenario order is out of sync');
+
+      fs.writeFileSync(
+        readmePath,
+        ['- `healthy` — ok', '- `healthy` — duplicate'].join('\n'),
+        'utf-8'
+      );
+      expect(() => validateFixtureReadmeCoverage(readmePath, [
+        { name: 'healthy', description: 'ok' }
+      ])).toThrow('duplicate fixture cases');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

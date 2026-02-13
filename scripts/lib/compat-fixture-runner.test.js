@@ -826,6 +826,24 @@ describe('compat fixture runner utilities', () => {
       ...summary,
       results: [{
         ...summary.results[0],
+        expectedExitCode: 1,
+        actualExitCode: 0,
+        passed: true,
+        mismatches: []
+      }]
+    })).toThrow('passed cases must match expected and actual exit codes');
+    expect(() => ensureCompatSummaryShape({
+      ...summary,
+      results: [{
+        ...summary.results[0],
+        passed: false,
+        mismatches: []
+      }]
+    })).toThrow('failed cases must include mismatch details');
+    expect(() => ensureCompatSummaryShape({
+      ...summary,
+      results: [{
+        ...summary.results[0],
         mismatches: ['unexpected mismatch']
       }]
     })).toThrow('passed cases must not include mismatches');

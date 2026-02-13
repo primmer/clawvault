@@ -285,6 +285,12 @@ function ensureSummaryResultEntryShape(entry, index) {
   if (entry.passed && entry.mismatches.length > 0) {
     throw new Error(`compat summary results[${index}] passed cases must not include mismatches`);
   }
+  if (!entry.passed && entry.mismatches.length === 0) {
+    throw new Error(`compat summary results[${index}] failed cases must include mismatch details`);
+  }
+  if (entry.passed && entry.actualExitCode !== entry.expectedExitCode) {
+    throw new Error(`compat summary results[${index}] passed cases must match expected and actual exit codes`);
+  }
 }
 
 export function evaluateCaseReport(testCase, report, actualExitCode) {

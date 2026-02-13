@@ -315,6 +315,21 @@ export function writeSummaryReport(compatReportDir, summary) {
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf-8');
 }
 
+export function assertBuildFreshness(sourcePath, buildPath, label = 'build artifact') {
+  if (!fs.existsSync(buildPath)) {
+    throw new Error(`Missing ${label}: ${buildPath}. Run \`npm run build\` before compatibility checks.`);
+  }
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  const sourceMtime = fs.statSync(sourcePath).mtimeMs;
+  const buildMtime = fs.statSync(buildPath).mtimeMs;
+  if (sourceMtime > buildMtime) {
+    throw new Error(`Stale ${label}: ${buildPath} is older than ${sourcePath}. Run \`npm run build\` before compatibility checks.`);
+  }
+}
+
 export function assertFixtureFiles(caseName, fixturePath, requiredPaths = REQUIRED_FIXTURE_FILES, allowMissingFiles = []) {
   const allowedMissing = new Set(allowMissingFiles);
   const missing = requiredPaths

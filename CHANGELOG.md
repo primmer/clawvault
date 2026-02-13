@@ -143,6 +143,7 @@
 - Added schema artifacts for core compatibility reports (`schemas/compat-summary.schema.json`, `schemas/compat-case-report.schema.json`) plus `scripts/validate-compat-report-schemas.mjs` and `test:compat-report-schemas:verify` integration in fast summary workflows.
 - Added structured output contracts for report-schema validator runs (`scripts/lib/compat-report-schema-validator-output.mjs`, `schemas/compat-report-schema-validator-output.schema.json`) plus chained `report-schema-validator-result.json` emission/schema-validation in fast summary workflows and CI artifacts.
 - Added compatibility artifact-bundle validator (`scripts/validate-compat-artifact-bundle.mjs`) with structured output contract/schema (`scripts/lib/compat-artifact-bundle-validator-output.mjs`, `schemas/compat-artifact-bundle-validator-output.schema.json`), integrated into fast summary workflows and CI artifact uploads (`artifact-bundle-validator-result.json`).
+- Artifact-bundle validator output now embeds an `artifactContracts` manifest (artifact path + schema path/ID + version-field expected/actual values) to provide explicit contract-version traceability for external release gates.
 
 ## [1.11.2] - 2026-02-12
 

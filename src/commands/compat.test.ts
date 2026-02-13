@@ -85,6 +85,21 @@ describe('checkOpenClawCompatibility', () => {
     }
   });
 
+  it('flags unusable openclaw binary when version command exits non-zero', async () => {
+    spawnSyncMock.mockReturnValue({ error: undefined, status: 2 });
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-compat-'));
+    try {
+      writeProjectFixture(root);
+      const { checkOpenClawCompatibility } = await loadCompatModule();
+      const report = checkOpenClawCompatibility({ baseDir: root });
+      const cliCheck = report.checks.find((check) => check.label === 'openclaw CLI available');
+      expect(cliCheck?.status).toBe('warn');
+      expect(cliCheck?.detail).toContain('exited with code 2');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('computes strict exit code from warnings/errors', async () => {
     const { compatibilityExitCode } = await loadCompatModule();
     expect(compatibilityExitCode({ generatedAt: '', checks: [], warnings: 0, errors: 0 })).toBe(0);

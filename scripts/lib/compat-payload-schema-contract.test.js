@@ -88,11 +88,15 @@ describe('compat payload json schema contracts', () => {
       (entry) => entry?.if?.properties?.status?.const === 'ok'
     )?.then;
     for (const artifactName of REQUIRED_COMPAT_ARTIFACT_BUNDLE_ARTIFACT_NAMES) {
+      const expectedVersionField = REQUIRED_COMPAT_ARTIFACT_BUNDLE_VERSION_FIELDS[artifactName];
       expect(
         okBranch?.allOf?.some((entry) => entry?.properties?.verifiedArtifacts?.contains?.const === artifactName)
       ).toBe(true);
       expect(
-        okBranch?.allOf?.some((entry) => entry?.properties?.artifactContracts?.contains?.properties?.artifactName?.const === artifactName)
+        okBranch?.allOf?.some((entry) => (
+          entry?.properties?.artifactContracts?.contains?.properties?.artifactName?.const === artifactName
+          && entry?.properties?.artifactContracts?.contains?.properties?.versionField?.const === expectedVersionField
+        ))
       ).toBe(true);
     }
     expect(schema.additionalProperties).toBe(false);

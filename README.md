@@ -273,6 +273,7 @@ node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --json
 # write validator result payload (success/error) to a file
 node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --json --out /tmp/validator-result.json
 # in CI, compat-summary artifacts now include both summary.json and validator-result.json
+# validator payload schema/validation is centralized in scripts/lib/compat-summary-validator-output.mjs
 # see validator usage/help
 node scripts/validate-compat-summary.mjs --help
 # equivalent npm wrapper (supports arg passthrough, env fallback)

@@ -70,6 +70,11 @@ export const REQUIRED_COMPAT_CI_CHECKOUT_USES = 'actions/checkout@v4';
 export const REQUIRED_COMPAT_CI_JOB_NAME = 'test-and-compat';
 export const REQUIRED_COMPAT_CI_JOB_RUNS_ON = 'ubuntu-latest';
 export const REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES = '15';
+export const REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES = Object.freeze([
+  'runs-on',
+  'timeout-minutes',
+  'steps'
+]);
 export const REQUIRED_COMPAT_CI_SETUP_NODE_STEP_NAME = 'Setup Node';
 export const REQUIRED_COMPAT_CI_SETUP_NODE_USES = 'actions/setup-node@v4';
 export const REQUIRED_COMPAT_CI_SETUP_NODE_VERSION = '20';

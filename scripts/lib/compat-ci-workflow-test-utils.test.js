@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countJobNameOccurrences,
+  countScalarFieldOccurrences,
   countStepNameOccurrences,
   extractEnvField,
   extractJobBlock,
@@ -49,6 +51,10 @@ describe('compat ci workflow test utils', () => {
     expect(jobBlock).toContain('- name: Upload');
     expect(jobBlock).not.toContain('second-job:');
     expect(extractScalarField(jobBlock, 'runs-on')).toBe('ubuntu-latest');
+    expect(countJobNameOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'test-and-compat')).toBe(1);
+    expect(countJobNameOccurrences(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Job')).toBe(0);
+    expect(countScalarFieldOccurrences(jobBlock, 'runs-on')).toBe(1);
+    expect(countScalarFieldOccurrences(jobBlock, 'steps')).toBe(1);
   });
 
   it('extracts step metadata/block and run/env fields', () => {
@@ -83,5 +89,6 @@ describe('compat ci workflow test utils', () => {
     expect(extractStepMetadata(`\n${SAMPLE_WORKFLOW_YAML}\n`, 'Missing Step')).toBe(null);
     expect(extractScalarField('run: npm test', 'missing')).toBe(null);
     expect(extractUploadArtifactPaths('- name: Upload\n  uses: actions/upload-artifact@v4')).toBe(null);
+    expect(countScalarFieldOccurrences('run: npm test', 'missing')).toBe(0);
   });
 });

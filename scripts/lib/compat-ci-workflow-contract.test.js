@@ -5,6 +5,7 @@ import {
   REQUIRED_COMPAT_CI_JOB_NAME,
   REQUIRED_COMPAT_CI_JOB_RUNS_ON,
   REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES,
+  REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES,
   REQUIRED_COMPAT_CI_CHECKOUT_STEP_NAME,
   REQUIRED_COMPAT_CI_CHECKOUT_USES,
   REQUIRED_COMPAT_CI_FAILURE_UPLOAD_ARTIFACT_NAME,
@@ -33,6 +34,8 @@ import {
   REQUIRED_COMPAT_CI_UPLOAD_USES
 } from './compat-npm-script-contracts.mjs';
 import {
+  countJobNameOccurrences,
+  countScalarFieldOccurrences,
   countStepNameOccurrences,
   extractEnvField,
   extractJobBlock,
@@ -50,12 +53,32 @@ function loadCiWorkflowYaml() {
 }
 
 describe('compat ci workflow contract', () => {
+  it('keeps compat job declaration unique in workflow', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    expect(
+      countJobNameOccurrences(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME),
+      `required CI job "${REQUIRED_COMPAT_CI_JOB_NAME}" must appear exactly once`
+    ).toBe(1);
+  });
+
   it('keeps CI job identity and runtime envelope aligned with contracts', () => {
     const workflowYaml = loadCiWorkflowYaml();
     const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
     expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
     expect(extractScalarField(ciJobBlock, 'runs-on')).toBe(REQUIRED_COMPAT_CI_JOB_RUNS_ON);
     expect(extractScalarField(ciJobBlock, 'timeout-minutes')).toBe(REQUIRED_COMPAT_CI_JOB_TIMEOUT_MINUTES);
+  });
+
+  it('keeps required job-level fields unique within compat job', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const ciJobBlock = extractJobBlock(workflowYaml, REQUIRED_COMPAT_CI_JOB_NAME);
+    expect(ciJobBlock, `missing CI workflow job: ${REQUIRED_COMPAT_CI_JOB_NAME}`).toBeTruthy();
+    for (const fieldName of REQUIRED_COMPAT_CI_JOB_UNIQUE_FIELD_NAMES) {
+      expect(
+        countScalarFieldOccurrences(ciJobBlock, fieldName),
+        `required job field "${fieldName}" must appear exactly once in ${REQUIRED_COMPAT_CI_JOB_NAME}`
+      ).toBe(1);
+    }
   });
 
   it('keeps core CI step sequence ordered', () => {

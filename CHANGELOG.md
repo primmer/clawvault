@@ -214,6 +214,8 @@
 - Step-order and step-content contract assertions now evaluate within the canonical compat job block, tightening guarantees that required steps are present and ordered in the intended job context (not merely elsewhere in workflow YAML).
 - CI workflow contracts now also enforce uniqueness for each required compat-job step, catching duplicate-step regressions that could previously pass presence/order-only checks.
 - CI workflow upload-step governance now also validates canonical `if` expressions and `uses` action pins for both summary and failure upload steps (`always()`/`failure()`, `actions/upload-artifact@v4`), tightening artifact-publication contract integrity.
+- CI workflow parser utilities now include generic job/field occurrence counters (`countJobNameOccurrences`, `countScalarFieldOccurrences`) with dedicated unit coverage, enabling stricter uniqueness governance for job declarations and key job-level fields.
+- CI workflow contracts now enforce single declaration of the canonical compat job and uniqueness of required job-level fields (`runs-on`, `timeout-minutes`, `steps`), hardening against malformed/duplicated job envelope drift.
 - `test:compat-script-stack-contract:fast` now also runs CI workflow utility tests, so parser/helper regressions fail at the same early workflow-contract gate as stack/CI wiring drift checks.
 - `test:compat-script-stack-contract:fast` now also runs dedicated CI workflow contract suites, ensuring workflow drift is caught by the earliest compatibility gate (including local `npm run ci` execution).
 - `npm run ci` now runs `test:compat-script-stack-contract:fast` as its first gate, enabling immediate workflow-wiring contract failures before heavier typecheck/test/build stages.

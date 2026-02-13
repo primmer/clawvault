@@ -210,6 +210,75 @@ function main() {
   if (reportSchemaValidatorPayload.status === 'ok' && reportSchemaValidatorPayload.mode !== summary.mode) {
     throw new Error(`summary mode mismatch between summary and report-schema-validator payload (${summary.mode} vs ${reportSchemaValidatorPayload.mode})`);
   }
+  if (summaryValidatorPayload.status === 'ok') {
+    const summaryResultCount = Array.isArray(summary.results) ? summary.results.length : 0;
+    if (summaryValidatorPayload.summarySchemaVersion !== summary.summarySchemaVersion) {
+      throw new Error(
+        `summary schema version mismatch between summary and validator-result payload `
+        + `(${summary.summarySchemaVersion} vs ${summaryValidatorPayload.summarySchemaVersion})`
+      );
+    }
+    if (summaryValidatorPayload.fixtureSchemaVersion !== summary.schemaVersion) {
+      throw new Error(
+        `fixture schema version mismatch between summary and validator-result payload `
+        + `(${summary.schemaVersion} vs ${summaryValidatorPayload.fixtureSchemaVersion})`
+      );
+    }
+    if (summaryValidatorPayload.selectedTotal !== summary.selectedTotal) {
+      throw new Error(
+        `selected total mismatch between summary and validator-result payload `
+        + `(${summary.selectedTotal} vs ${summaryValidatorPayload.selectedTotal})`
+      );
+    }
+    if (summaryValidatorPayload.resultCount !== summaryResultCount) {
+      throw new Error(
+        `result count mismatch between summary and validator-result payload `
+        + `(${summaryResultCount} vs ${summaryValidatorPayload.resultCount})`
+      );
+    }
+  }
+  if (reportSchemaValidatorPayload.status === 'ok') {
+    const expectedValidatedCaseReports = reportSchemaValidatorPayload.caseReportMode === 'validated-case-reports'
+      ? (Array.isArray(summary.results) ? summary.results.length : 0)
+      : 0;
+    if (reportSchemaValidatorPayload.validatedCaseReports !== expectedValidatedCaseReports) {
+      throw new Error(
+        `validated case-report count mismatch for report-schema-validator payload `
+        + `(expected ${expectedValidatedCaseReports}, received ${reportSchemaValidatorPayload.validatedCaseReports})`
+      );
+    }
+  }
+  if (summaryValidatorPayload.status === 'ok' && reportSchemaValidatorPayload.status === 'ok') {
+    if (summaryValidatorPayload.caseReportMode !== reportSchemaValidatorPayload.caseReportMode) {
+      throw new Error(
+        `case-report mode mismatch between validator-result and report-schema-validator payloads `
+        + `(${summaryValidatorPayload.caseReportMode} vs ${reportSchemaValidatorPayload.caseReportMode})`
+      );
+    }
+  }
+  if (validatorResultVerifierPayload.status === 'ok') {
+    if (validatorResultVerifierPayload.payloadStatus !== summaryValidatorPayload.status) {
+      throw new Error(
+        `validator-result verifier payloadStatus mismatch `
+        + `(expected ${summaryValidatorPayload.status}, received ${validatorResultVerifierPayload.payloadStatus})`
+      );
+    }
+    if (validatorResultVerifierPayload.validatorPayloadOutputSchemaVersion !== summaryValidatorPayload.outputSchemaVersion) {
+      throw new Error(
+        `validator-result verifier schema-version mismatch `
+        + `(expected ${summaryValidatorPayload.outputSchemaVersion}, received ${validatorResultVerifierPayload.validatorPayloadOutputSchemaVersion})`
+      );
+    }
+  }
+  if (schemaValidatorPayload.status === 'ok') {
+    const validatorResultSchemaPath = artifactContracts.find((entry) => entry.artifactName === 'validator-result.json')?.schemaPathResolved;
+    if (schemaValidatorPayload.schemaPath !== validatorResultSchemaPath) {
+      throw new Error(
+        `schema-validator schemaPath mismatch for validator-result contract `
+        + `(expected ${validatorResultSchemaPath}, received ${schemaValidatorPayload.schemaPath})`
+      );
+    }
+  }
 
   if (requireOk) {
     const statusChecks = [

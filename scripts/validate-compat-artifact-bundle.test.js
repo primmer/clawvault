@@ -326,6 +326,54 @@ describe('validate-compat-artifact-bundle script', () => {
     }
   });
 
+  it('fails when validator-result verifier payload drifts from validator-result artifact', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'compat-artifact-bundle-'));
+    try {
+      const validatorResultPath = path.join(root, 'validator-result.json');
+      writeArtifacts(root, {
+        verifierPayload: buildValidatorResultVerifierSuccessPayload({
+          payloadPath: validatorResultPath,
+          payloadStatus: 'ok',
+          validatorPayloadOutputSchemaVersion: 1
+        })
+      });
+      const verifierResultPath = path.join(root, 'validator-result-verifier-result.json');
+      const verifierPayload = JSON.parse(fs.readFileSync(verifierResultPath, 'utf-8'));
+      verifierPayload.payloadStatus = 'error';
+      fs.writeFileSync(verifierResultPath, JSON.stringify(verifierPayload, null, 2), 'utf-8');
+
+      const result = runArtifactBundleValidator([], { COMPAT_REPORT_DIR: root });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('validator-result verifier payloadStatus mismatch');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when summary-validator totals drift from summary artifact', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'compat-artifact-bundle-'));
+    try {
+      const validatorResultPath = path.join(root, 'validator-result.json');
+      writeArtifacts(root, {
+        verifierPayload: buildValidatorResultVerifierSuccessPayload({
+          payloadPath: validatorResultPath,
+          payloadStatus: 'ok',
+          validatorPayloadOutputSchemaVersion: 1
+        })
+      });
+      const summaryValidatorResultPath = path.join(root, 'validator-result.json');
+      const summaryValidatorPayload = JSON.parse(fs.readFileSync(summaryValidatorResultPath, 'utf-8'));
+      summaryValidatorPayload.selectedTotal = 42;
+      fs.writeFileSync(summaryValidatorResultPath, JSON.stringify(summaryValidatorPayload, null, 2), 'utf-8');
+
+      const result = runArtifactBundleValidator([], { COMPAT_REPORT_DIR: root });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('selected total mismatch between summary and validator-result payload');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('prints help and writes structured parse-error payloads', () => {
     const helpResult = runArtifactBundleValidator(['--help']);
     expect(helpResult.status).toBe(0);

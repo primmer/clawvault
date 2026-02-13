@@ -34,6 +34,8 @@ export { ClawVault, createVault, findVault } from './lib/vault.js';
 export { setupCommand } from './commands/setup.js';
 export { compatCommand, checkOpenClawCompatibility } from './commands/compat.js';
 export type { CompatCheck, CompatReport, CompatStatus } from './commands/compat.js';
+export { graphCommand, graphSummary } from './commands/graph.js';
+export type { GraphSummary } from './commands/graph.js';
 export {
   contextCommand,
   buildContext,

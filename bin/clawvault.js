@@ -1047,6 +1047,27 @@ program
     }
   });
 
+// === GRAPH ===
+program
+  .command('graph')
+  .description('Show typed memory graph summary')
+  .option('-v, --vault <path>', 'Vault path')
+  .option('--refresh', 'Rebuild graph index before showing summary')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const { graphCommand } = await import('../dist/commands/graph.js');
+      await graphCommand({
+        vaultPath: options.vault,
+        refresh: options.refresh,
+        json: options.json
+      });
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // === ENTITIES ===
 program
   .command('entities')

@@ -173,6 +173,7 @@ clawvault list                # All documents
 clawvault list decisions      # By category
 clawvault get decisions/title # Specific document
 clawvault stats               # Vault overview
+clawvault graph --refresh     # Typed memory graph summary
 ```
 
 ### Session Continuity

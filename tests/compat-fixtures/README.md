@@ -7,6 +7,7 @@ Summary header generation rejects malformed/duplicate array entries for case and
 Fixture runner validates full summary artifact shape/invariants before writing (schema version, totals/failures coherence, telemetry/result array structure).
 Standalone summary artifact validation is available via `scripts/validate-compat-summary.mjs` for post-run/CI artifact checks.
 Standalone validator behavior is unit-tested in `scripts/validate-compat-summary.test.js` (success/failure/env fallback paths).
+Summary workflow scripts respect `COMPAT_REPORT_DIR` from the caller environment (falling back to `.compat-reports` when unset).
 - Additional mode rules are enforced: `contract` summaries cannot contain case results, and `fixtures` summaries must keep totals aligned with selected cases.
 - Fixtures-mode summary validation now also enforces per-result schema + status coherence (`passedCases`/`failedCases`) and selected-case ordering parity for emitted result lists.
 - `slowestCases` is contract-validated against emitted fixture results (exact `min(3,total)` length, descending order, and duration parity).

@@ -68,6 +68,7 @@ import {
   extractPushBranches,
   extractTopLevelJobNames,
   extractTopLevelFieldNames,
+  extractTopLevelFieldNameCounts,
   extractOnTriggerNames,
   extractOnTriggerSectionFieldNames,
   extractNestedSectionFieldNames,
@@ -110,6 +111,14 @@ describe('compat ci workflow contract', () => {
         `required top-level workflow field "${fieldName}" must appear exactly once`
       ).toBe(1);
     }
+  });
+
+  it('keeps workflow top-level field count map aligned with uniqueness contracts', () => {
+    const workflowYaml = loadCiWorkflowYaml();
+    const expectedFieldNameCounts = Object.fromEntries(
+      REQUIRED_COMPAT_CI_WORKFLOW_UNIQUE_FIELD_NAMES.map((fieldName) => [fieldName, 1])
+    );
+    expect(extractTopLevelFieldNameCounts(workflowYaml)).toEqual(expectedFieldNameCounts);
   });
 
   it('keeps workflow trigger domain aligned with push + pull-request contracts', () => {

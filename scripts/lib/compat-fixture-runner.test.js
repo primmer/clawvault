@@ -428,6 +428,30 @@ describe('compat fixture runner utilities', () => {
     }
   });
 
+  it('rejects non-kebab-case fixture case names', () => {
+    const root = makeTempDir('compat-cases-');
+    const file = path.join(root, 'cases.json');
+    fs.writeFileSync(file, JSON.stringify({
+      schemaVersion: COMPAT_FIXTURE_SCHEMA_VERSION,
+      expectedCheckLabels: ['hook handler safety'],
+      cases: [
+        {
+          name: 'Bad Case Name',
+          description: 'invalid case name format.',
+          expectedExitCode: 1,
+          expectedWarnings: 1,
+          expectedErrors: 0,
+          expectedCheckStatuses: { 'hook handler safety': 'warn' }
+        }
+      ]
+    }), 'utf-8');
+    try {
+      expect(() => loadCases(file)).toThrow('kebab-case lowercase');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects invalid expected exit/count consistency in case metadata', () => {
     const root = makeTempDir('compat-cases-');
     const file = path.join(root, 'cases.json');

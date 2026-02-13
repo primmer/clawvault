@@ -52,6 +52,9 @@ export function loadCaseManifest(casesPath) {
     if (typeof testCase.name !== 'string' || testCase.name.length === 0) {
       throw new Error(`compat fixture case[${index}] missing name`);
     }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(testCase.name)) {
+      throw new Error(`compat fixture case[${index}] name must be kebab-case lowercase`);
+    }
     if (typeof testCase.description !== 'string' || testCase.description.trim().length === 0) {
       throw new Error(`compat fixture case[${index}] missing description`);
     }

@@ -4,6 +4,7 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import {
+  assertBuildFreshness,
   assertFixtureFiles,
   ensureReportDir,
   evaluateCaseReport,
@@ -25,6 +26,8 @@ const fixturesRoot = path.join(repoRoot, 'tests', 'compat-fixtures');
 const fixtureCasesPath = path.join(fixturesRoot, 'cases.json');
 const fixtureReadmePath = path.join(fixturesRoot, 'README.md');
 const distEntryPath = path.join(repoRoot, 'dist', 'index.js');
+const compatSourcePath = path.join(repoRoot, 'src', 'commands', 'compat.ts');
+const compatDistPath = path.join(repoRoot, 'dist', 'commands', 'compat.js');
 const compatReportDir = process.env.COMPAT_REPORT_DIR
   ? path.resolve(process.env.COMPAT_REPORT_DIR)
   : '';
@@ -119,6 +122,7 @@ function main() {
   if (!fs.existsSync(distEntryPath)) {
     throw new Error('Missing dist/index.js. Run `npm run build` before running compatibility fixture checks.');
   }
+  assertBuildFreshness(compatSourcePath, compatDistPath, 'compat command build artifact');
 
   const manifest = loadCaseManifest(fixtureCasesPath);
   const allCases = manifest.cases;

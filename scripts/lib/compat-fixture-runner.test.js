@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+  assertBuildFreshness,
   COMPAT_FIXTURE_SCHEMA_VERSION,
   assertFixtureFiles,
   ensureReportDir,
@@ -354,6 +355,28 @@ describe('compat fixture runner utilities', () => {
       expect(() => ensureReportDir('')).not.toThrow();
       expect(() => writeCaseReport('', { name: 'healthy' }, report)).not.toThrow();
       expect(() => writeSummaryReport('', summary)).not.toThrow();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('validates build freshness for compatibility checks', () => {
+    const root = makeTempDir('compat-build-freshness-');
+    const sourcePath = path.join(root, 'compat.ts');
+    const buildPath = path.join(root, 'compat.js');
+    try {
+      fs.writeFileSync(sourcePath, 'source', 'utf-8');
+      fs.writeFileSync(buildPath, 'build', 'utf-8');
+      expect(() => assertBuildFreshness(sourcePath, buildPath, 'compat artifact')).not.toThrow();
+
+      const freshTime = new Date('2026-02-13T00:00:00.000Z');
+      const staleTime = new Date('2026-02-12T00:00:00.000Z');
+      fs.utimesSync(sourcePath, freshTime, freshTime);
+      fs.utimesSync(buildPath, staleTime, staleTime);
+      expect(() => assertBuildFreshness(sourcePath, buildPath, 'compat artifact')).toThrow('Stale compat artifact');
+
+      fs.rmSync(buildPath, { force: true });
+      expect(() => assertBuildFreshness(sourcePath, buildPath, 'compat artifact')).toThrow('Missing compat artifact');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export const COMPAT_FIXTURE_SCHEMA_VERSION = 1;
+export const COMPAT_FIXTURE_SCHEMA_VERSION = 2;
 export const VALID_CHECK_STATUSES = new Set(['ok', 'warn', 'error']);
 export const REQUIRED_FIXTURE_FILES = [
   'package.json',

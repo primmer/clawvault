@@ -96,6 +96,13 @@ export function ensureCrossPayloadCoherence({
         + `(expected ${expectedValidatedCaseReports}, received ${reportSchemaValidatorPayload.validatedCaseReports})`
       );
     }
+    const summarySchemaContractPath = artifactContracts.find((entry) => entry.artifactName === 'summary.json')?.schemaPathResolved;
+    if (reportSchemaValidatorPayload.summarySchemaPath !== summarySchemaContractPath) {
+      throw new Error(
+        `report-schema-validator summarySchemaPath mismatch for summary artifact contract `
+        + `(expected ${summarySchemaContractPath}, received ${reportSchemaValidatorPayload.summarySchemaPath})`
+      );
+    }
   }
   if (summaryValidatorPayload.status === 'ok' && reportSchemaValidatorPayload.status === 'ok') {
     if (summaryValidatorPayload.caseReportMode !== reportSchemaValidatorPayload.caseReportMode) {

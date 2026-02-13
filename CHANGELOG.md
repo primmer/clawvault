@@ -158,6 +158,7 @@
 - Manifest-validator output payload shape checks now enforce `artifacts`↔`schemaContracts` ordering parity and duplicate guards, improving integrity of emitted manifest contract metadata.
 - Added a dedicated loader for validator-result verifier payloads (`loadValidatorResultVerifierPayload`) and wired bundle validation to use it, aligning verifier artifact loading/error semantics with other validator output helpers.
 - Expanded artifact-bundle coherence helper coverage to include explicit contract-version parity and manifest expected-schema-version drift checks, hardening regression detection around schema contract mismatches.
+- Artifact-bundle coherence now enforces that `report-schema-validator-result.summarySchemaPath` matches the active manifest-derived `summary.json` schema contract path, with dedicated drift coverage in helper and CLI-level tests.
 - Compatibility npm workflows are now modularized into composable stack scripts (`test:compat-report-stack:fast`, `test:compat-validator-stack:fast`, `test:compat-artifact-stack:fast`) so `test:compat-summary:fast` remains maintainable as contract gates grow.
 
 ## [1.11.2] - 2026-02-12

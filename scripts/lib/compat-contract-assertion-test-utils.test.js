@@ -4,6 +4,7 @@ import {
   expectArrayOfRecordsWithRequiredStringFields,
   expectDistinctStringFieldsPerRecord,
   expectEachDomainValueOccursExactlyOnce,
+  expectKeyedNonEmptyStringValues,
   expectKeyedStringMapValueParity,
   expectKeyedStringArrayDomains,
   expectKeyedStringRecordDomains,
@@ -359,6 +360,48 @@ describe('compat contract assertion test utils', () => {
       'keyed string-map value parity non-exact',
       { requireExactKeyDomain: false }
     );
+  });
+
+  it('asserts keyed non-empty string value domains', () => {
+    expectKeyedNonEmptyStringValues(
+      {
+        alpha: 'a1',
+        beta: 'b1'
+      },
+      ['alpha', 'beta'],
+      'keyed non-empty string domain'
+    );
+    expectKeyedNonEmptyStringValues(
+      {
+        alpha: 'a1',
+        beta: 'b1',
+        gamma: 'g1'
+      },
+      ['alpha', 'beta'],
+      'keyed non-empty string non-exact domain',
+      { requireExactKeyDomain: false }
+    );
+  });
+
+  it('throws when keyed non-empty string value domains are invalid', () => {
+    expect(() => {
+      expectKeyedNonEmptyStringValues(
+        {
+          alpha: ''
+        },
+        ['alpha'],
+        'empty keyed non-empty string domain'
+      );
+    }).toThrow();
+    expect(() => {
+      expectKeyedNonEmptyStringValues(
+        {
+          alpha: 'a1'
+        },
+        ['alpha', 'beta'],
+        'missing keyed non-empty string domain'
+      );
+    }).toThrow();
   });
 
   it('throws when keyed string-map value parity is invalid', () => {

@@ -21,6 +21,7 @@ import {
 } from './compat-npm-script-contracts.mjs';
 import {
   expectArrayContainsAllValues,
+  expectKeyedNonEmptyStringValues,
   expectNonEmptyString,
   expectStringSegmentPairOrderedAndUnique,
   expectStringContainsSegmentsExactlyOnce,
@@ -41,9 +42,12 @@ function loadPackageScripts() {
 describe('compat npm script stack contracts', () => {
   it('keeps required compat script names present', () => {
     const scripts = loadPackageScripts();
-    for (const scriptName of REQUIRED_COMPAT_NPM_SCRIPT_NAMES) {
-      expect(typeof scripts[scriptName], `missing required script: ${scriptName}`).toBe('string');
-    }
+    expectKeyedNonEmptyStringValues(
+      scripts,
+      REQUIRED_COMPAT_NPM_SCRIPT_NAMES,
+      'required compat script domain',
+      { requireExactKeyDomain: false }
+    );
   });
 
   it('keeps npm-run references resolvable across required stack sources', () => {
@@ -77,7 +81,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps dedicated artifact CLI drift script wired to both validator suites', () => {
     const scripts = loadPackageScripts();
     const cliDriftScript = scripts['test:compat-artifact-cli-drift:fast'];
-    expect(typeof cliDriftScript).toBe('string');
+    expectNonEmptyString(cliDriftScript, 'test:compat-artifact-cli-drift:fast');
     expectStringContainsSegmentsExactlyOnce(
       cliDriftScript,
       REQUIRED_COMPAT_ARTIFACT_CLI_DRIFT_PATHS,
@@ -88,7 +92,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps script-stack contract runner wired to all governance suites', () => {
     const scripts = loadPackageScripts();
     const stackContractScript = scripts['test:compat-script-stack-contract:fast'];
-    expect(typeof stackContractScript).toBe('string');
+    expectNonEmptyString(stackContractScript, 'test:compat-script-stack-contract:fast');
     expectStringContainsSegmentsExactlyOnce(
       stackContractScript,
       REQUIRED_COMPAT_SCRIPT_STACK_CONTRACT_TEST_PATHS,
@@ -99,7 +103,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps fast artifact stack ordering aligned with required contract gates', () => {
     const scripts = loadPackageScripts();
     const artifactStackScript = scripts['test:compat-artifact-stack:fast'];
-    expect(typeof artifactStackScript).toBe('string');
+    expectNonEmptyString(artifactStackScript, 'test:compat-artifact-stack:fast');
     expectStringContainsSegmentsExactlyOnceInOrder(
       artifactStackScript,
       REQUIRED_COMPAT_ARTIFACT_STACK_SEQUENCE,
@@ -111,7 +115,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps fast report stack chained through validator/artifact stacks', () => {
     const scripts = loadPackageScripts();
     const reportStackScript = scripts['test:compat-report-stack:fast'];
-    expect(typeof reportStackScript).toBe('string');
+    expectNonEmptyString(reportStackScript, 'test:compat-report-stack:fast');
     expectStringContainsSegmentsExactlyOnceInOrder(
       reportStackScript,
       REQUIRED_COMPAT_REPORT_STACK_SEQUENCE,
@@ -123,7 +127,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps fast validator stack sequence ordered for verifier/schema gates', () => {
     const scripts = loadPackageScripts();
     const validatorStackScript = scripts['test:compat-validator-stack:fast'];
-    expect(typeof validatorStackScript).toBe('string');
+    expectNonEmptyString(validatorStackScript, 'test:compat-validator-stack:fast');
     expectStringContainsSegmentsExactlyOnceInOrder(
       validatorStackScript,
       REQUIRED_COMPAT_VALIDATOR_STACK_SEQUENCE,
@@ -135,7 +139,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps fast summary stack chained through report stack', () => {
     const scripts = loadPackageScripts();
     const summaryFastScript = scripts['test:compat-summary:fast'];
-    expect(typeof summaryFastScript).toBe('string');
+    expectNonEmptyString(summaryFastScript, 'test:compat-summary:fast');
     expectStringContainsSegmentsExactlyOnceInOrder(
       summaryFastScript,
       REQUIRED_COMPAT_SUMMARY_STACK_SEQUENCE,
@@ -147,7 +151,7 @@ describe('compat npm script stack contracts', () => {
   it('keeps ci script ordered through core + compat gates', () => {
     const scripts = loadPackageScripts();
     const ciScript = scripts.ci;
-    expect(typeof ciScript).toBe('string');
+    expectNonEmptyString(ciScript, 'ci');
     expectStringContainsSegmentsExactlyOnceInOrder(
       ciScript,
       REQUIRED_COMPAT_CI_SEQUENCE,
@@ -158,6 +162,13 @@ describe('compat npm script stack contracts', () => {
 
   it('keeps artifact producers ordered before their consumer gates', () => {
     const scripts = loadPackageScripts();
+    const requiredScriptNames = [...new Set(REQUIRED_COMPAT_ARTIFACT_PRODUCER_CONSUMER_CONTRACTS.map(({ scriptName }) => scriptName))];
+    expectKeyedNonEmptyStringValues(
+      scripts,
+      requiredScriptNames,
+      'artifact producer/consumer script domain',
+      { requireExactKeyDomain: false }
+    );
     for (const {
       scriptName,
       artifactFile,

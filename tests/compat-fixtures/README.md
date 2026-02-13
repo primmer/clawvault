@@ -20,6 +20,7 @@ Use `npm run test:compat-contract` when you only need contract validation (manif
 Current fixture scenarios:
 
 - order is intentionally kept in sync with `cases.json` and validated by the fixture runner.
+- duplicate scenario bullet entries are rejected by fixture README contract validation.
 - `healthy` — expected strict pass.
   - also asserts `ok` status for every declared compatibility check label.
 - `broken-openclaw-cli` — warning when openclaw CLI exists but is not runnable.

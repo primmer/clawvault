@@ -90,6 +90,7 @@
 - Compatibility fixture contracts now also support `openclawMissing` simulation to validate missing-binary warnings in the OpenClaw readiness check path.
 - Compatibility summary artifacts now include both declarative and discovered runtime check-label lists (`expectedCheckLabels`, `runtimeCheckLabels`) for faster contract triage.
 - Compatibility runtime telemetry now distinguishes preflight validation time (`preflightDurationMs`) and full run time (`overallDurationMs`) for clearer local/CI performance analysis.
+- Fixture README contract validation now rejects duplicate scenario entries to prevent ambiguous documentation drift.
 
 ## [1.11.2] - 2026-02-12
 

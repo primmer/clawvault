@@ -75,6 +75,7 @@
 - Compatibility fixture summary artifacts now include execution metadata (`mode`, `schemaVersion`, `selectedCases`) for clearer CI triage across contract-only and full fixture runs.
 - Compatibility report artifact writing (`summary.json`, per-case JSON) is now centralized in fixture-runner library utilities with dedicated unit coverage.
 - Fixture contract validation now enforces coverage of every declared compatibility check label in `expectedCheckStatuses` (healthy case provides full-label baseline assertions).
+- Fixture manifest validation now enforces stricter expectation consistency (exit code domain, non-negative warning/error counts, and exit-vs-count coherence) to prevent malformed declarative contracts.
 
 ## [1.11.2] - 2026-02-12
 

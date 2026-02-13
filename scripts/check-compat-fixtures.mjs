@@ -169,6 +169,8 @@ function main() {
         mode: 'contract',
         schemaVersion: manifest.schemaVersion,
         selectedCases: cases.map((testCase) => testCase.name),
+        expectedCheckLabels: manifest.expectedCheckLabels,
+        runtimeCheckLabels: availableLabels,
         total: 0,
         failures: 0,
         results: []
@@ -186,6 +188,8 @@ function main() {
       mode: 'fixtures',
       schemaVersion: manifest.schemaVersion,
       selectedCases: cases.map((testCase) => testCase.name),
+      expectedCheckLabels: manifest.expectedCheckLabels,
+      runtimeCheckLabels: availableLabels,
       total: results.length,
       totalDurationMs,
       averageDurationMs,

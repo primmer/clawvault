@@ -12,6 +12,9 @@ import {
   isJsonModeRequestedFromArgv,
   writeValidatedJsonPayload
 } from './lib/validator-cli-utils.mjs';
+import {
+  readRequiredOptionValue
+} from './lib/validator-arg-utils.mjs';
 
 function parseCliArgs(argv) {
   const parsed = {
@@ -38,21 +41,15 @@ function parseCliArgs(argv) {
       continue;
     }
     if (value === '--out') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --out');
-      }
-      parsed.outPath = nextValue;
-      index += 1;
+      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
+      parsed.outPath = outPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--validator-result') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --validator-result');
-      }
-      parsed.payloadPath = nextValue;
-      index += 1;
+      const { value: payloadPath, nextIndex } = readRequiredOptionValue(argv, index, '--validator-result');
+      parsed.payloadPath = payloadPath;
+      index = nextIndex;
       continue;
     }
     if (value.startsWith('--')) {

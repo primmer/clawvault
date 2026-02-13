@@ -13,6 +13,9 @@ import {
   createJsonSchemaAjv,
   loadJsonValue
 } from './lib/json-schema-utils.mjs';
+import {
+  readRequiredOptionValue
+} from './lib/validator-arg-utils.mjs';
 
 function parseCliArgs(argv) {
   const parsed = {
@@ -35,30 +38,21 @@ function parseCliArgs(argv) {
       continue;
     }
     if (value === '--schema') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --schema');
-      }
-      parsed.schemaPath = nextValue;
-      index += 1;
+      const { value: schemaPath, nextIndex } = readRequiredOptionValue(argv, index, '--schema');
+      parsed.schemaPath = schemaPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--data') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --data');
-      }
-      parsed.dataPath = nextValue;
-      index += 1;
+      const { value: dataPath, nextIndex } = readRequiredOptionValue(argv, index, '--data');
+      parsed.dataPath = dataPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--out') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --out');
-      }
-      parsed.outPath = nextValue;
-      index += 1;
+      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
+      parsed.outPath = outPath;
+      index = nextIndex;
       continue;
     }
     if (value.startsWith('--')) {

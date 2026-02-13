@@ -35,6 +35,9 @@ import {
   loadJsonObject,
   validateWithCompiledSchema
 } from './lib/json-schema-utils.mjs';
+import {
+  readRequiredOptionValue
+} from './lib/validator-arg-utils.mjs';
 
 function parseCliArgs(argv) {
   const parsed = {
@@ -61,30 +64,21 @@ function parseCliArgs(argv) {
       continue;
     }
     if (value === '--out') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --out');
-      }
-      parsed.outPath = nextValue;
-      index += 1;
+      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
+      parsed.outPath = outPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--manifest') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --manifest');
-      }
-      parsed.manifestPath = nextValue;
-      index += 1;
+      const { value: manifestPath, nextIndex } = readRequiredOptionValue(argv, index, '--manifest');
+      parsed.manifestPath = manifestPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--report-dir') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --report-dir');
-      }
-      parsed.reportDir = nextValue;
-      index += 1;
+      const { value: reportDir, nextIndex } = readRequiredOptionValue(argv, index, '--report-dir');
+      parsed.reportDir = reportDir;
+      index = nextIndex;
       continue;
     }
     if (value.startsWith('--')) {

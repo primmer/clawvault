@@ -13,6 +13,9 @@ import {
   isJsonModeRequestedFromArgv,
   writeValidatedJsonPayload
 } from './lib/validator-cli-utils.mjs';
+import {
+  readRequiredOptionValue
+} from './lib/validator-arg-utils.mjs';
 
 function parseCliArgs(argv) {
   const parsed = {
@@ -40,30 +43,21 @@ function parseCliArgs(argv) {
       continue;
     }
     if (value === '--out') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --out');
-      }
-      parsed.outPath = nextValue;
-      index += 1;
+      const { value: outPath, nextIndex } = readRequiredOptionValue(argv, index, '--out');
+      parsed.outPath = outPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--summary') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --summary');
-      }
-      parsed.summaryPath = nextValue;
-      index += 1;
+      const { value: summaryPath, nextIndex } = readRequiredOptionValue(argv, index, '--summary');
+      parsed.summaryPath = summaryPath;
+      index = nextIndex;
       continue;
     }
     if (value === '--report-dir') {
-      const nextValue = argv[index + 1];
-      if (!nextValue || nextValue.startsWith('--')) {
-        throw new Error('Missing value for --report-dir');
-      }
-      parsed.reportDir = nextValue;
-      index += 1;
+      const { value: reportDir, nextIndex } = readRequiredOptionValue(argv, index, '--report-dir');
+      parsed.reportDir = reportDir;
+      index = nextIndex;
       continue;
     }
     if (value.startsWith('--')) {

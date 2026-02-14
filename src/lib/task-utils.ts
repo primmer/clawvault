@@ -1,0 +1,572 @@
+/**
+ * Task utilities for ClawVault task tracking
+ * Handles task and backlog file read/write/query operations
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import matter from 'gray-matter';
+
+// Task status types
+export type TaskStatus = 'open' | 'in-progress' | 'blocked' | 'done';
+export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
+
+// Task frontmatter interface
+export interface TaskFrontmatter {
+  status: TaskStatus;
+  owner?: string;
+  project?: string;
+  priority?: TaskPriority;
+  blocked_by?: string;
+  due?: string;
+  created: string;
+  updated: string;
+  completed?: string;
+  tags?: string[];
+}
+
+// Full task interface
+export interface Task {
+  slug: string;
+  title: string;
+  content: string;
+  frontmatter: TaskFrontmatter;
+  path: string;
+}
+
+// Backlog frontmatter interface
+export interface BacklogFrontmatter {
+  source?: string;
+  project?: string;
+  created: string;
+  tags?: string[];
+}
+
+// Full backlog item interface
+export interface BacklogItem {
+  slug: string;
+  title: string;
+  content: string;
+  frontmatter: BacklogFrontmatter;
+  path: string;
+}
+
+// Task filter options
+export interface TaskFilterOptions {
+  status?: TaskStatus;
+  owner?: string;
+  project?: string;
+  priority?: TaskPriority;
+}
+
+// Backlog filter options
+export interface BacklogFilterOptions {
+  project?: string;
+  source?: string;
+}
+
+/**
+ * Slugify a title for use as filename
+ * Deterministic: same title = same slug
+ */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+}
+
+/**
+ * Get the tasks directory path
+ */
+export function getTasksDir(vaultPath: string): string {
+  return path.join(path.resolve(vaultPath), 'tasks');
+}
+
+/**
+ * Get the backlog directory path
+ */
+export function getBacklogDir(vaultPath: string): string {
+  return path.join(path.resolve(vaultPath), 'backlog');
+}
+
+/**
+ * Ensure the tasks directory exists
+ */
+export function ensureTasksDir(vaultPath: string): void {
+  const tasksDir = getTasksDir(vaultPath);
+  if (!fs.existsSync(tasksDir)) {
+    fs.mkdirSync(tasksDir, { recursive: true });
+  }
+}
+
+/**
+ * Ensure the backlog directory exists
+ */
+export function ensureBacklogDir(vaultPath: string): void {
+  const backlogDir = getBacklogDir(vaultPath);
+  if (!fs.existsSync(backlogDir)) {
+    fs.mkdirSync(backlogDir, { recursive: true });
+  }
+}
+
+/**
+ * Get task file path from slug
+ */
+export function getTaskPath(vaultPath: string, slug: string): string {
+  return path.join(getTasksDir(vaultPath), `${slug}.md`);
+}
+
+/**
+ * Get backlog file path from slug
+ */
+export function getBacklogPath(vaultPath: string, slug: string): string {
+  return path.join(getBacklogDir(vaultPath), `${slug}.md`);
+}
+
+/**
+ * Extract title from markdown content (first H1 heading)
+ */
+function extractTitle(content: string): string {
+  const match = content.match(/^#\s+(.+)$/m);
+  return match ? match[1].trim() : '';
+}
+
+/**
+ * Read a task file and parse it
+ */
+export function readTask(vaultPath: string, slug: string): Task | null {
+  const taskPath = getTaskPath(vaultPath, slug);
+  if (!fs.existsSync(taskPath)) {
+    return null;
+  }
+
+  try {
+    const raw = fs.readFileSync(taskPath, 'utf-8');
+    const { data, content } = matter(raw);
+    const title = extractTitle(content) || slug;
+
+    return {
+      slug,
+      title,
+      content,
+      frontmatter: data as TaskFrontmatter,
+      path: taskPath
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read a backlog item file and parse it
+ */
+export function readBacklogItem(vaultPath: string, slug: string): BacklogItem | null {
+  const backlogPath = getBacklogPath(vaultPath, slug);
+  if (!fs.existsSync(backlogPath)) {
+    return null;
+  }
+
+  try {
+    const raw = fs.readFileSync(backlogPath, 'utf-8');
+    const { data, content } = matter(raw);
+    const title = extractTitle(content) || slug;
+
+    return {
+      slug,
+      title,
+      content,
+      frontmatter: data as BacklogFrontmatter,
+      path: backlogPath
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * List all tasks in the vault
+ */
+export function listTasks(vaultPath: string, filters?: TaskFilterOptions): Task[] {
+  const tasksDir = getTasksDir(vaultPath);
+  if (!fs.existsSync(tasksDir)) {
+    return [];
+  }
+
+  const tasks: Task[] = [];
+  const entries = fs.readdirSync(tasksDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) {
+      continue;
+    }
+
+    const slug = entry.name.replace(/\.md$/, '');
+    const task = readTask(vaultPath, slug);
+    if (!task) continue;
+
+    // Apply filters
+    if (filters) {
+      if (filters.status && task.frontmatter.status !== filters.status) continue;
+      if (filters.owner && task.frontmatter.owner !== filters.owner) continue;
+      if (filters.project && task.frontmatter.project !== filters.project) continue;
+      if (filters.priority && task.frontmatter.priority !== filters.priority) continue;
+    }
+
+    tasks.push(task);
+  }
+
+  // Sort by priority (critical > high > medium > low), then by created date
+  const priorityOrder: Record<TaskPriority, number> = {
+    critical: 0,
+    high: 1,
+    medium: 2,
+    low: 3
+  };
+
+  return tasks.sort((a, b) => {
+    const aPriority = priorityOrder[a.frontmatter.priority || 'low'];
+    const bPriority = priorityOrder[b.frontmatter.priority || 'low'];
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+    return new Date(b.frontmatter.created).getTime() - new Date(a.frontmatter.created).getTime();
+  });
+}
+
+/**
+ * List all backlog items in the vault
+ */
+export function listBacklogItems(vaultPath: string, filters?: BacklogFilterOptions): BacklogItem[] {
+  const backlogDir = getBacklogDir(vaultPath);
+  if (!fs.existsSync(backlogDir)) {
+    return [];
+  }
+
+  const items: BacklogItem[] = [];
+  const entries = fs.readdirSync(backlogDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) {
+      continue;
+    }
+
+    const slug = entry.name.replace(/\.md$/, '');
+    const item = readBacklogItem(vaultPath, slug);
+    if (!item) continue;
+
+    // Apply filters
+    if (filters) {
+      if (filters.project && item.frontmatter.project !== filters.project) continue;
+      if (filters.source && item.frontmatter.source !== filters.source) continue;
+    }
+
+    items.push(item);
+  }
+
+  // Sort by created date (newest first)
+  return items.sort((a, b) => {
+    return new Date(b.frontmatter.created).getTime() - new Date(a.frontmatter.created).getTime();
+  });
+}
+
+/**
+ * Create a new task
+ */
+export function createTask(
+  vaultPath: string,
+  title: string,
+  options: {
+    owner?: string;
+    project?: string;
+    priority?: TaskPriority;
+    due?: string;
+    content?: string;
+    tags?: string[];
+  } = {}
+): Task {
+  ensureTasksDir(vaultPath);
+  const slug = slugify(title);
+  const taskPath = getTaskPath(vaultPath, slug);
+
+  if (fs.existsSync(taskPath)) {
+    throw new Error(`Task already exists: ${slug}`);
+  }
+
+  const now = new Date().toISOString();
+  const frontmatter: TaskFrontmatter = {
+    status: 'open',
+    created: now,
+    updated: now
+  };
+
+  if (options.owner) frontmatter.owner = options.owner;
+  if (options.project) frontmatter.project = options.project;
+  if (options.priority) frontmatter.priority = options.priority;
+  if (options.due) frontmatter.due = options.due;
+  if (options.tags && options.tags.length > 0) frontmatter.tags = options.tags;
+
+  // Build content with wiki-links for owner and project
+  let content = `# ${title}\n`;
+  
+  const links: string[] = [];
+  if (options.owner) links.push(`[[${options.owner}]]`);
+  if (options.project) links.push(`[[${options.project}]]`);
+  if (links.length > 0) {
+    content += `\n${links.join(' | ')}\n`;
+  }
+
+  if (options.content) {
+    content += `\n${options.content}\n`;
+  }
+
+  const fileContent = matter.stringify(content, frontmatter);
+  fs.writeFileSync(taskPath, fileContent);
+
+  return {
+    slug,
+    title,
+    content,
+    frontmatter,
+    path: taskPath
+  };
+}
+
+/**
+ * Update an existing task
+ */
+export function updateTask(
+  vaultPath: string,
+  slug: string,
+  updates: {
+    status?: TaskStatus;
+    owner?: string;
+    project?: string;
+    priority?: TaskPriority;
+    blocked_by?: string;
+    due?: string;
+    tags?: string[];
+  }
+): Task {
+  const task = readTask(vaultPath, slug);
+  if (!task) {
+    throw new Error(`Task not found: ${slug}`);
+  }
+
+  const now = new Date().toISOString();
+  const newFrontmatter: TaskFrontmatter = {
+    ...task.frontmatter,
+    updated: now
+  };
+
+  if (updates.status !== undefined) newFrontmatter.status = updates.status;
+  if (updates.owner !== undefined) newFrontmatter.owner = updates.owner;
+  if (updates.project !== undefined) newFrontmatter.project = updates.project;
+  if (updates.priority !== undefined) newFrontmatter.priority = updates.priority;
+  if (updates.due !== undefined) newFrontmatter.due = updates.due;
+  if (updates.tags !== undefined) newFrontmatter.tags = updates.tags;
+
+  // Handle blocked_by specially - clear if status is not blocked
+  if (updates.blocked_by !== undefined) {
+    newFrontmatter.blocked_by = updates.blocked_by;
+  } else if (updates.status && updates.status !== 'blocked') {
+    delete newFrontmatter.blocked_by;
+  }
+
+  const fileContent = matter.stringify(task.content, newFrontmatter);
+  fs.writeFileSync(task.path, fileContent);
+
+  return {
+    ...task,
+    frontmatter: newFrontmatter
+  };
+}
+
+/**
+ * Mark a task as done
+ */
+export function completeTask(vaultPath: string, slug: string): Task {
+  const task = readTask(vaultPath, slug);
+  if (!task) {
+    throw new Error(`Task not found: ${slug}`);
+  }
+
+  const now = new Date().toISOString();
+  const newFrontmatter: TaskFrontmatter = {
+    ...task.frontmatter,
+    status: 'done',
+    updated: now,
+    completed: now
+  };
+
+  // Clear blocked_by when completing
+  delete newFrontmatter.blocked_by;
+
+  const fileContent = matter.stringify(task.content, newFrontmatter);
+  fs.writeFileSync(task.path, fileContent);
+
+  return {
+    ...task,
+    frontmatter: newFrontmatter
+  };
+}
+
+/**
+ * Create a new backlog item
+ */
+export function createBacklogItem(
+  vaultPath: string,
+  title: string,
+  options: {
+    source?: string;
+    project?: string;
+    content?: string;
+    tags?: string[];
+  } = {}
+): BacklogItem {
+  ensureBacklogDir(vaultPath);
+  const slug = slugify(title);
+  const backlogPath = getBacklogPath(vaultPath, slug);
+
+  if (fs.existsSync(backlogPath)) {
+    throw new Error(`Backlog item already exists: ${slug}`);
+  }
+
+  const now = new Date().toISOString();
+  const frontmatter: BacklogFrontmatter = {
+    created: now
+  };
+
+  if (options.source) frontmatter.source = options.source;
+  if (options.project) frontmatter.project = options.project;
+  if (options.tags && options.tags.length > 0) frontmatter.tags = options.tags;
+
+  // Build content with wiki-links
+  let content = `# ${title}\n`;
+  
+  const links: string[] = [];
+  if (options.source) links.push(`[[${options.source}]]`);
+  if (options.project) links.push(`[[${options.project}]]`);
+  if (links.length > 0) {
+    content += `\n${links.join(' | ')}\n`;
+  }
+
+  if (options.content) {
+    content += `\n${options.content}\n`;
+  }
+
+  const fileContent = matter.stringify(content, frontmatter);
+  fs.writeFileSync(backlogPath, fileContent);
+
+  return {
+    slug,
+    title,
+    content,
+    frontmatter,
+    path: backlogPath
+  };
+}
+
+/**
+ * Promote a backlog item to a task
+ */
+export function promoteBacklogItem(
+  vaultPath: string,
+  slug: string,
+  options: {
+    owner?: string;
+    priority?: TaskPriority;
+    due?: string;
+  } = {}
+): Task {
+  const backlogItem = readBacklogItem(vaultPath, slug);
+  if (!backlogItem) {
+    throw new Error(`Backlog item not found: ${slug}`);
+  }
+
+  // Create the task
+  const task = createTask(vaultPath, backlogItem.title, {
+    owner: options.owner,
+    project: backlogItem.frontmatter.project,
+    priority: options.priority,
+    due: options.due,
+    content: backlogItem.content.replace(/^#\s+.+\n/, '').trim(), // Remove title from content
+    tags: backlogItem.frontmatter.tags
+  });
+
+  // Delete the backlog item
+  fs.unlinkSync(backlogItem.path);
+
+  return task;
+}
+
+/**
+ * Get blocked tasks
+ */
+export function getBlockedTasks(vaultPath: string, project?: string): Task[] {
+  const filters: TaskFilterOptions = { status: 'blocked' };
+  if (project) filters.project = project;
+  return listTasks(vaultPath, filters);
+}
+
+/**
+ * Get active tasks (open or in-progress)
+ */
+export function getActiveTasks(vaultPath: string, filters?: Omit<TaskFilterOptions, 'status'>): Task[] {
+  const allTasks = listTasks(vaultPath, filters);
+  return allTasks.filter(t => t.frontmatter.status === 'open' || t.frontmatter.status === 'in-progress');
+}
+
+/**
+ * Get recently completed tasks
+ */
+export function getRecentlyCompletedTasks(vaultPath: string, limit: number = 10): Task[] {
+  const allTasks = listTasks(vaultPath, { status: 'done' });
+  return allTasks
+    .filter(t => t.frontmatter.completed)
+    .sort((a, b) => {
+      const aCompleted = new Date(a.frontmatter.completed || 0).getTime();
+      const bCompleted = new Date(b.frontmatter.completed || 0).getTime();
+      return bCompleted - aCompleted;
+    })
+    .slice(0, limit);
+}
+
+/**
+ * Format task status icon
+ */
+export function getStatusIcon(status: TaskStatus): string {
+  switch (status) {
+    case 'in-progress':
+      return '●';
+    case 'blocked':
+      return '■';
+    case 'open':
+      return '○';
+    case 'done':
+      return '✓';
+    default:
+      return '○';
+  }
+}
+
+/**
+ * Format task status display name
+ */
+export function getStatusDisplay(status: TaskStatus): string {
+  switch (status) {
+    case 'in-progress':
+      return 'active';
+    case 'blocked':
+      return 'blocked';
+    case 'open':
+      return 'open';
+    case 'done':
+      return 'done';
+    default:
+      return status;
+  }
+}

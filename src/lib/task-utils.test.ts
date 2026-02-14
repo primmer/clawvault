@@ -1,0 +1,324 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import {
+  slugify,
+  getTasksDir,
+  getBacklogDir,
+  ensureTasksDir,
+  ensureBacklogDir,
+  getTaskPath,
+  getBacklogPath,
+  createTask,
+  readTask,
+  listTasks,
+  updateTask,
+  completeTask,
+  createBacklogItem,
+  readBacklogItem,
+  listBacklogItems,
+  promoteBacklogItem,
+  getBlockedTasks,
+  getActiveTasks,
+  getRecentlyCompletedTasks,
+  getStatusIcon,
+  getStatusDisplay
+} from './task-utils.js';
+
+function makeTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-task-utils-'));
+}
+
+describe('task-utils', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe('slugify', () => {
+    it('converts title to slug', () => {
+      expect(slugify('Fix Gemini API timeout')).toBe('fix-gemini-api-timeout');
+      expect(slugify('Send Chamath email')).toBe('send-chamath-email');
+      expect(slugify('Bug Report Follow-up')).toBe('bug-report-follow-up');
+    });
+
+    it('handles special characters', () => {
+      expect(slugify('Test: Special (chars)')).toBe('test-special-chars');
+      expect(slugify('Hello & World!')).toBe('hello-world');
+    });
+
+    it('is deterministic', () => {
+      const title = 'My Task Title';
+      expect(slugify(title)).toBe(slugify(title));
+    });
+  });
+
+  describe('directory helpers', () => {
+    it('returns correct tasks directory', () => {
+      expect(getTasksDir(tempDir)).toBe(path.join(tempDir, 'tasks'));
+    });
+
+    it('returns correct backlog directory', () => {
+      expect(getBacklogDir(tempDir)).toBe(path.join(tempDir, 'backlog'));
+    });
+
+    it('creates tasks directory', () => {
+      ensureTasksDir(tempDir);
+      expect(fs.existsSync(getTasksDir(tempDir))).toBe(true);
+    });
+
+    it('creates backlog directory', () => {
+      ensureBacklogDir(tempDir);
+      expect(fs.existsSync(getBacklogDir(tempDir))).toBe(true);
+    });
+  });
+
+  describe('createTask', () => {
+    it('creates a task file', () => {
+      const task = createTask(tempDir, 'Fix Gemini timeout', {
+        owner: 'clawdious',
+        project: 'clawvault',
+        priority: 'high'
+      });
+
+      expect(task.slug).toBe('fix-gemini-timeout');
+      expect(task.title).toBe('Fix Gemini timeout');
+      expect(task.frontmatter.status).toBe('open');
+      expect(task.frontmatter.owner).toBe('clawdious');
+      expect(task.frontmatter.project).toBe('clawvault');
+      expect(task.frontmatter.priority).toBe('high');
+      expect(fs.existsSync(task.path)).toBe(true);
+    });
+
+    it('throws if task already exists', () => {
+      createTask(tempDir, 'Duplicate Task');
+      expect(() => createTask(tempDir, 'Duplicate Task')).toThrow('Task already exists');
+    });
+
+    it('includes wiki-links in content', () => {
+      const task = createTask(tempDir, 'My Task', {
+        owner: 'pedro',
+        project: 'versatly'
+      });
+
+      const content = fs.readFileSync(task.path, 'utf-8');
+      expect(content).toContain('[[pedro]]');
+      expect(content).toContain('[[versatly]]');
+    });
+  });
+
+  describe('readTask', () => {
+    it('reads an existing task', () => {
+      createTask(tempDir, 'Read Test Task', { owner: 'test' });
+      const task = readTask(tempDir, 'read-test-task');
+
+      expect(task).not.toBeNull();
+      expect(task?.title).toBe('Read Test Task');
+      expect(task?.frontmatter.owner).toBe('test');
+    });
+
+    it('returns null for non-existent task', () => {
+      const task = readTask(tempDir, 'non-existent');
+      expect(task).toBeNull();
+    });
+  });
+
+  describe('listTasks', () => {
+    beforeEach(() => {
+      createTask(tempDir, 'Task One', { owner: 'alice', priority: 'high', project: 'proj-a' });
+      createTask(tempDir, 'Task Two', { owner: 'bob', priority: 'low', project: 'proj-b' });
+      createTask(tempDir, 'Task Three', { owner: 'alice', priority: 'critical', project: 'proj-a' });
+    });
+
+    it('lists all tasks', () => {
+      const tasks = listTasks(tempDir);
+      expect(tasks).toHaveLength(3);
+    });
+
+    it('filters by owner', () => {
+      const tasks = listTasks(tempDir, { owner: 'alice' });
+      expect(tasks).toHaveLength(2);
+      expect(tasks.every(t => t.frontmatter.owner === 'alice')).toBe(true);
+    });
+
+    it('filters by project', () => {
+      const tasks = listTasks(tempDir, { project: 'proj-a' });
+      expect(tasks).toHaveLength(2);
+    });
+
+    it('filters by priority', () => {
+      const tasks = listTasks(tempDir, { priority: 'critical' });
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].frontmatter.priority).toBe('critical');
+    });
+
+    it('sorts by priority then date', () => {
+      const tasks = listTasks(tempDir);
+      expect(tasks[0].frontmatter.priority).toBe('critical');
+      expect(tasks[1].frontmatter.priority).toBe('high');
+      expect(tasks[2].frontmatter.priority).toBe('low');
+    });
+  });
+
+  describe('updateTask', () => {
+    it('updates task status', () => {
+      createTask(tempDir, 'Update Test');
+      const updated = updateTask(tempDir, 'update-test', { status: 'in-progress' });
+
+      expect(updated.frontmatter.status).toBe('in-progress');
+    });
+
+    it('updates blocked_by when status is blocked', () => {
+      createTask(tempDir, 'Blocked Test');
+      const updated = updateTask(tempDir, 'blocked-test', {
+        status: 'blocked',
+        blocked_by: 'api-issue'
+      });
+
+      expect(updated.frontmatter.status).toBe('blocked');
+      expect(updated.frontmatter.blocked_by).toBe('api-issue');
+    });
+
+    it('clears blocked_by when status changes from blocked', () => {
+      createTask(tempDir, 'Unblock Test');
+      updateTask(tempDir, 'unblock-test', { status: 'blocked', blocked_by: 'issue' });
+      const updated = updateTask(tempDir, 'unblock-test', { status: 'in-progress' });
+
+      expect(updated.frontmatter.status).toBe('in-progress');
+      expect(updated.frontmatter.blocked_by).toBeUndefined();
+    });
+
+    it('throws for non-existent task', () => {
+      expect(() => updateTask(tempDir, 'non-existent', { status: 'done' })).toThrow('Task not found');
+    });
+  });
+
+  describe('completeTask', () => {
+    it('marks task as done with completion date', () => {
+      createTask(tempDir, 'Complete Test');
+      const completed = completeTask(tempDir, 'complete-test');
+
+      expect(completed.frontmatter.status).toBe('done');
+      expect(completed.frontmatter.completed).toBeDefined();
+    });
+
+    it('clears blocked_by when completing', () => {
+      createTask(tempDir, 'Complete Blocked');
+      updateTask(tempDir, 'complete-blocked', { status: 'blocked', blocked_by: 'issue' });
+      const completed = completeTask(tempDir, 'complete-blocked');
+
+      expect(completed.frontmatter.blocked_by).toBeUndefined();
+    });
+  });
+
+  describe('backlog operations', () => {
+    it('creates a backlog item', () => {
+      const item = createBacklogItem(tempDir, 'Add trust scoring', {
+        source: 'pedro',
+        project: 'clawvault'
+      });
+
+      expect(item.slug).toBe('add-trust-scoring');
+      expect(item.frontmatter.source).toBe('pedro');
+      expect(item.frontmatter.project).toBe('clawvault');
+      expect(fs.existsSync(item.path)).toBe(true);
+    });
+
+    it('reads a backlog item', () => {
+      createBacklogItem(tempDir, 'Read Backlog Test');
+      const item = readBacklogItem(tempDir, 'read-backlog-test');
+
+      expect(item).not.toBeNull();
+      expect(item?.title).toBe('Read Backlog Test');
+    });
+
+    it('lists backlog items', () => {
+      createBacklogItem(tempDir, 'Item One', { project: 'proj-a' });
+      createBacklogItem(tempDir, 'Item Two', { project: 'proj-b' });
+      createBacklogItem(tempDir, 'Item Three', { project: 'proj-a' });
+
+      const all = listBacklogItems(tempDir);
+      expect(all).toHaveLength(3);
+
+      const filtered = listBacklogItems(tempDir, { project: 'proj-a' });
+      expect(filtered).toHaveLength(2);
+    });
+
+    it('promotes backlog item to task', () => {
+      createBacklogItem(tempDir, 'Promote Test', { project: 'clawvault' });
+      const task = promoteBacklogItem(tempDir, 'promote-test', {
+        owner: 'clawdious',
+        priority: 'medium'
+      });
+
+      expect(task.slug).toBe('promote-test');
+      expect(task.frontmatter.owner).toBe('clawdious');
+      expect(task.frontmatter.priority).toBe('medium');
+      expect(task.frontmatter.project).toBe('clawvault');
+
+      // Backlog item should be deleted
+      expect(readBacklogItem(tempDir, 'promote-test')).toBeNull();
+      // Task should exist
+      expect(readTask(tempDir, 'promote-test')).not.toBeNull();
+    });
+  });
+
+  describe('query helpers', () => {
+    beforeEach(() => {
+      createTask(tempDir, 'Active One', { owner: 'alice' });
+      createTask(tempDir, 'Active Two', { owner: 'bob' });
+      const blocked = createTask(tempDir, 'Blocked One', { owner: 'alice', project: 'proj-a' });
+      updateTask(tempDir, blocked.slug, { status: 'blocked', blocked_by: 'issue' });
+      const done = createTask(tempDir, 'Done One', { owner: 'alice' });
+      completeTask(tempDir, done.slug);
+    });
+
+    it('gets blocked tasks', () => {
+      const blocked = getBlockedTasks(tempDir);
+      expect(blocked).toHaveLength(1);
+      expect(blocked[0].frontmatter.status).toBe('blocked');
+    });
+
+    it('gets blocked tasks by project', () => {
+      const blocked = getBlockedTasks(tempDir, 'proj-a');
+      expect(blocked).toHaveLength(1);
+
+      const noBlocked = getBlockedTasks(tempDir, 'proj-b');
+      expect(noBlocked).toHaveLength(0);
+    });
+
+    it('gets active tasks', () => {
+      const active = getActiveTasks(tempDir);
+      expect(active).toHaveLength(2);
+      expect(active.every(t => t.frontmatter.status === 'open' || t.frontmatter.status === 'in-progress')).toBe(true);
+    });
+
+    it('gets recently completed tasks', () => {
+      const done = getRecentlyCompletedTasks(tempDir);
+      expect(done).toHaveLength(1);
+      expect(done[0].frontmatter.status).toBe('done');
+    });
+  });
+
+  describe('status helpers', () => {
+    it('returns correct status icons', () => {
+      expect(getStatusIcon('open')).toBe('○');
+      expect(getStatusIcon('in-progress')).toBe('●');
+      expect(getStatusIcon('blocked')).toBe('■');
+      expect(getStatusIcon('done')).toBe('✓');
+    });
+
+    it('returns correct status display names', () => {
+      expect(getStatusDisplay('open')).toBe('open');
+      expect(getStatusDisplay('in-progress')).toBe('active');
+      expect(getStatusDisplay('blocked')).toBe('blocked');
+      expect(getStatusDisplay('done')).toBe('done');
+    });
+  });
+});

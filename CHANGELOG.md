@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.4.0] — 2026-02-14
+
+### Added
+- **Brain Architecture Canvas** — `clawvault canvas --template brain` generates a 4-quadrant system overview:
+  - **Hippocampus** (top-left): vault structure with category card grid, content flow pipeline (Session → Observe → Score → Route → Store → Reflect)
+  - **Direction** (top-right): vault stats, recent decisions, open loops
+  - **Agent Workspace** (bottom-left): 3-column task triage — active, blocked, backlog with owner tags and priority icons
+  - **Knowledge Graph** (bottom-right): node/edge stats, most-connected entities, category breakdown with bar charts
+- **Owner-Centric Project Board** — `clawvault canvas --template project-board` redesigned with:
+  - Status columns (Open / In Progress / Blocked / Done) with priority icons (🔴🟠🟡)
+  - Owner cards distinguishing agents (🤖) from humans (👤) with per-owner task distribution
+  - Backlog section grouped by project
+  - Blocked-by edges connecting dependent tasks
+- **Canvas Customization Flags**:
+  - `--owner <name>` — filter tasks by owner (agent or human)
+  - `--width <px>` / `--height <px>` — canvas dimensions
+  - `--include-done` — include completed tasks
+- **Setup Command Overhaul** — `clawvault setup` now configurable:
+  - `--theme neural|minimal|none` — graph color themes with Obsidian CSS snippets and colorGroups
+  - `--graph-colors` / `--no-graph-colors` — opt in/out of graph theming
+  - `--bases` / `--no-bases` — opt in/out of Obsidian Bases task views
+  - `--canvas [template]` — generate a canvas dashboard during setup
+  - `--force` — overwrite existing configuration files
+  - `-v, --vault <path>` — target a specific vault
+- **Init Command Flags**:
+  - `--no-bases` — skip Obsidian Bases file generation
+  - `--no-tasks` — skip tasks/ and backlog/ directories
+  - `--no-graph` — skip initial graph build
+  - `--categories <list>` — comma-separated custom categories
+  - `--canvas <template>` — generate canvas on init
+  - `--theme neural|minimal|none` — graph color theme
+  - `--minimal` — bare-bones vault (memory categories only)
+- **Neural Graph Theme** — dark background (#0a0a0a), colored nodes by category/tag (cyan people, green projects, orange decisions, yellow lessons, red commitments), green neural-network links, golden glow on focused nodes
+- **Obsidian Bases Views** — auto-generated on `setup` and `init`:
+  - `all-tasks.base` — table + card views grouped by status
+  - `blocked.base` — blocked tasks with days-blocked formula
+  - `by-project.base` — tasks grouped by project
+  - `by-owner.base` — tasks grouped by owner (agent or human)
+  - `backlog.base` — backlog items by source and project
+
+### Fixed
+- Date handling for bare dates in frontmatter (e.g., `2026-02-14` without time) — `blocked`, `backlog list`, and canvas templates no longer crash on Date objects from gray-matter
+- Canvas template descriptions no longer reference competitor products
+
+### Changed
+- Default setup theme is now `neural` (was unconfigured)
+- Brain canvas template generates 37-50 nodes with architecture-style grouped layout (was radial)
+- Project board uses text cards with owner/priority metadata (was bare file nodes)
+
+---
+
+## [2.3.1] — 2026-02-14
+
+### Added
+- **WebDAV server** — `clawvault serve` now handles WebDAV protocol on `/webdav/` path prefix for Obsidian mobile sync via Remotely Save over Tailscale
+
+### Improved
+- Tailscale server module refactored for WebDAV route integration
+- 51 new WebDAV tests (553 total passing)
+
+---
+
 ## [2.3.0] — 2026-02-14
 
 ### Added

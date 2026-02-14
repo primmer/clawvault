@@ -3,6 +3,15 @@
  * Quick view of blocked tasks
  */
 
+/** Normalize a date value (Date object, ISO string, or bare date) to YYYY-MM-DD */
+function toDateStr(val: unknown): string {
+  if (!val) return 'unknown';
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  const s = String(val);
+  if (s.includes('T')) return s.split('T')[0];
+  return s;
+}
+
 import {
   getBlockedTasks,
   type Task
@@ -36,7 +45,7 @@ export function formatBlockedList(tasks: Task[]): string {
     const blockedBy = task.frontmatter.blocked_by || 'unknown';
     
     // Calculate "since" date from updated timestamp
-    const updatedDate = task.frontmatter.updated.split('T')[0];
+    const updatedDate = toDateStr(task.frontmatter.updated);
     
     output += `■ ${task.title} (${owner}, ${project})\n`;
     output += `  Blocked by: ${blockedBy}\n`;

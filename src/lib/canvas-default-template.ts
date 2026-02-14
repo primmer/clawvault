@@ -1,5 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
+
+/** Normalize a date value (Date object, ISO string, or bare date) to YYYY-MM-DD */
+function toDateStr(val: unknown): string {
+  if (!val) return 'unknown';
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  const s = String(val);
+  if (s.includes('T')) return s.split('T')[0];
+  return s;
+}
 import {
   listTasks,
   listBacklogItems,
@@ -361,7 +370,7 @@ function buildBlockedTasksGroup(tasks: Task[]): GroupWithNodes {
 
   for (const task of tasks.slice(0, 10)) {
     const blockerInfo = task.frontmatter.blocked_by || 'unknown';
-    const since = task.frontmatter.updated.split('T')[0];
+    const since = toDateStr(task.frontmatter.updated);
     const text = `**${truncateText(task.title, 30)}**\nBlocked by: ${blockerInfo}\nSince: ${since}`;
 
     childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.DEFAULT_NODE_HEIGHT, text, CANVAS_COLORS.RED));

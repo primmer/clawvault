@@ -3,6 +3,15 @@
  * Manages backlog add/list/promote operations
  */
 
+/** Normalize a date value (Date object, ISO string, or bare date) to YYYY-MM-DD */
+function toDateStr(val: unknown): string {
+  if (!val) return 'unknown';
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  const s = String(val);
+  if (s.includes('T')) return s.split('T')[0];
+  return s;
+}
+
 import {
   createBacklogItem,
   listBacklogItems,
@@ -84,7 +93,7 @@ export function formatBacklogList(items: BacklogItem[]): string {
   for (const item of items) {
     const source = item.frontmatter.source || '-';
     const project = item.frontmatter.project || '-';
-    const created = item.frontmatter.created.split('T')[0];
+    const created = toDateStr(item.frontmatter.created);
     const title = item.title.length > widths[3] 
       ? item.title.slice(0, widths[3] - 3) + '...'
       : item.title;

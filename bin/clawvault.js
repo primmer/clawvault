@@ -16,6 +16,7 @@ import { registerResilienceCommands } from './register-resilience-commands.js';
 import { registerSessionLifecycleCommands } from './register-session-lifecycle-commands.js';
 import { registerTemplateCommands } from './register-template-commands.js';
 import { registerVaultOperationsCommands } from './register-vault-operations-commands.js';
+import { registerTaskCommands } from './register-task-commands.js';
 import {
   getVault,
   resolveVaultPath,
@@ -80,6 +81,11 @@ registerVaultOperationsCommands(program, {
   runQmd,
   resolveVaultPath,
   path
+});
+
+registerTaskCommands(program, {
+  chalk,
+  resolveVaultPath
 });
 
 // Parse and run

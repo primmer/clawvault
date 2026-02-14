@@ -18,7 +18,7 @@ export function registerCoreCommands(
     .option('--no-graph', 'Skip initial graph build')
     .option('--categories <list>', 'Comma-separated list of custom categories to create')
     .option('--canvas <template>', 'Generate a canvas dashboard on init (default, brain, project-board, sprint)')
-    .option('--theme <style>', 'Graph color theme to apply (brainmeld, minimal, none)', 'none')
+    .option('--theme <style>', 'Graph color theme to apply (neural, minimal, none)', 'none')
     .option('--minimal', 'Create minimal vault (memory categories only, no tasks/bases/graph)')
     .action(async (vaultPath, options) => {
       const targetPath = vaultPath || '.';
@@ -80,7 +80,7 @@ export function registerCoreCommands(
     .option('--no-bases', 'Skip Bases file generation')
     .option('--canvas [template]', 'Generate canvas dashboard (default, brain, project-board, sprint)')
     .option('--no-canvas', 'Skip canvas generation')
-    .option('--theme <style>', 'Graph color theme (brainmeld, minimal, none)', 'brainmeld')
+    .option('--theme <style>', 'Graph color theme (neural, minimal, none)', 'neural')
     .option('--force', 'Overwrite existing configuration files')
     .option('-v, --vault <path>', 'Vault path')
     .action(async (options) => {

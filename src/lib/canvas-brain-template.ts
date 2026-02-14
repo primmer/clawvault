@@ -1,9 +1,9 @@
 /**
  * Brain Architecture Canvas Template
- * BrainMeld-inspired system overview: vault structure, content flow,
+ * Neural-inspired system overview: vault structure, content flow,
  * agent workspace, knowledge graph summary, and directory map.
  *
- * Layout (inspired by BrainMeld screenshot):
+ * Layout (inspired by Neural screenshot):
  * ┌─────────────────────────────────────────────────────────────┐
  * │  🧠 HIPPOCAMPUS — Knowledge Vault    │  📊 DIRECTION       │
  * │  ┌─────────────────────────────────┐  │  Recent decisions   │
@@ -490,7 +490,7 @@ export function generateBrainCanvas(
 export const brainCanvasTemplate: CanvasTemplate = {
   id: 'brain',
   name: 'Brain Architecture',
-  description: 'BrainMeld-inspired system overview: vault structure, content flow, agent workspace, and knowledge graph.',
+  description: 'Neural-inspired system overview: vault structure, content flow, agent workspace, and knowledge graph.',
   generate(vaultPath: string, options: CanvasTemplateOptions): Canvas {
     return generateBrainCanvas(vaultPath, options);
   }

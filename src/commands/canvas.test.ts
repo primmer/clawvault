@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { generateCanvas } from './canvas.js';
 import { createTask, updateTask, createBacklogItem, completeTask } from '../lib/task-utils.js';
+import { ensureLedgerStructure, getObservationPath, getReflectionsRoot } from '../lib/ledger.js';
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-canvas-cmd-'));
@@ -156,6 +157,120 @@ describe('canvas command', () => {
         expect(nodeIds.has(edge.fromNode)).toBe(true);
         expect(nodeIds.has(edge.toNode)).toBe(true);
       }
+    });
+
+    it('includes vault activity group', () => {
+      const canvas = generateCanvas(tempDir);
+      const activityGroup = canvas.nodes.find(
+        n => n.type === 'group' && n.label?.includes('Vault Activity')
+      );
+
+      expect(activityGroup).toBeDefined();
+      expect(activityGroup?.color).toBe('5'); // Cyan
+    });
+
+    it('vault activity group shows observation stats', () => {
+      // Create observation files
+      ensureLedgerStructure(tempDir);
+      const obsPath = getObservationPath(tempDir, '2026-02-14');
+      fs.mkdirSync(path.dirname(obsPath), { recursive: true });
+      fs.writeFileSync(obsPath, '# Test observation');
+
+      const canvas = generateCanvas(tempDir);
+      
+      // Find text nodes in Vault Activity group that contain observation info
+      // The Vault Activity group has "Total:" while Vault Stats has "Total days:"
+      const obsNode = canvas.nodes.find(
+        n => n.type === 'text' && n.text?.includes('**Observations**') && n.text?.includes('Total:') && !n.text?.includes('Total days:')
+      );
+
+      expect(obsNode).toBeDefined();
+      expect(obsNode?.text).toContain('Total: 1');
+    });
+
+    it('vault activity group shows task stats', () => {
+      // Create tasks with different statuses
+      createTask(tempDir, 'Open Task');
+      const inProgressTask = createTask(tempDir, 'In Progress Task');
+      updateTask(tempDir, inProgressTask.slug, { status: 'in-progress' });
+      const doneTask = createTask(tempDir, 'Done Task');
+      completeTask(tempDir, doneTask.slug);
+
+      const canvas = generateCanvas(tempDir);
+      
+      // Find text nodes that contain task info
+      const tasksNode = canvas.nodes.find(
+        n => n.type === 'text' && n.text?.includes('**Tasks**') && n.text?.includes('Total:')
+      );
+
+      expect(tasksNode).toBeDefined();
+      expect(tasksNode?.text).toContain('Total: 3');
+      expect(tasksNode?.text).toContain('✓ 1 done');
+      expect(tasksNode?.text).toContain('● 1 active');
+      expect(tasksNode?.text).toContain('○ 1 open');
+    });
+
+    it('vault activity group shows reflection stats', () => {
+      // Create reflection files
+      ensureLedgerStructure(tempDir);
+      const reflectionsRoot = getReflectionsRoot(tempDir);
+      const reflectionDir = path.join(reflectionsRoot, '2026');
+      fs.mkdirSync(reflectionDir, { recursive: true });
+      fs.writeFileSync(path.join(reflectionDir, '2026-W07.md'), '# Week 7 Reflection');
+
+      const canvas = generateCanvas(tempDir);
+      
+      // Find text nodes that contain reflection info
+      const reflNode = canvas.nodes.find(
+        n => n.type === 'text' && n.text?.includes('**Reflections**')
+      );
+
+      expect(reflNode).toBeDefined();
+      expect(reflNode?.text).toContain('Total: 1');
+      expect(reflNode?.text).toContain('Week 07');
+    });
+
+    it('vault activity group shows session stats', () => {
+      // Create handoff files
+      const handoffsDir = path.join(tempDir, 'handoffs');
+      fs.mkdirSync(handoffsDir, { recursive: true });
+      fs.writeFileSync(path.join(handoffsDir, 'handoff-2026-02-14.md'), '# Handoff');
+
+      // Create checkpoint
+      fs.writeFileSync(
+        path.join(tempDir, '.clawvault', 'last-checkpoint.json'),
+        JSON.stringify({ timestamp: '2026-02-14T10:30:00Z', workingOn: 'testing' })
+      );
+
+      const canvas = generateCanvas(tempDir);
+      
+      // Find text nodes that contain session info
+      const sessionsNode = canvas.nodes.find(
+        n => n.type === 'text' && n.text?.includes('**Sessions**')
+      );
+
+      expect(sessionsNode).toBeDefined();
+      expect(sessionsNode?.text).toContain('Checkpoints: 1');
+      expect(sessionsNode?.text).toContain('Handoffs: 1');
+    });
+
+    it('vault activity group shows document stats', () => {
+      // Create inbox documents
+      const inboxDir = path.join(tempDir, 'inbox');
+      fs.mkdirSync(inboxDir, { recursive: true });
+      fs.writeFileSync(path.join(inboxDir, 'pending-1.md'), '# Pending');
+      fs.writeFileSync(path.join(inboxDir, 'pending-2.md'), '# Pending');
+
+      const canvas = generateCanvas(tempDir);
+      
+      // Find text nodes that contain document info
+      const docsNode = canvas.nodes.find(
+        n => n.type === 'text' && n.text?.includes('**Documents**')
+      );
+
+      expect(docsNode).toBeDefined();
+      expect(docsNode?.text).toContain('Total: 2');
+      expect(docsNode?.text).toContain('Inbox: 2 pending triage');
     });
   });
 });

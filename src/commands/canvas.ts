@@ -36,6 +36,12 @@ import {
 import { loadMemoryGraphIndex, type MemoryGraph } from '../lib/memory-graph.js';
 import { readObservations } from '../lib/observation-reader.js';
 import { listObservationFiles, getReflectionsRoot } from '../lib/ledger.js';
+import {
+  collectVaultStats,
+  formatDateRange,
+  formatTaskStatusLine,
+  type VaultStats
+} from '../lib/vault-stats.js';
 
 export interface CanvasOptions {
   output?: string;
@@ -66,6 +72,10 @@ export function generateCanvas(vaultPath: string): Canvas {
   // Vault Stats group
   const vaultStatsGroup = buildVaultStatsGroup(resolvedPath, graphIndex?.graph);
   leftGroups.push(vaultStatsGroup);
+
+  // Vault Activity group
+  const vaultActivityGroup = buildVaultActivityGroup(resolvedPath);
+  leftGroups.push(vaultActivityGroup);
 
   // Build right column groups
   const rightGroups: GroupWithNodes[] = [];
@@ -265,6 +275,85 @@ function buildVaultStatsGroup(vaultPath: string, graph?: MemoryGraph): GroupWith
     0,
     LAYOUT.LEFT_COLUMN_WIDTH,
     '📊 Vault Stats',
+    childNodes,
+    CANVAS_COLORS.CYAN
+  );
+}
+
+/**
+ * Build the Vault Activity group
+ * Shows operational stats: observations, reflections, tasks, sessions, documents
+ */
+function buildVaultActivityGroup(vaultPath: string): GroupWithNodes {
+  const childNodes: CanvasNode[] = [];
+  const stats = collectVaultStats(vaultPath);
+
+  // Observations section
+  let obsText = '**Observations**\n\n';
+  obsText += `Total: ${stats.observations.total}`;
+  if (stats.observations.firstDate && stats.observations.latestDate) {
+    obsText += ` (${formatDateRange(stats.observations.firstDate, stats.observations.latestDate)})`;
+  }
+  obsText += '\n';
+  if (stats.observations.avgPerDay > 0) {
+    obsText += `Avg: ${stats.observations.avgPerDay}/day`;
+  }
+  childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.SMALL_NODE_HEIGHT + 20, obsText));
+
+  // Reflections section
+  let reflText = '**Reflections**\n\n';
+  reflText += `Total: ${stats.reflections.total}\n`;
+  if (stats.reflections.latestDate) {
+    reflText += `Latest: ${stats.reflections.latestDate}\n`;
+  }
+  if (stats.reflections.weeksCovered > 0) {
+    reflText += `Weeks covered: ${stats.reflections.weeksCovered}`;
+  }
+  childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.SMALL_NODE_HEIGHT + 20, reflText));
+
+  // Tasks section
+  let tasksText = '**Tasks**\n\n';
+  tasksText += `Total: ${stats.tasks.total}\n`;
+  const statusLine = formatTaskStatusLine(stats.tasks);
+  if (statusLine) {
+    tasksText += `${statusLine}\n`;
+  }
+  if (stats.tasks.total > 0) {
+    tasksText += `Completion: ${stats.tasks.completionRate}%`;
+  }
+  childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.DEFAULT_NODE_HEIGHT, tasksText));
+
+  // Sessions section
+  let sessionsText = '**Sessions**\n\n';
+  sessionsText += `Checkpoints: ${stats.sessions.checkpoints}\n`;
+  sessionsText += `Handoffs: ${stats.sessions.handoffs}`;
+  if (stats.sessions.lastCheckpoint) {
+    sessionsText += `\nLast checkpoint: ${stats.sessions.lastCheckpoint}`;
+  }
+  childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.SMALL_NODE_HEIGHT + 20, sessionsText));
+
+  // Documents section
+  const categoryCount = Object.keys(stats.documents.byCategory).length;
+  let docsText = '**Documents**\n\n';
+  docsText += `Total: ${stats.documents.total} across ${categoryCount} categories\n`;
+  if (stats.documents.inboxPending > 0) {
+    docsText += `Inbox: ${stats.documents.inboxPending} pending triage`;
+  }
+  childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.SMALL_NODE_HEIGHT + 20, docsText));
+
+  // Ledger section (if has data)
+  if (stats.ledger.rawTranscripts > 0 || stats.ledger.totalLedgerSizeMB > 0) {
+    let ledgerText = '**Ledger**\n\n';
+    ledgerText += `Raw transcripts: ${stats.ledger.rawTranscripts}\n`;
+    ledgerText += `Size: ${stats.ledger.totalLedgerSizeMB} MB`;
+    childNodes.push(createTextNode(0, 0, LAYOUT.DEFAULT_NODE_WIDTH, LAYOUT.SMALL_NODE_HEIGHT + 10, ledgerText));
+  }
+
+  return createGroupWithNodes(
+    LAYOUT.LEFT_COLUMN_X,
+    0,
+    LAYOUT.LEFT_COLUMN_WIDTH,
+    '📈 Vault Activity',
     childNodes,
     CANVAS_COLORS.CYAN
   );

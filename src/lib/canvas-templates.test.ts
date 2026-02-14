@@ -102,15 +102,14 @@ describe('canvas templates', () => {
     const projectBoard = getTemplate('project-board');
     expect(projectBoard).toBeDefined();
     const canvas = projectBoard!.generate(tempDir, { project: 'alpha' });
-    const filePaths = canvas.nodes
-      .filter((node) => node.type === 'file' && typeof node.file === 'string')
-      .map((node) => node.file as string);
 
-    expect(filePaths).toContain(`tasks/${alphaTask.slug}.md`);
-    expect(filePaths).not.toContain(`tasks/${betaTask.slug}.md`);
+    // Project-board uses text cards — check that alpha task title appears and beta doesn't
+    const allText = canvas.nodes.map((n) => n.text || '').join('\n');
+    expect(allText).toContain('Alpha Task');
+    expect(allText).not.toContain('Beta Task');
   });
 
-  it('renders brain template wiki-link edges for linked entities', async () => {
+  it('renders brain template with architecture sections', async () => {
     fs.mkdirSync(path.join(tempDir, 'projects'), { recursive: true });
     fs.mkdirSync(path.join(tempDir, 'decisions'), { recursive: true });
     fs.writeFileSync(path.join(tempDir, 'projects', 'alpha.md'), '# Alpha\n[[decisions/stack-choice]]');
@@ -119,8 +118,12 @@ describe('canvas templates', () => {
 
     const brainTemplate = getTemplate('brain');
     const canvas = brainTemplate!.generate(tempDir, {});
-    const wikiEdges = canvas.edges.filter((edge) => edge.label === 'wiki-link');
-    expect(wikiEdges.length).toBeGreaterThan(0);
+    // Brain architecture should have groups for hippocampus, direction, agent workspace, graph
+    const groupLabels = canvas.nodes.filter((n) => n.type === 'group').map((n) => n.label || '');
+    expect(groupLabels.some((l) => l.includes('HIPPOCAMPUS'))).toBe(true);
+    expect(groupLabels.some((l) => l.includes('DIRECTION'))).toBe(true);
+    expect(groupLabels.some((l) => l.includes('AGENT'))).toBe(true);
+    expect(groupLabels.some((l) => l.includes('GRAPH'))).toBe(true);
   });
 
   it('keeps default template output aligned with generateCanvas output', () => {

@@ -1,111 +1,458 @@
+/**
+ * Brain Architecture Canvas Template
+ * BrainMeld-inspired system overview: vault structure, content flow,
+ * agent workspace, knowledge graph summary, and directory map.
+ *
+ * Layout (inspired by BrainMeld screenshot):
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  🧠 HIPPOCAMPUS — Knowledge Vault    │  📊 DIRECTION       │
+ * │  ┌─────────────────────────────────┐  │  Recent decisions   │
+ * │  │ Vault name — N Clean Folders    │  │  Open loops         │
+ * │  │ ┌────┐ ┌────┐ ┌────┐ ┌────┐   │  │  Priorities         │
+ * │  │ │cat │ │cat │ │cat │ │cat │   │  │                     │
+ * │  │ └────┘ └────┘ └────┘ └────┘   │  └─────────────────────┘
+ * │  └─────────────────────────────────┘  │
+ * │  🔄 Content Flow                      │
+ * │  Session → Observe → Route → Store    │
+ * ├───────────────────────┬───────────────┤
+ * │  🤖 AGENT WORKSPACE   │ 📈 GRAPH      │
+ * │  Active tasks          │ Nodes/Edges   │
+ * │  Blocked items         │ Top entities  │
+ * │  Backlog               │ Categories    │
+ * └───────────────────────┴───────────────┘
+ */
+
+import * as fs from 'fs';
 import * as path from 'path';
-import { collectVaultStats } from './vault-stats.js';
-import { loadMemoryGraphIndex, type MemoryGraphNode } from './memory-graph.js';
+import { collectVaultStats, type VaultStats } from './vault-stats.js';
+import { loadMemoryGraphIndex, type MemoryGraph, type MemoryGraphNode } from './memory-graph.js';
+import {
+  getActiveTasks,
+  getBlockedTasks,
+  listBacklogItems,
+  type Task,
+  type BacklogItem
+} from './task-utils.js';
 import {
   type Canvas,
   type CanvasNode,
   type CanvasEdge,
   createTextNode,
   createFileNode,
+  createGroupNode,
   createGroupWithNodes,
   createEdge,
   flattenGroups,
+  truncateText,
   CANVAS_COLORS,
   LAYOUT,
   type GroupWithNodes
 } from './canvas-layout.js';
 import type { CanvasTemplate, CanvasTemplateOptions } from './canvas-templates.js';
 
-interface CategorySummary {
-  category: string;
+// Layout constants for the brain architecture
+const BRAIN = {
+  TOTAL_WIDTH: 1600,
+  TOP_ROW_HEIGHT: 520,
+  BOTTOM_ROW_HEIGHT: 480,
+  GAP: 30,
+  HIPPOCAMPUS_WIDTH: 1050,
+  DIRECTION_WIDTH: 500,
+  AGENT_WIDTH: 800,
+  GRAPH_WIDTH: 770,
+  CATEGORY_CARD_WIDTH: 220,
+  CATEGORY_CARD_HEIGHT: 90,
+  CATEGORY_COLS: 4,
+  CATEGORY_ROWS: 3,
+  CATEGORY_GAP: 15,
+  FLOW_NODE_WIDTH: 130,
+  FLOW_NODE_HEIGHT: 45,
+  FLOW_GAP: 20,
+} as const;
+
+interface CategoryInfo {
+  name: string;
   fileCount: number;
-  entities: MemoryGraphNode[];
+  topFiles: string[];
 }
 
-const MAX_CATEGORY_GROUPS = 6;
-const MAX_CATEGORY_ENTITIES = 5;
-const DEFAULT_CANVAS_WIDTH = 1400;
-const DEFAULT_CANVAS_HEIGHT = 1000;
-const RADIAL_GROUP_WIDTH = 320;
-const RADIAL_GROUP_MIN_Y = -80;
-const RADIAL_GROUP_MAX_Y = 1200;
+function getVaultCategories(vaultPath: string, graph?: MemoryGraph): CategoryInfo[] {
+  const categoryMap = new Map<string, { count: number; files: string[] }>();
 
-function toCategoryLabel(raw: string): string {
-  if (!raw) {
-    return 'uncategorized';
-  }
-  return raw.replace(/[-_]+/g, ' ').trim();
-}
-
-function categoryFromNode(node: MemoryGraphNode): string {
-  if (node.path) {
-    const firstSegment = node.path.split('/')[0]?.trim();
-    if (firstSegment) {
-      return firstSegment.toLowerCase();
+  if (graph) {
+    for (const node of graph.nodes) {
+      if (!node.path || node.type === 'tag' || node.type === 'unresolved') continue;
+      const folder = node.path.split('/')[0]?.toLowerCase() || 'root';
+      const entry = categoryMap.get(folder) || { count: 0, files: [] };
+      entry.count++;
+      if (entry.files.length < 3) entry.files.push(node.title || node.path);
+      categoryMap.set(folder, entry);
+    }
+  } else {
+    const stats = collectVaultStats(vaultPath);
+    for (const [cat, count] of Object.entries(stats.documents.byCategory)) {
+      categoryMap.set(cat, { count, files: [] });
     }
   }
-  return node.category.toLowerCase();
-}
 
-function summarizeCategories(nodes: MemoryGraphNode[]): CategorySummary[] {
-  const byCategory = new Map<string, MemoryGraphNode[]>();
-  for (const node of nodes) {
-    if (!node.path || node.type === 'tag' || node.type === 'unresolved') {
-      continue;
-    }
-    const key = categoryFromNode(node);
-    const bucket = byCategory.get(key) ?? [];
-    bucket.push(node);
-    byCategory.set(key, bucket);
-  }
-
-  return [...byCategory.entries()]
-    .map(([category, entities]) => ({
-      category,
-      fileCount: entities.length,
-      entities: entities
-        .sort((left, right) => right.degree - left.degree)
-        .slice(0, MAX_CATEGORY_ENTITIES)
-    }))
-    .sort((left, right) => right.fileCount - left.fileCount || left.category.localeCompare(right.category))
-    .slice(0, MAX_CATEGORY_GROUPS);
-}
-
-function fallbackCategorySummaries(vaultPath: string): CategorySummary[] {
-  const stats = collectVaultStats(vaultPath);
-  return Object.entries(stats.documents.byCategory)
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, MAX_CATEGORY_GROUPS)
-    .map(([category, fileCount]) => ({
-      category,
-      fileCount,
-      entities: []
+  return [...categoryMap.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 12)
+    .map(([name, info]) => ({
+      name,
+      fileCount: info.count,
+      topFiles: info.files
     }));
 }
 
-function createCategoryColor(index: number): string {
-  const palette = [
-    CANVAS_COLORS.CYAN,
-    CANVAS_COLORS.PURPLE,
-    CANVAS_COLORS.YELLOW,
-    CANVAS_COLORS.ORANGE,
+function buildHippocampusGroup(
+  vaultPath: string,
+  vaultName: string,
+  stats: VaultStats,
+  graph?: MemoryGraph
+): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+  const nodes: CanvasNode[] = [];
+  const edges: CanvasEdge[] = [];
+  const x = 0;
+  const y = 0;
+
+  // Outer group
+  const outerGroup = createGroupNode(
+    x, y, BRAIN.HIPPOCAMPUS_WIDTH, BRAIN.TOP_ROW_HEIGHT,
+    '🧠 HIPPOCAMPUS — Knowledge Vault',
     CANVAS_COLORS.GREEN
-  ];
-  return palette[index % palette.length];
+  );
+  nodes.push(outerGroup);
+
+  // Vault name header
+  const categories = getVaultCategories(vaultPath, graph);
+  const folderCount = categories.length;
+  const totalFiles = graph?.stats.nodeCount ?? stats.documents.total;
+  const headerNode = createTextNode(
+    x + 20, y + 50,
+    BRAIN.HIPPOCAMPUS_WIDTH - 40, 50,
+    `**${vaultName}** — ${folderCount} Clean Folders · ${totalFiles} files · ${graph?.stats.edgeCount ?? 0} links`,
+    CANVAS_COLORS.CYAN
+  );
+  nodes.push(headerNode);
+
+  // Category cards in a grid
+  const gridStartX = x + 25;
+  const gridStartY = y + 120;
+
+  for (let i = 0; i < categories.length && i < BRAIN.CATEGORY_COLS * BRAIN.CATEGORY_ROWS; i++) {
+    const cat = categories[i];
+    const col = i % BRAIN.CATEGORY_COLS;
+    const row = Math.floor(i / BRAIN.CATEGORY_COLS);
+    const cx = gridStartX + col * (BRAIN.CATEGORY_CARD_WIDTH + BRAIN.CATEGORY_GAP);
+    const cy = gridStartY + row * (BRAIN.CATEGORY_CARD_HEIGHT + BRAIN.CATEGORY_GAP);
+
+    const filesPreview = cat.topFiles.length > 0
+      ? cat.topFiles.map(f => truncateText(f, 25)).join(', ')
+      : `${cat.fileCount} files`;
+
+    const cardNode = createTextNode(
+      cx, cy,
+      BRAIN.CATEGORY_CARD_WIDTH, BRAIN.CATEGORY_CARD_HEIGHT,
+      `**${cat.name}/**\n${filesPreview}\n_${cat.fileCount} files_`
+    );
+    nodes.push(cardNode);
+  }
+
+  // Content Flow at the bottom of hippocampus
+  const flowY = y + BRAIN.TOP_ROW_HEIGHT - 80;
+  const flowLabel = createTextNode(
+    x + 20, flowY - 5,
+    160, 30,
+    '**🔄 Content Flow**'
+  );
+  nodes.push(flowLabel);
+
+  const flowSteps = ['Session', 'Observe', 'Score', 'Route', 'Store', 'Reflect'];
+  const flowStartX = x + 200;
+  const flowNodes: CanvasNode[] = [];
+
+  for (let i = 0; i < flowSteps.length; i++) {
+    const stepNode = createTextNode(
+      flowStartX + i * (BRAIN.FLOW_NODE_WIDTH + BRAIN.FLOW_GAP),
+      flowY,
+      BRAIN.FLOW_NODE_WIDTH,
+      BRAIN.FLOW_NODE_HEIGHT,
+      `**${flowSteps[i]}**`,
+      i === 0 ? CANVAS_COLORS.CYAN : i === flowSteps.length - 1 ? CANVAS_COLORS.PURPLE : undefined
+    );
+    flowNodes.push(stepNode);
+    nodes.push(stepNode);
+  }
+
+  for (let i = 0; i < flowNodes.length - 1; i++) {
+    edges.push(createEdge(flowNodes[i].id, 'right', flowNodes[i + 1].id, 'left', '→'));
+  }
+
+  return { nodes, edges };
 }
 
-function getCanvasSize(options: CanvasTemplateOptions): { width: number; height: number } {
-  const width = options.width && Number.isFinite(options.width)
-    ? Math.max(960, Math.floor(options.width))
-    : DEFAULT_CANVAS_WIDTH;
-  const height = options.height && Number.isFinite(options.height)
-    ? Math.max(680, Math.floor(options.height))
-    : DEFAULT_CANVAS_HEIGHT;
-  return { width, height };
+function buildDirectionGroup(
+  vaultPath: string,
+  stats: VaultStats,
+  graph?: MemoryGraph
+): CanvasNode[] {
+  const nodes: CanvasNode[] = [];
+  const x = BRAIN.HIPPOCAMPUS_WIDTH + BRAIN.GAP;
+  const y = 0;
+
+  // Direction group
+  const group = createGroupNode(
+    x, y, BRAIN.DIRECTION_WIDTH, BRAIN.TOP_ROW_HEIGHT,
+    '📊 DIRECTION',
+    CANVAS_COLORS.ORANGE
+  );
+  nodes.push(group);
+
+  // Stats summary
+  const statsText = [
+    '**Vault Overview**',
+    '',
+    `Files: ${graph?.stats.nodeCount ?? stats.documents.total}`,
+    `Wiki links: ${graph?.stats.edgeCount ?? 0}`,
+    `Tasks: ${stats.tasks.total} (${stats.tasks.open} open, ${stats.tasks.blocked} blocked)`,
+    `Observations: ${stats.observations.total}`,
+    `Completion: ${stats.tasks.completionRate}%`,
+  ].join('\n');
+
+  nodes.push(createTextNode(
+    x + 20, y + 50,
+    BRAIN.DIRECTION_WIDTH - 40, 160,
+    statsText,
+    CANVAS_COLORS.CYAN
+  ));
+
+  // Recent decisions
+  const decisionsDir = path.join(vaultPath, 'decisions');
+  let decisionsText = '**Recent Decisions**\n';
+  if (fs.existsSync(decisionsDir)) {
+    const files = fs.readdirSync(decisionsDir)
+      .filter(f => f.endsWith('.md'))
+      .sort()
+      .reverse()
+      .slice(0, 6);
+    decisionsText += files.length > 0
+      ? files.map(f => `- ${truncateText(f.replace('.md', ''), 35)}`).join('\n')
+      : '_No decisions recorded_';
+  } else {
+    decisionsText += '_No decisions folder_';
+  }
+
+  nodes.push(createTextNode(
+    x + 20, y + 230,
+    BRAIN.DIRECTION_WIDTH - 40, 140,
+    decisionsText
+  ));
+
+  // Open loops / priorities
+  const openLoops = [
+    `Open tasks: ${stats.tasks.open}`,
+    `Blocked: ${stats.tasks.blocked}`,
+    `Backlog items: ${stats.tasks.total > 0 ? 'see agent workspace' : '0'}`,
+    stats.observations.latestDate ? `Last observation: ${stats.observations.latestDate}` : '',
+  ].filter(Boolean);
+
+  nodes.push(createTextNode(
+    x + 20, y + 390,
+    BRAIN.DIRECTION_WIDTH - 40, 110,
+    '**Open Loops**\n' + openLoops.map(l => `- ${l}`).join('\n')
+  ));
+
+  return nodes;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+function buildAgentWorkspaceGroup(
+  vaultPath: string
+): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+  const nodes: CanvasNode[] = [];
+  const edges: CanvasEdge[] = [];
+  const x = 0;
+  const y = BRAIN.TOP_ROW_HEIGHT + BRAIN.GAP;
+
+  const group = createGroupNode(
+    x, y, BRAIN.AGENT_WIDTH, BRAIN.BOTTOM_ROW_HEIGHT,
+    '🤖 AGENT WORKSPACE — Tasks & Actionables',
+    CANVAS_COLORS.CYAN
+  );
+  nodes.push(group);
+
+  const activeTasks = getActiveTasks(vaultPath);
+  const blockedTasks = getBlockedTasks(vaultPath);
+  const backlog = listBacklogItems(vaultPath);
+
+  const colWidth = (BRAIN.AGENT_WIDTH - 80) / 3;
+  const colY = y + 55;
+  const innerHeight = BRAIN.BOTTOM_ROW_HEIGHT - 80;
+
+  // Active tasks column
+  const activeGroup = createGroupNode(
+    x + 20, colY, colWidth, innerHeight,
+    `● Active (${activeTasks.length})`,
+    CANVAS_COLORS.GREEN
+  );
+  nodes.push(activeGroup);
+
+  let activeY = colY + 50;
+  for (const task of activeTasks.slice(0, 8)) {
+    const ownerTag = task.frontmatter.owner ? ` @${task.frontmatter.owner}` : '';
+    const priorityTag = task.frontmatter.priority === 'critical' ? ' 🔴' :
+      task.frontmatter.priority === 'high' ? ' 🟠' : '';
+    const node = createTextNode(
+      x + 30, activeY,
+      colWidth - 20, 55,
+      `**${truncateText(task.title, 30)}**${priorityTag}\n${task.frontmatter.project || ''}${ownerTag}`
+    );
+    nodes.push(node);
+    activeY += 65;
+  }
+  if (activeTasks.length === 0) {
+    nodes.push(createTextNode(x + 30, activeY, colWidth - 20, 40, '_No active tasks_'));
+  }
+
+  // Blocked tasks column
+  const blockedGroup = createGroupNode(
+    x + 20 + colWidth + 10, colY, colWidth, innerHeight,
+    `■ Blocked (${blockedTasks.length})`,
+    CANVAS_COLORS.RED
+  );
+  nodes.push(blockedGroup);
+
+  let blockedY = colY + 50;
+  for (const task of blockedTasks.slice(0, 8)) {
+    const blocker = task.frontmatter.blocked_by || 'unknown';
+    const node = createTextNode(
+      x + 30 + colWidth + 10, blockedY,
+      colWidth - 20, 55,
+      `**${truncateText(task.title, 28)}**\n⛔ ${truncateText(blocker, 25)}`,
+      CANVAS_COLORS.RED
+    );
+    nodes.push(node);
+    blockedY += 65;
+
+    // Edge from blocked to active if blocker exists
+    const blockerTask = activeTasks.find(t =>
+      t.slug === blocker.toLowerCase().replace(/[^\w-]/g, '-')
+    );
+    if (blockerTask) {
+      const blockerNode = nodes.find(n =>
+        n.text?.includes(truncateText(blockerTask.title, 30))
+      );
+      if (blockerNode) {
+        edges.push(createEdge(node.id, 'left', blockerNode.id, 'right', 'blocked by', CANVAS_COLORS.RED));
+      }
+    }
+  }
+  if (blockedTasks.length === 0) {
+    nodes.push(createTextNode(x + 30 + colWidth + 10, blockedY, colWidth - 20, 40, '_None blocked_ ✅'));
+  }
+
+  // Backlog column
+  const backlogGroup = createGroupNode(
+    x + 20 + (colWidth + 10) * 2, colY, colWidth, innerHeight,
+    `📋 Backlog (${backlog.length})`
+  );
+  nodes.push(backlogGroup);
+
+  let backlogY = colY + 50;
+  for (const item of backlog.slice(0, 8)) {
+    const src = item.frontmatter.source ? ` (${item.frontmatter.source})` : '';
+    const node = createTextNode(
+      x + 30 + (colWidth + 10) * 2, backlogY,
+      colWidth - 20, 55,
+      `**${truncateText(item.title, 30)}**\n${item.frontmatter.project || ''}${src}`
+    );
+    nodes.push(node);
+    backlogY += 65;
+  }
+  if (backlog.length === 0) {
+    nodes.push(createTextNode(x + 30 + (colWidth + 10) * 2, backlogY, colWidth - 20, 40, '_Backlog empty_'));
+  }
+
+  return { nodes, edges };
+}
+
+function buildGraphSummaryGroup(
+  vaultPath: string,
+  graph?: MemoryGraph
+): CanvasNode[] {
+  const nodes: CanvasNode[] = [];
+  const x = BRAIN.AGENT_WIDTH + BRAIN.GAP;
+  const y = BRAIN.TOP_ROW_HEIGHT + BRAIN.GAP;
+
+  const group = createGroupNode(
+    x, y, BRAIN.GRAPH_WIDTH, BRAIN.BOTTOM_ROW_HEIGHT,
+    '📈 KNOWLEDGE GRAPH',
+    CANVAS_COLORS.PURPLE
+  );
+  nodes.push(group);
+
+  if (!graph) {
+    nodes.push(createTextNode(
+      x + 20, y + 55,
+      BRAIN.GRAPH_WIDTH - 40, 60,
+      '_Run `clawvault graph build` to generate the knowledge graph._'
+    ));
+    return nodes;
+  }
+
+  // Graph stats
+  const statsText = [
+    '**Graph Stats**',
+    '',
+    `Nodes: ${graph.stats.nodeCount}`,
+    `Edges: ${graph.stats.edgeCount}`,
+    `File nodes: ${Object.entries(graph.stats.nodeTypeCounts).filter(([t]) => t !== 'tag' && t !== 'unresolved').reduce((s, [, c]) => s + c, 0)}`,
+    `Tags: ${graph.stats.nodeTypeCounts['tag'] || 0}`,
+    `Unresolved: ${graph.stats.nodeTypeCounts['unresolved'] || 0}`,
+  ].join('\n');
+
+  nodes.push(createTextNode(
+    x + 20, y + 55,
+    (BRAIN.GRAPH_WIDTH - 50) / 2, 170,
+    statsText,
+    CANVAS_COLORS.CYAN
+  ));
+
+  // Top entities by connectivity
+  const topEntities = graph.nodes
+    .filter(n => n.type !== 'tag' && n.type !== 'unresolved')
+    .sort((a, b) => b.degree - a.degree)
+    .slice(0, 12);
+
+  const entitiesText = '**Most Connected**\n\n' +
+    topEntities.map(e => `- ${truncateText(e.title, 28)} (${e.degree})`).join('\n');
+
+  nodes.push(createTextNode(
+    x + 20 + (BRAIN.GRAPH_WIDTH - 50) / 2 + 10, y + 55,
+    (BRAIN.GRAPH_WIDTH - 50) / 2, 170,
+    entitiesText
+  ));
+
+  // Category breakdown
+  const typeCounts = Object.entries(graph.stats.nodeTypeCounts)
+    .filter(([t]) => t !== 'tag' && t !== 'unresolved')
+    .sort((a, b) => b[1] - a[1]);
+
+  const categoryBars = typeCounts.map(([type, count]) => {
+    const maxBar = 20;
+    const barLen = Math.max(1, Math.round((count / (typeCounts[0]?.[1] || 1)) * maxBar));
+    const bar = '█'.repeat(barLen);
+    return `${type.padEnd(14)} ${bar} ${count}`;
+  }).join('\n');
+
+  nodes.push(createTextNode(
+    x + 20, y + 245,
+    BRAIN.GRAPH_WIDTH - 40, 200,
+    `**Categories**\n\`\`\`\n${categoryBars}\n\`\`\``,
+    CANVAS_COLORS.PURPLE
+  ));
+
+  return nodes;
 }
 
 export function generateBrainCanvas(
@@ -113,168 +460,37 @@ export function generateBrainCanvas(
   options: CanvasTemplateOptions = {}
 ): Canvas {
   const resolvedPath = path.resolve(vaultPath);
-  const memoryGraph = loadMemoryGraphIndex(resolvedPath)?.graph;
+  const graphIndex = loadMemoryGraphIndex(resolvedPath);
+  const graph = graphIndex?.graph;
+  const stats = collectVaultStats(resolvedPath);
   const vaultName = path.basename(resolvedPath);
-  const vaultStats = collectVaultStats(resolvedPath);
-  const { width, height } = getCanvasSize(options);
 
-  const categories = memoryGraph
-    ? summarizeCategories(memoryGraph.nodes)
-    : fallbackCategorySummaries(resolvedPath);
-  const selectedCategories = categories.length > 0
-    ? categories
-    : [{
-      category: 'vault',
-      fileCount: vaultStats.documents.total,
-      entities: []
-    }];
+  const allNodes: CanvasNode[] = [];
+  const allEdges: CanvasEdge[] = [];
 
-  const centerGroupWidth = 360;
-  const centerGroupX = Math.floor((width - centerGroupWidth) / 2);
-  const centerGroupY = Math.floor((height - 220) / 2);
-  const centerText = [
-    `**${vaultName}**`,
-    '',
-    `Known files: ${memoryGraph?.stats.nodeCount ?? 0}`,
-    `Wiki links: ${memoryGraph?.stats.edgeCount ?? 0}`,
-    `Tasks: ${vaultStats.tasks.total}`,
-    `Observations: ${vaultStats.observations.total}`,
-    memoryGraph ? '' : '_Graph index unavailable_'
-  ].join('\n');
+  // Top-left: Hippocampus (vault structure + content flow)
+  const hippo = buildHippocampusGroup(resolvedPath, vaultName, stats, graph);
+  allNodes.push(...hippo.nodes);
+  allEdges.push(...hippo.edges);
 
-  const centerGroup = createGroupWithNodes(
-    centerGroupX,
-    centerGroupY,
-    centerGroupWidth,
-    'Brain Core',
-    [
-      createTextNode(
-        0,
-        0,
-        centerGroupWidth - (LAYOUT.GROUP_PADDING * 2),
-        LAYOUT.DEFAULT_NODE_HEIGHT + 30,
-        centerText,
-        CANVAS_COLORS.CYAN
-      )
-    ],
-    CANVAS_COLORS.PURPLE
-  );
+  // Top-right: Direction (stats, decisions, open loops)
+  allNodes.push(...buildDirectionGroup(resolvedPath, stats, graph));
 
-  const radialGroups: GroupWithNodes[] = [];
-  const entityNodeByGraphId = new Map<string, CanvasNode>();
-  const edges: CanvasEdge[] = [];
+  // Bottom-left: Agent Workspace (tasks, blocked, backlog)
+  const agent = buildAgentWorkspaceGroup(resolvedPath);
+  allNodes.push(...agent.nodes);
+  allEdges.push(...agent.edges);
 
-  const centerPointX = centerGroup.group.x + (centerGroup.group.width / 2);
-  const centerPointY = centerGroup.group.y + (centerGroup.group.height / 2);
-  const radialDistance = Math.max(300, Math.floor(Math.min(width, height) * 0.34));
-  const nodeWidth = RADIAL_GROUP_WIDTH - (LAYOUT.GROUP_PADDING * 2);
+  // Bottom-right: Knowledge Graph summary
+  allNodes.push(...buildGraphSummaryGroup(resolvedPath, graph));
 
-  selectedCategories.forEach((category, index) => {
-    const angle = (Math.PI * 2 * index) / selectedCategories.length;
-    const targetX = Math.round(centerPointX + (Math.cos(angle) * radialDistance)) - Math.floor(RADIAL_GROUP_WIDTH / 2);
-    const targetY = clamp(
-      Math.round(centerPointY + (Math.sin(angle) * radialDistance)) - 140,
-      RADIAL_GROUP_MIN_Y,
-      RADIAL_GROUP_MAX_Y
-    );
-
-    const childNodes: CanvasNode[] = [
-      createTextNode(
-        0,
-        0,
-        nodeWidth,
-        LAYOUT.SMALL_NODE_HEIGHT + 10,
-        `Files: ${category.fileCount}`
-      )
-    ];
-
-    const entityNodeIds: Array<{ graphId: string; canvasId: string }> = [];
-    for (const entity of category.entities) {
-      if (!entity.path) {
-        continue;
-      }
-      const fileNode = createFileNode(
-        0,
-        0,
-        nodeWidth,
-        LAYOUT.FILE_NODE_HEIGHT,
-        entity.path
-      );
-      entityNodeIds.push({ graphId: entity.id, canvasId: fileNode.id });
-      childNodes.push(fileNode);
-    }
-
-    if (category.entities.length === 0) {
-      childNodes.push(
-        createTextNode(
-          0,
-          0,
-          nodeWidth,
-          LAYOUT.SMALL_NODE_HEIGHT + 10,
-          '_No linked entities_'
-        )
-      );
-    }
-
-    const categoryGroup = createGroupWithNodes(
-      targetX,
-      targetY,
-      RADIAL_GROUP_WIDTH,
-      `${toCategoryLabel(category.category)} (${category.fileCount})`,
-      childNodes,
-      createCategoryColor(index)
-    );
-    radialGroups.push(categoryGroup);
-
-    for (const mapping of entityNodeIds) {
-      const canvasNode = categoryGroup.nodes.find((node) => node.id === mapping.canvasId);
-      if (canvasNode) {
-        entityNodeByGraphId.set(mapping.graphId, canvasNode);
-      }
-    }
-
-    const sourceOnRight = categoryGroup.group.x >= centerGroup.group.x;
-    edges.push(
-      createEdge(
-        centerGroup.group.id,
-        sourceOnRight ? 'right' : 'left',
-        categoryGroup.group.id,
-        sourceOnRight ? 'left' : 'right',
-        'category',
-        CANVAS_COLORS.CYAN
-      )
-    );
-  });
-
-  if (memoryGraph) {
-    const seenEdgePairs = new Set<string>();
-    for (const graphEdge of memoryGraph.edges) {
-      if (graphEdge.type !== 'wiki_link') {
-        continue;
-      }
-      const sourceNode = entityNodeByGraphId.get(graphEdge.source);
-      const targetNode = entityNodeByGraphId.get(graphEdge.target);
-      if (!sourceNode || !targetNode || sourceNode.id === targetNode.id) {
-        continue;
-      }
-
-      const pairKey = [sourceNode.id, targetNode.id].sort((left, right) => left.localeCompare(right)).join('::');
-      if (seenEdgePairs.has(pairKey)) {
-        continue;
-      }
-      seenEdgePairs.add(pairKey);
-      edges.push(createEdge(sourceNode.id, 'right', targetNode.id, 'left', 'wiki-link', CANVAS_COLORS.PURPLE));
-    }
-  }
-
-  const nodes = [...flattenGroups([centerGroup]), ...flattenGroups(radialGroups)];
-  return { nodes, edges };
+  return { nodes: allNodes, edges: allEdges };
 }
 
 export const brainCanvasTemplate: CanvasTemplate = {
   id: 'brain',
-  name: 'Brain Overview',
-  description: 'Radial knowledge map with category hubs and linked entities.',
+  name: 'Brain Architecture',
+  description: 'BrainMeld-inspired system overview: vault structure, content flow, agent workspace, and knowledge graph.',
   generate(vaultPath: string, options: CanvasTemplateOptions): Canvas {
     return generateBrainCanvas(vaultPath, options);
   }

@@ -136,7 +136,14 @@ export const DEFAULT_CATEGORIES: Category[] = [
   'goals',
   'transcripts',
   'inbox',
-  'templates'
+  'templates',
+  'lessons',
+  'agents',
+  'commitments',
+  'handoffs',
+  'research',
+  'tasks',
+  'backlog'
 ];
 
 /**

@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.3.0] — 2026-02-14
+
+### Added
+- **Task Tracking Primitives** — Full task management with `clawvault task` command:
+  - `task add` — Create tasks with owner, project, priority, due date
+  - `task list` — List tasks with filters (status, owner, project, priority)
+  - `task update` — Update task status, owner, priority, blocked_by
+  - `task done` — Mark tasks complete with completion timestamp
+  - `task show` — Display task details
+- **Backlog Management** — Quick capture with `clawvault backlog` command:
+  - `backlog add` — Add ideas to backlog with source and project
+  - `backlog list` — List backlog items with project filter
+  - `backlog promote` — Promote backlog item to active task
+- **Blocked View** — `clawvault blocked` shows all blocked tasks with blockers and duration
+- **Canvas Dashboard** — `clawvault canvas` generates Obsidian JSON Canvas file:
+  - Active tasks grouped by status with priority colors
+  - Blocked tasks with blocker info (red)
+  - Backlog queue grouped by project
+  - Knowledge graph stats and top entities
+  - Recent decisions and vault statistics
+  - Data flow diagram (Session → Observe → Score → Route → Reflect → Promote)
+  - File nodes for tasks (clickable in Obsidian)
+  - Valid JSON Canvas spec (jsoncanvas.org)
+- **New Categories** — `tasks` and `backlog` added to DEFAULT_CATEGORIES
+
+### Changed
+- Task files stored as markdown in `tasks/` with frontmatter (status, owner, project, priority, blocked_by, due, created, updated, completed, tags)
+- Backlog files stored in `backlog/` with frontmatter (source, project, created, tags)
+- Wiki-links auto-generated for task owners and projects (`[[owner]]`, `[[project]]`)
+- Clean terminal table output for task and backlog lists
+
 ## [2.0.0] — 2026-02-13
 
 ### Added

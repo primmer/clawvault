@@ -246,7 +246,7 @@ export function formatTaskList(tasks: Task[]): string {
   }
 
   const headers = ['STATUS', 'OWNER', 'PRIORITY', 'PROJECT', 'META', 'TITLE'];
-  const widths = [10, 12, 8, 14, 28, 36];
+  const widths = [10, 12, 8, 14, 64, 32];
   const truncate = (value: string, width: number): string => {
     if (value.length <= width) return value;
     return value.slice(0, width - 3) + '...';
@@ -407,7 +407,7 @@ export async function taskCommand(
       }
       const task = taskDone(vaultPath, args.slug, {
         confidence: options.confidence,
-        reason: options.reason,
+        reason: options.reason ?? undefined,
       });
       console.log(`✓ Completed task: ${task.slug}`);
       break;

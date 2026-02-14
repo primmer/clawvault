@@ -18,6 +18,10 @@ export interface CanvasOptions {
   template?: string;
   listTemplates?: boolean;
   project?: string;
+  owner?: string;
+  width?: number;
+  height?: number;
+  includeDone?: boolean;
 }
 
 function resolveTemplateOrThrow(templateId: string): CanvasTemplate {
@@ -34,7 +38,11 @@ function resolveTemplateOrThrow(templateId: string): CanvasTemplate {
 
 function toTemplateOptions(options: CanvasOptions): CanvasTemplateOptions {
   return {
-    project: options.project
+    project: options.project,
+    owner: options.owner,
+    width: options.width,
+    height: options.height,
+    includeDone: options.includeDone
   };
 }
 

@@ -6,9 +6,11 @@ import { sprintCanvasTemplate } from './canvas-sprint-template.js';
 
 export interface CanvasTemplateOptions {
   project?: string;
+  owner?: string;
   dateRange?: { from: string; to: string };
   width?: number;
   height?: number;
+  includeDone?: boolean;
 }
 
 export interface CanvasTemplate {

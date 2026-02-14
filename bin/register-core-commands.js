@@ -13,6 +13,13 @@ export function registerCoreCommands(
     .option('-n, --name <name>', 'Vault name')
     .option('--qmd', 'Set up qmd semantic search collection')
     .option('--qmd-collection <name>', 'qmd collection name (defaults to vault name)')
+    .option('--no-bases', 'Skip Obsidian Bases file generation')
+    .option('--no-tasks', 'Skip tasks/ and backlog/ directories')
+    .option('--no-graph', 'Skip initial graph build')
+    .option('--categories <list>', 'Comma-separated list of custom categories to create')
+    .option('--canvas <template>', 'Generate a canvas dashboard on init (default, brain, project-board, sprint)')
+    .option('--theme <style>', 'Graph color theme to apply (brainmeld, minimal, none)', 'none')
+    .option('--minimal', 'Create minimal vault (memory categories only, no tasks/bases/graph)')
     .action(async (vaultPath, options) => {
       const targetPath = vaultPath || '.';
       console.log(chalk.cyan(`\n🐘 Initializing ClawVault at ${path.resolve(targetPath)}...\n`));
@@ -67,10 +74,26 @@ export function registerCoreCommands(
   program
     .command('setup')
     .description('Auto-discover and configure a ClawVault')
-    .action(async () => {
+    .option('--graph-colors', 'Set up graph color scheme for Obsidian')
+    .option('--no-graph-colors', 'Skip graph color configuration')
+    .option('--bases', 'Generate Obsidian Bases views for task management')
+    .option('--no-bases', 'Skip Bases file generation')
+    .option('--canvas [template]', 'Generate canvas dashboard (default, brain, project-board, sprint)')
+    .option('--no-canvas', 'Skip canvas generation')
+    .option('--theme <style>', 'Graph color theme (brainmeld, minimal, none)', 'brainmeld')
+    .option('--force', 'Overwrite existing configuration files')
+    .option('-v, --vault <path>', 'Vault path')
+    .action(async (options) => {
       try {
         const { setupCommand } = await import('../dist/commands/setup.js');
-        await setupCommand();
+        await setupCommand({
+          graphColors: options.graphColors,
+          bases: options.bases,
+          canvas: options.canvas,
+          theme: options.theme,
+          force: options.force,
+          vault: options.vault
+        });
       } catch (err) {
         console.error(chalk.red(`Error: ${err.message}`));
         process.exit(1);

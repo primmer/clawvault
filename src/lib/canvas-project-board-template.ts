@@ -278,10 +278,10 @@ export function generateProjectBoardCanvas(
   options: CanvasTemplateOptions = {}
 ): Canvas {
   const resolvedPath = path.resolve(vaultPath);
-  const allTasks = listTasks(
-    resolvedPath,
-    options.project ? { project: options.project } : undefined
-  );
+  const filter: Record<string, string> = {};
+  if (options.project) filter.project = options.project;
+  if (options.owner) filter.owner = options.owner;
+  const allTasks = listTasks(resolvedPath, Object.keys(filter).length > 0 ? filter : undefined);
 
   const nodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
@@ -289,9 +289,11 @@ export function generateProjectBoardCanvas(
   const colWidth = getColumnWidth();
 
   // Header
-  const headerText = options.project
-    ? `**📋 PROJECT BOARD** — ${options.project} · ${allTasks.length} tasks`
-    : `**📋 PROJECT BOARD** — All Projects · ${allTasks.length} tasks`;
+  const filterParts: string[] = [];
+  if (options.project) filterParts.push(options.project);
+  if (options.owner) filterParts.push(`@${options.owner}`);
+  const filterLabel = filterParts.length > 0 ? filterParts.join(' · ') : 'All Projects';
+  const headerText = `**📋 PROJECT BOARD** — ${filterLabel} · ${allTasks.length} tasks`;
 
   nodes.push(createTextNode(
     0, -60,

@@ -244,6 +244,10 @@ export function registerTaskCommands(
     .option('--output <path>', 'Output file path (default: dashboard.canvas)')
     .option('--template <id>', 'Canvas template ID (default, project-board, brain, sprint)')
     .option('--project <project>', 'Project filter for template-aware canvases')
+    .option('--owner <owner>', 'Filter tasks by owner (agent name or human)')
+    .option('--width <pixels>', 'Canvas width in pixels', parseInt)
+    .option('--height <pixels>', 'Canvas height in pixels', parseInt)
+    .option('--include-done', 'Include completed tasks (default: limited)')
     .option('--list-templates', 'List available canvas templates and exit')
     .action(async (options) => {
       try {
@@ -255,6 +259,10 @@ export function registerTaskCommands(
           output: options.output,
           template: options.template,
           project: options.project,
+          owner: options.owner,
+          width: options.width,
+          height: options.height,
+          includeDone: options.includeDone,
           listTemplates: options.listTemplates
         });
       } catch (err) {

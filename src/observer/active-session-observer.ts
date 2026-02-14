@@ -31,6 +31,7 @@ export interface ActiveObserveOptions {
   threshold?: number;
   reflectThreshold?: number;
   model?: string;
+  extractTasks?: boolean;
 }
 
 export interface ActiveObservationCandidate {
@@ -492,7 +493,8 @@ export async function observeActiveSessions(
   const observer = observerFactory(vaultPath, {
     tokenThreshold: options.threshold,
     reflectThreshold: options.reflectThreshold,
-    model: options.model
+    model: options.model,
+    extractTasks: options.extractTasks
   });
 
   let observedSessions = 0;

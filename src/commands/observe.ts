@@ -14,6 +14,7 @@ export interface ObserveCommandOptions {
   threshold?: number;
   reflectThreshold?: number;
   model?: string;
+  extractTasks?: boolean;
   compress?: string;
   daemon?: boolean;
   vaultPath?: string;
@@ -50,6 +51,9 @@ function buildDaemonArgs(options: ObserveCommandOptions): string[] {
   }
   if (options.model) {
     args.push('--model', options.model);
+  }
+  if (options.extractTasks === false) {
+    args.push('--no-extract-tasks');
   }
   if (options.vaultPath) {
     args.push('--vault', options.vaultPath);
@@ -131,7 +135,8 @@ export async function observeCommand(options: ObserveCommandOptions): Promise<vo
       dryRun: options.dryRun,
       threshold: options.threshold,
       reflectThreshold: options.reflectThreshold,
-      model: options.model
+      model: options.model,
+      extractTasks: options.extractTasks
     });
 
     if (result.candidateSessions === 0) {
@@ -160,7 +165,8 @@ export async function observeCommand(options: ObserveCommandOptions): Promise<vo
   const observer = new Observer(vaultPath, {
     tokenThreshold: options.threshold,
     reflectThreshold: options.reflectThreshold,
-    model: options.model
+    model: options.model,
+    extractTasks: options.extractTasks
   });
 
   if (options.compress) {
@@ -212,6 +218,8 @@ export function registerObserveCommand(program: Command): void {
     .option('--threshold <n>', 'Compression token threshold', '30000')
     .option('--reflect-threshold <n>', 'Reflection token threshold', '40000')
     .option('--model <model>', 'LLM model override')
+    .option('--extract-tasks', 'Extract task-like observations into backlog', true)
+    .option('--no-extract-tasks', 'Disable task extraction from observations')
     .option('--compress <file>', 'One-shot compression for a conversation file')
     .option('--daemon', 'Run in detached background mode')
     .option('-v, --vault <path>', 'Vault path')
@@ -225,6 +233,7 @@ export function registerObserveCommand(program: Command): void {
       threshold: string;
       reflectThreshold: string;
       model?: string;
+      extractTasks?: boolean;
       compress?: string;
       daemon?: boolean;
       vault?: string;
@@ -239,6 +248,7 @@ export function registerObserveCommand(program: Command): void {
         threshold: parsePositiveInteger(rawOptions.threshold, 'threshold'),
         reflectThreshold: parsePositiveInteger(rawOptions.reflectThreshold, 'reflect-threshold'),
         model: rawOptions.model,
+        extractTasks: rawOptions.extractTasks,
         compress: rawOptions.compress,
         daemon: rawOptions.daemon,
         vaultPath: rawOptions.vault

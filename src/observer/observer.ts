@@ -34,6 +34,7 @@ export interface ObserverOptions {
   reflector?: ObserverReflector;
   now?: () => Date;
   rawCapture?: boolean;
+  extractTasks?: boolean;
 }
 
 export interface ObserverProcessOptions {
@@ -56,6 +57,7 @@ export class Observer {
 
   private readonly router: Router;
   private pendingMessages: string[] = [];
+  private pendingRouteContext: ObserverProcessOptions = {};
   private observationsCache = '';
   private lastRoutingSummary = '';
 
@@ -68,7 +70,10 @@ export class Observer {
     this.reflector = options.reflector ?? new Reflector({ now: this.now });
     this.rawCapture = options.rawCapture ?? true;
 
-    this.router = new Router(vaultPath);
+    this.router = new Router(vaultPath, {
+      extractTasks: options.extractTasks,
+      now: this.now
+    });
 
     ensureLedgerStructure(this.vaultPath);
     this.observationsCache = this.readTodayObservations();
@@ -85,6 +90,7 @@ export class Observer {
     }
 
     this.pendingMessages.push(...incoming);
+    this.pendingRouteContext = this.mergeRouteContext(this.pendingRouteContext, options);
     const buffered = this.pendingMessages.join('\n');
     if (this.estimateTokens(buffered) < this.tokenThreshold) {
       return;
@@ -98,7 +104,9 @@ export class Observer {
       this.writeObservationFile(todayPath, existing);
     }
     const compressedRaw = (await this.compressor.compress(this.pendingMessages, existing)).trim();
+    const routeContext = this.pendingRouteContext;
     this.pendingMessages = [];
+    this.pendingRouteContext = {};
     const compressed = this.deduplicateObservationMarkdown(compressedRaw);
 
     if (!compressed) {
@@ -109,7 +117,7 @@ export class Observer {
     this.observationsCache = compressed;
 
     // Route observations to vault categories (decisions/, lessons/, etc.)
-    const { summary } = this.router.route(compressed);
+    const { summary } = this.router.route(compressed, routeContext);
     if (summary) {
       this.lastRoutingSummary = summary;
     }
@@ -132,13 +140,15 @@ export class Observer {
       this.writeObservationFile(todayPath, existing);
     }
     const compressedRaw = (await this.compressor.compress(this.pendingMessages, existing)).trim();
+    const routeContext = this.pendingRouteContext;
     this.pendingMessages = [];
+    this.pendingRouteContext = {};
     const compressed = this.deduplicateObservationMarkdown(compressedRaw);
 
     if (compressed) {
       this.writeObservationFile(todayPath, compressed);
       this.observationsCache = compressed;
-      const { summary } = this.router.route(compressed);
+      const { summary } = this.router.route(compressed, routeContext);
       this.lastRoutingSummary = summary;
     }
 
@@ -248,5 +258,17 @@ export class Observer {
       return normalized;
     }
     return 'openclaw';
+  }
+
+  private mergeRouteContext(
+    existing: ObserverProcessOptions,
+    incoming: ObserverProcessOptions
+  ): ObserverProcessOptions {
+    const merged: ObserverProcessOptions = { ...existing };
+    if (incoming.source) merged.source = incoming.source;
+    if (incoming.sessionKey) merged.sessionKey = incoming.sessionKey;
+    if (incoming.transcriptId) merged.transcriptId = incoming.transcriptId;
+    if (incoming.timestamp) merged.timestamp = incoming.timestamp;
+    return merged;
   }
 }

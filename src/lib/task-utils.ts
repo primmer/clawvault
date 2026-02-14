@@ -14,6 +14,7 @@ export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 // Task frontmatter interface
 export interface TaskFrontmatter {
   status: TaskStatus;
+  source?: string;
   owner?: string;
   project?: string;
   priority?: TaskPriority;
@@ -39,6 +40,7 @@ export interface BacklogFrontmatter {
   source?: string;
   project?: string;
   created: string;
+  lastSeen?: string;
   tags?: string[];
 }
 
@@ -280,6 +282,7 @@ export function createTask(
   vaultPath: string,
   title: string,
   options: {
+    source?: string;
     owner?: string;
     project?: string;
     priority?: TaskPriority;
@@ -303,6 +306,7 @@ export function createTask(
     updated: now
   };
 
+  if (options.source) frontmatter.source = options.source;
   if (options.owner) frontmatter.owner = options.owner;
   if (options.project) frontmatter.project = options.project;
   if (options.priority) frontmatter.priority = options.priority;
@@ -467,6 +471,42 @@ export function createBacklogItem(
     content,
     frontmatter,
     path: backlogPath
+  };
+}
+
+/**
+ * Update an existing backlog item frontmatter.
+ */
+export function updateBacklogItem(
+  vaultPath: string,
+  slug: string,
+  updates: {
+    source?: string;
+    project?: string;
+    tags?: string[];
+    lastSeen?: string;
+  }
+): BacklogItem {
+  const backlogItem = readBacklogItem(vaultPath, slug);
+  if (!backlogItem) {
+    throw new Error(`Backlog item not found: ${slug}`);
+  }
+
+  const newFrontmatter: BacklogFrontmatter = {
+    ...backlogItem.frontmatter
+  };
+
+  if (updates.source !== undefined) newFrontmatter.source = updates.source;
+  if (updates.project !== undefined) newFrontmatter.project = updates.project;
+  if (updates.tags !== undefined) newFrontmatter.tags = updates.tags;
+  if (updates.lastSeen !== undefined) newFrontmatter.lastSeen = updates.lastSeen;
+
+  const fileContent = matter.stringify(backlogItem.content, newFrontmatter);
+  fs.writeFileSync(backlogItem.path, fileContent);
+
+  return {
+    ...backlogItem,
+    frontmatter: newFrontmatter
   };
 }
 

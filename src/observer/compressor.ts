@@ -84,6 +84,7 @@ export class Compressor {
       '- 🔴 for: decisions between alternatives, blockers, deadlines with explicit dates, breaking changes, commitments made to people',
       '- 🟡 for: preferences, architecture discussions, trade-offs, milestones, people interactions, notable context',
       '- 🟢 for: completed tasks, deployments, builds, general progress',
+      '- Preserve source tags when present (e.g., [main], [telegram-dm], [discord], [telegram-group]).',
       '',
       'QUALITY FILTERS (important):',
       '- DO NOT observe: CLI errors, command failures, tool output parsing issues, retry attempts, debug logs.',
@@ -423,7 +424,7 @@ export class Compressor {
   private normalizeText(text: string): string {
     return text
       .replace(/\s+/g, ' ')
-      .replace(/\[[^\]]+\]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .trim()
       .slice(0, 280);
   }

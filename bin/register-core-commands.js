@@ -23,8 +23,14 @@ export function registerCoreCommands(
           qmdCollection: options.qmdCollection
         });
 
+        const categories = vault.getCategories();
+        const memoryCategories = categories.filter(c => !['templates', 'tasks', 'backlog'].includes(c));
+        const workCategories = categories.filter(c => ['tasks', 'backlog'].includes(c));
+
         console.log(chalk.green('✓ Vault created'));
-        console.log(chalk.dim(`  Categories: ${vault.getCategories().join(', ')}`));
+        console.log(chalk.dim(`  Memory:  ${memoryCategories.join(', ')}`));
+        console.log(chalk.dim(`  Work:    ${workCategories.join(', ')}`));
+        console.log(chalk.dim(`  Ledger:  ledger/raw, ledger/observations, ledger/reflections`));
 
         console.log(chalk.cyan('\nSetting up qmd collection...'));
         try {
@@ -43,9 +49,13 @@ export function registerCoreCommands(
         }
 
         console.log(chalk.green('\n✅ ClawVault ready!\n'));
-        console.log(chalk.dim('Next steps:'));
-        console.log(chalk.dim('  clawvault store --category inbox --title "My note" --content "Hello world"'));
-        console.log(chalk.dim('  clawvault search "hello"'));
+        console.log('  ' + chalk.bold('Try these:'));
+        console.log(chalk.dim('  clawvault capture "my first thought"     # quick capture'));
+        console.log(chalk.dim('  clawvault graph                          # see your knowledge graph'));
+        console.log(chalk.dim('  clawvault context "topic"                # graph-aware context'));
+        console.log(chalk.dim('  clawvault checkpoint --working-on "task"  # save progress'));
+        console.log();
+        console.log(chalk.dim('  Full docs: https://docs.clawvault.dev'));
         console.log();
       } catch (err) {
         console.error(chalk.red(`Error: ${err.message}`));

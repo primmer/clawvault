@@ -75,6 +75,15 @@ export class ClawVault {
       }
     }
 
+    // Create ledger structure for observational memory
+    const ledgerDirs = ['ledger/raw', 'ledger/observations', 'ledger/reflections'];
+    for (const dir of ledgerDirs) {
+      const dirPath = path.join(vaultPath, dir);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+    }
+
     // Create templates
     await this.createTemplates();
 
@@ -83,6 +92,9 @@ export class ClawVault {
     if (!fs.existsSync(readmePath)) {
       fs.writeFileSync(readmePath, this.generateReadme());
     }
+
+    // Create welcome note so context has something from day one
+    await this.createWelcomeNote();
 
     // Save config
     const configPath = path.join(vaultPath, CONFIG_FILE);
@@ -754,6 +766,52 @@ export class ClawVault {
     }
   }
 
+  private async createWelcomeNote(): Promise<void> {
+    const inboxPath = path.join(this.config.path, 'inbox', 'welcome.md');
+    if (fs.existsSync(inboxPath)) return;
+    const now = new Date().toISOString().split('T')[0];
+    const content = `---
+title: "Welcome to ${this.config.name}"
+date: ${now}
+type: fact
+tags: [welcome, getting-started]
+---
+
+# Welcome to ${this.config.name}
+
+Your vault is ready. Here's what you can do:
+
+## Quick Start
+
+- **Capture a thought:** \`clawvault capture "your note here"\`
+- **Store structured memory:** \`clawvault store --category decisions --title "My Choice" --content "..."\`
+- **Search your vault:** \`clawvault search "query"\`
+- **See your knowledge graph:** \`clawvault graph\`
+- **Get context for a topic:** \`clawvault context "topic"\`
+
+## Vault Structure
+
+Your vault organizes memories by type — decisions, lessons, people, projects, and more.
+Each category is a folder. Each memory is a markdown file with frontmatter.
+
+## Observational Memory
+
+When connected to an AI agent (like OpenClaw), your vault can automatically observe
+conversations and extract important memories — decisions, lessons, commitments — without
+manual effort.
+
+## Wiki-Links
+
+Use \`[[double brackets]]\` to link between notes. Your memory graph tracks these
+connections, building a knowledge network that grows with you.
+
+---
+
+*Delete this file anytime. It's just here to say hello.*
+`;
+    fs.writeFileSync(inboxPath, content);
+  }
+
   private async syncMemoryGraphIndex(options: { forceFull?: boolean } = {}): Promise<void> {
     try {
       await buildOrUpdateMemoryGraphIndex(this.config.path, options);
@@ -763,29 +821,51 @@ export class ClawVault {
   }
 
   private generateReadme(): string {
-    return `# ${this.config.name} 🐘
+    const coreCategories = this.config.categories.filter(c => !['templates', 'tasks', 'backlog'].includes(c));
+    const workCategories = this.config.categories.filter(c => ['tasks', 'backlog'].includes(c));
+    return `# ${this.config.name}
 
 An elephant never forgets.
 
 ## Structure
 
-${this.config.categories.map(c => `- \`/${c}/\` — ${this.getCategoryDescription(c)}`).join('\n')}
+### Memory Categories
+${coreCategories.map(c => `- \`${c}/\` — ${this.getCategoryDescription(c)}`).join('\n')}
 
-## Quick Search
+### Work Tracking
+${workCategories.map(c => `- \`${c}/\` — ${this.getCategoryDescription(c)}`).join('\n')}
+
+### Observational Memory
+- \`ledger/raw/\` — Raw session transcripts (source of truth)
+- \`ledger/observations/\` — Compressed observations with importance scores
+- \`ledger/reflections/\` — Weekly reflection summaries
+
+## Quick Reference
 
 \`\`\`bash
+# Capture a thought
+clawvault capture "important insight about X"
+
+# Store structured memory
+clawvault store --category decisions --title "Choice" --content "We chose X because..."
+
+# Search
 clawvault search "query"
-\`\`\`
+clawvault vsearch "semantic query"    # vector search
 
-## Quick Capture
+# Knowledge graph
+clawvault graph                       # vault stats
+clawvault context "topic"             # graph-aware context retrieval
 
-\`\`\`bash
-clawvault store --category inbox --title "note" --content "..."
+# Session lifecycle
+clawvault checkpoint --working-on "task"
+clawvault sleep "what I did" --next "what's next"
+clawvault wake                        # restore context on startup
 \`\`\`
 
 ---
 
-*Managed by [ClawVault](https://github.com/Versatly/clawvault)*
+*Managed by [ClawVault](https://clawvault.dev)*
 `;
   }
 
@@ -806,7 +886,11 @@ clawvault store --category inbox --title "note" --content "..."
       goals: 'Long-term and short-term objectives',
       patterns: 'Recurring behaviors (→ lessons)',
       inbox: 'Quick capture → process later',
-      templates: 'Templates for each document type'
+      templates: 'Templates for each document type',
+      agents: 'Other agents — capabilities, trust levels, coordination notes',
+      research: 'Deep dives, analysis, reference material',
+      tasks: 'Active work items with status and context',
+      backlog: 'Future work — ideas and tasks not yet started'
     };
     return descriptions[category] || category;
   }

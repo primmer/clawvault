@@ -2,401 +2,193 @@
 
 **An elephant never forgets.**
 
-Structured memory system for AI agents. Store, search, and link memories across sessions.
+Structured memory system for AI agents. Typed storage, knowledge graph, task management, and Obsidian-native dashboards — all local, all markdown.
 
-🌐 **Website:** [clawvault.dev](https://clawvault.dev) | 📦 **npm:** [clawvault](https://www.npmjs.com/package/clawvault) | 🛠️ **ClawHub:** [clawvault skill](https://clawhub.com/skills/clawvault)
+[![npm](https://img.shields.io/npm/v/clawvault)](https://www.npmjs.com/package/clawvault) [![tests](https://img.shields.io/badge/tests-361%20passing-brightgreen)]()
 
-> **Built for [OpenClaw](https://openclaw.ai)** — the AI agent framework. Works standalone too.
+🌐 [clawvault.dev](https://clawvault.dev) · 📚 [docs.clawvault.dev](https://docs.clawvault.dev) · 🛠️ [ClawHub Skill](https://clawhub.com/skills/clawvault)
 
-## Install for OpenClaw Agents
+> Works with [OpenClaw](https://openclaw.ai) agents or standalone. No cloud. No API keys. Just files.
+
+## Install
 
 ```bash
-# Install the skill (recommended for OpenClaw agents)
+npm install -g clawvault
+```
+
+## Quick Start
+
+```bash
+# Create a vault
+clawvault init ~/memory --name my-brain
+
+# Store memories by type
+clawvault remember decision "Use PostgreSQL" --content "Chose for JSONB support"
+clawvault remember lesson "Always checkpoint" --content "Context death is real"
+clawvault capture "Quick thought to process later"
+
+# Search
+clawvault search "postgresql"           # Keyword (BM25)
+clawvault vsearch "what database?"      # Semantic (local embeddings)
+
+# Session lifecycle
+clawvault wake                          # Start session, load context
+clawvault sleep "built auth system" \   # End session with handoff
+  --next "deploy to staging"
+
+# Task management
+clawvault task add "Ship v2" --owner agent --project acme --priority high
+clawvault task list
+clawvault blocked
+clawvault backlog add "Explore caching" --project acme
+
+# Visual dashboards (Obsidian JSON Canvas)
+clawvault canvas --template brain           # System architecture overview
+clawvault canvas --template project-board   # Task board by owner
+```
+
+## Features
+
+### 📁 Typed Memory Storage
+Every memory has a category: `decisions/`, `lessons/`, `people/`, `projects/`, `commitments/`. No more dumping everything into one file. "Show me all decisions" actually works.
+
+### 🧠 Knowledge Graph
+Wiki-links (`[[connections]]`) build a typed graph index. Query with graph-aware context that blends semantic search with relationship traversal.
+
+```bash
+clawvault graph                              # Graph summary
+clawvault context "database migration" \     # Graph-aware context
+  --profile planning --budget 2000
+```
+
+### ✅ Task Management
+Tasks and backlog stored as markdown with frontmatter. Agents and humans share the same system.
+
+```bash
+clawvault task add "Fix auth" --owner bot --priority critical
+clawvault task update fix-auth --status blocked --blocked-by "api-key"
+clawvault blocked                            # Triage blocked work
+clawvault backlog promote explore-caching    # Backlog → active task
+```
+
+### 🎨 Obsidian Dashboards
+Generate visual dashboards as [JSON Canvas](https://jsoncanvas.org) files:
+
+| Template | Description |
+|----------|-------------|
+| `brain` | 4-quadrant architecture: vault structure, direction, agent workspace, knowledge graph |
+| `project-board` | Owner-centric kanban with status columns, priority icons, agent/human cards |
+| `default` | Two-column dashboard with activity metrics and task triage |
+| `sprint` | Weekly focus with sprint metrics and open loops |
+
+```bash
+clawvault canvas --template brain
+clawvault canvas --template project-board --owner my-agent
+```
+
+### 🔭 Observational Memory
+Auto-compress conversations into prioritized observations. Critical items route to vault categories automatically.
+
+```bash
+clawvault observe --compress session.md      # One-shot compression
+clawvault observe --active                   # Incremental from transcripts
+```
+
+### 🛡️ Context Death Recovery
+Checkpoint/recover system keeps agents alive across crashes and session resets.
+
+```bash
+clawvault checkpoint --working-on "migration" --focus "step 3"
+clawvault recover                            # After crash/reset
+```
+
+### 🌐 Tailscale Networking
+Multi-vault collaboration over Tailscale with trust levels and cross-vault search.
+
+```bash
+clawvault serve                              # Start API server
+clawvault peers                              # Manage vault peers
+clawvault net-search "query"                 # Search across vaults
+```
+
+## Setup & Customization
+
+```bash
+# Full setup with neural graph theme + Obsidian Bases views
+clawvault setup --theme neural --canvas brain
+
+# Minimal agent vault
+clawvault init ./memory --minimal
+
+# Custom categories
+clawvault init ./memory --categories "notes,research,code"
+
+# Skip visual config
+clawvault setup --no-graph-colors --no-bases
+```
+
+### Graph Themes
+
+| Theme | Description |
+|-------|-------------|
+| `neural` | Dark background, colored nodes by category, green network links, golden glow |
+| `minimal` | Subtle category colors, no background changes |
+| `none` | Skip graph theming |
+
+## Vault Structure
+
+```
+memory/
+├── .clawvault.json          # Vault config
+├── .clawvault/
+│   └── graph-index.json     # Knowledge graph
+├── tasks/                   # Active tasks (markdown + frontmatter)
+├── backlog/                 # Ideas and future work
+├── decisions/               # Choices with reasoning
+├── lessons/                 # Things learned
+├── people/                  # One file per person
+├── projects/                # Active work
+├── commitments/             # Promises and deadlines
+├── inbox/                   # Quick captures
+├── handoffs/                # Session continuity
+├── ledger/
+│   ├── raw/                 # Raw session transcripts
+│   ├── observations/        # Compressed observations
+│   └── reflections/         # Weekly reflections
+├── all-tasks.base           # Obsidian Bases view
+├── by-owner.base            # Tasks by owner
+└── dashboard.canvas         # Generated dashboard
+```
+
+## For OpenClaw Agents
+
+```bash
+# Install as a skill
 clawhub install clawvault
 
-# Or install the CLI globally
+# Or add to your agent's tools
 npm install -g clawvault
+```
+
+Add to your `AGENTS.md`:
+
+```markdown
+## Memory
+- `clawvault wake` on session start
+- `clawvault sleep "summary" --next "next steps"` on session end
+- `clawvault checkpoint` every 10-15 min during heavy work
+- `clawvault remember <type> "title" --content "..."` for important items
+- `clawvault search "query"` before asking questions
 ```
 
 ## Requirements
 
 - **Node.js 18+**
-- **[qmd](https://github.com/Versatly/qmd)** — Local semantic search (required)
+- **[qmd](https://github.com/Versatly/qmd)** — Local semantic search (optional but recommended)
 
-```bash
-# Install qmd first
-bun install -g qmd   # or: npm install -g qmd
+## Docs
 
-# Then install clawvault
-npm install -g clawvault
-```
-
-## Why ClawVault?
-
-AI agents forget things. Context windows overflow, sessions end, important details get lost. ClawVault fixes that:
-
-- **Structured storage** — Organized categories, not random notes
-- **Local search** — qmd provides BM25 + semantic search with local embeddings (no API quotas)
-- **Wiki-links** — `[[connections]]` visible in Obsidian's graph view
-- **Session continuity** — Handoff/recap system for context death
-- **Token efficient** — Search instead of loading entire memory files
-
-## Quick Start
-
-```bash
-# Initialize vault with qmd collection
-clawvault init ~/memory --qmd-collection my-memory
-
-# Store memories
-clawvault remember decision "Use qmd" --content "Local embeddings, no API limits"
-clawvault remember lesson "Context death is survivable" --content "Write it down"
-clawvault capture "Quick note to process later"
-
-# Search (uses qmd)
-clawvault search "decision"           # BM25 keyword search
-clawvault vsearch "what did I decide" # Semantic search
-
-# Session management
-clawvault wake
-clawvault sleep "build wake/sleep commands" --next "run doctor"
-clawvault handoff --working-on "task1" --next "task2"   # Manual handoff (advanced)
-clawvault recap                                         # Manual recap (advanced)
-```
-
-**Tip:** Set `CLAWVAULT_PATH` to skip directory walk (or use `shell-init`):
-```bash
-echo 'export CLAWVAULT_PATH="$HOME/memory"' >> ~/.bashrc
-eval "$(clawvault shell-init)"
-```
-
-## Observational Memory
-
-Automatically compress conversations into prioritized observations:
-
-```bash
-# One-shot: compress a conversation file
-clawvault observe --compress session.md
-
-# Active sessions: incremental observe from OpenClaw transcripts
-clawvault observe --active
-
-# Watch mode: monitor a directory for new session files
-clawvault observe --watch ./sessions/
-
-# Background daemon
-clawvault observe --daemon
-```
-
-Observations use emoji priorities:
-- 🔴 **Critical** — decisions, errors, blockers, deadlines
-- 🟡 **Notable** — preferences, architecture discussions, people interactions
-- 🟢 **Info** — routine updates, deployments, general progress
-
-Critical and notable observations are automatically routed to vault categories (`decisions/`, `lessons/`, `people/`, etc.). The system uses LLM compression (Gemini, Anthropic, or OpenAI) with a rule-based fallback.
-
-For long-running OpenClaw sessions, `observe --active` tracks per-session byte cursors in `.clawvault/observe-cursors.json` and only compresses new transcript deltas once threshold windows are crossed.
-
-Integrated into the sleep/wake lifecycle:
-```bash
-clawvault sleep "task summary" --session-transcript conversation.md
-# → observations auto-generated and routed
-
-clawvault wake
-# → recent 🔴/🟡 observations included in context
-```
-
-Token-budget-aware context injection:
-```bash
-clawvault context "what decisions were made" --budget 2000
-# → blends semantic + graph-neighbor context within budget
-
-clawvault context "what decisions were made" --format json
-# → includes explain metadata (signals + rationale) per entry
-
-clawvault context "plan database migration" --profile planning
-# → profile-tuned ordering for planning, incident, handoff, or default
-
-clawvault context "URGENT outage: rollback failed" --profile auto
-# → auto infers incident/planning/handoff/default from prompt intent
-```
-
-## Search
-
-Use `clawvault search` / `qmd` for vault search — it indexes the **entire vault** (decisions/, people/, lessons/, observations/, etc.).
-
-OpenClaw's built-in `memory_search` only indexes `MEMORY.md` + `memory/**/*.md`. If your vault lives inside `memory/`, it'll work. If your vault is elsewhere, `memory_search` won't find your ClawVault categories.
-
-```bash
-# Full vault search (recommended)
-clawvault search "query"              # BM25 keyword
-clawvault vsearch "what did I decide" # Semantic (local embeddings)
-
-# OpenClaw memory search (only MEMORY.md + memory/*.md)
-# Works if vault is inside memory/, misses vault categories otherwise
-```
-
-## Vault Structure
-
-```
-my-memory/
-├── .clawvault.json      # Config (includes qmd collection name)
-├── .clawvault/
-│   └── graph-index.json # Typed memory graph index (incremental rebuilds)
-├── decisions/           # Choices with reasoning
-├── lessons/             # Things learned
-├── people/              # One file per person
-├── projects/            # Active work
-├── commitments/         # Promises and deadlines
-├── inbox/               # Quick capture (process later)
-└── handoffs/            # Session continuity
-```
-
-## Commands
-
-### Store Memories
-
-```bash
-# With type classification (recommended)
-clawvault remember <type> <title> --content "..."
-# Types: decision, lesson, fact, commitment, project, person
-
-# Quick capture
-clawvault capture "Note to self"
-
-# Manual store
-clawvault store -c decisions -t "Title" --content "..."
-```
-
-**Note:** All write commands auto-update the qmd index. Use `--no-index` to skip.
-
-### Search
-
-```bash
-clawvault search "query"           # BM25 keyword
-clawvault search "query" -c people # Filter by category
-clawvault vsearch "query"          # Semantic (local embeddings)
-```
-
-### Browse
-
-```bash
-clawvault list                # All documents
-clawvault list decisions      # By category
-clawvault get decisions/title # Specific document
-clawvault stats               # Vault overview
-clawvault graph --refresh     # Typed memory graph summary
-```
-
-### Session Continuity
-
-```bash
-# Start a session (recover + recap + summary)
-clawvault wake
-
-# End a session with a handoff
-clawvault sleep "building CRM, fixing webhook" \
-  --blocked "waiting for API key" \
-  --next "deploy to production" \
-  --decisions "chose Supabase over Firebase" \
-  --feeling "focused"
-
-# Manual tools (advanced)
-clawvault handoff --working-on "task1" --next "task2"
-clawvault recap --brief   # Token-efficient recap
-
-# Health check
-clawvault doctor
-
-# OpenClaw compatibility check
-clawvault compat
-
-# CI/automation-friendly compatibility gate
-clawvault compat --strict   # exits non-zero on warnings/errors
-# validates openclaw CLI readiness, hook events/requirements, handler safety/profile delegation, and SKILL metadata
-# flags missing, non-zero, or signal-terminated openclaw CLI checks as warnings
-# warns on unsafe handler execution conventions (execSync usage, shell:true options, missing --profile auto delegation)
-
-# Validate a specific project root (fixtures/CI)
-clawvault compat --strict --base-dir ./tests/compat-fixtures/healthy
-
-# Run strict compatibility fixture matrix (healthy + intentional drift cases)
-npm run test:compat-fixtures
-# fixture expectations are defined in tests/compat-fixtures/cases.json
-# fixture manifest includes schemaVersion for explicit contract evolution (current schemaVersion=2)
-# includes expectedCheckLabels to lock compat check-label contract
-# supports expected status, detail snippets, and hint snippets per check
-# supports openclawExitCode/openclawSignal/openclawMissing for declarative CLI failure simulation cases
-# each case also owns its scenario description (README coverage is validated)
-# expected check labels are validated against live compat output to catch stale contracts
-# includes a fresh build before running fixtures
-
-# Quick smoke check (healthy fixture only)
-npm run test:compat-smoke
-# runs fast contract validation + healthy fixture check (requires existing dist build)
-# fails fast if build artifacts are stale
-
-# Validate compatibility fixture contract only (no full matrix execution)
-npm run test:compat-contract
-# includes manifest/docs/runtime-label parity checks with a fresh build
-
-# Fast contract-only validation (requires existing dist build)
-npm run test:compat-contract:fast
-# fails fast if compat source is newer than dist build artifacts
-
-# Run full local CI gate (typecheck + tests + compat fixtures)
-npm run ci
-# runs build-backed contract validation, fixture matrix execution, and standalone summary artifact validation
-
-# Optional: run only specific compatibility fixtures
-COMPAT_CASES=healthy,missing-events npm run test:compat-fixtures
-# duplicate COMPAT_CASES entries are rejected to prevent ambiguous selection
-# empty/whitespace-only COMPAT_CASES values are rejected as invalid selection input
-# runner logs resolved case selection before execution for easier verification
-
-# Optional: run fast fixture checks without building
-npm run test:compat-fixtures:fast
-
-# Optional: write per-fixture JSON reports to a directory
-COMPAT_REPORT_DIR=/tmp/clawvault-compat-reports npm run test:compat-fixtures
-# includes per-case reports and summary.json (summarySchemaVersion + mode/schemaVersion/selectedCases/selectedTotal + expected/runtime labels + passed/failed case lists + preflight/overall timing + slowest cases)
-# summary artifacts are validated for schema/field invariants before write (fail-fast on malformed report generation)
-# validator now also enforces result-entry schema and passed/failed list coherence with selected case ordering
-# slowestCases telemetry is also validated against case-result durations and sort order
-# summary validation is enforced centrally in summary artifact writing, so all emitters share one contract path
-# per-case report artifacts are also validated centrally before write
-
-# Optional: validate an existing compatibility summary artifact set
-node scripts/validate-compat-summary.mjs /tmp/clawvault-compat-reports/summary.json
-# explicit option form (also supports custom case-report directory)
-node scripts/validate-compat-summary.mjs --summary /tmp/clawvault-compat-reports/summary.json --report-dir /tmp/clawvault-compat-reports
-# summary-only mode when per-case reports are unavailable
-node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --allow-missing-case-reports
-# machine-readable success output for automation
-node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --json
-# json output is schema-versioned and also used for machine-readable error payloads
-# success payload includes summary/fixture schema versions for downstream compatibility checks
-# write validator result payload (success/error) to a file
-node scripts/validate-compat-summary.mjs --summary /tmp/summary.json --json --out /tmp/validator-result.json
-# in CI, compat-summary artifacts now include summary.json + report-schema-validator-result.json + validator-result.json + schema-validator-result.json + validator-result-verifier-result.json + artifact-bundle-validator-result.json + artifact-bundle-manifest-validator-result.json
-# validator payload schema/validation is centralized in scripts/lib/compat-summary-validator-output.mjs
-# JSON schema artifacts for payload contracts live in /schemas (including json-schema-validator-output)
-# generic schema checker CLI lives at scripts/validate-json-schema.mjs
-# schema-validator result payload is written to schema-validator-result.json in compat report dirs
-# summary/case-report artifacts can also be schema-validated via scripts/validate-compat-report-schemas.mjs
-# see validator usage/help
-node scripts/validate-compat-summary.mjs --help
-# equivalent npm wrapper (supports arg passthrough, env fallback)
-npm run test:compat-summary:verify -- /tmp/clawvault-compat-reports/summary.json
-# validate previously emitted validator-result payload directly
-npm run test:compat-validator-result:verify -- /tmp/clawvault-compat-reports/validator-result.json
-# npm verifier wrapper enforces --require-ok by default
-# validate validator-result payload against its JSON schema contract
-npm run test:compat-validator-result:schema
-# validate schema-validator-result payload against its own schema contract
-npm run test:compat-schema-validator-result:verify
-# validate summary.json and per-case report artifacts against schema documents
-npm run test:compat-report-schemas:verify
-# emit report-schema validator output payload + validate its schema contract
-npm run test:compat-report-schemas:verify:report
-npm run test:compat-report-schemas:verify:schema
-# emit verifier output payload + validate verifier payload schema
-npm run test:compat-validator-result:verify:report
-npm run test:compat-validator-result:verify:schema
-# verify full compat artifact bundle contract + emit schema-validated bundle result
-npm run test:compat-artifact-bundle:verify
-npm run test:compat-artifact-bundle:verify:report
-npm run test:compat-artifact-bundle:verify:schema
-npm run test:compat-artifact-bundle:manifest:schema
-npm run test:compat-artifact-bundle:manifest:verify
-npm run test:compat-artifact-bundle:manifest:verify:report
-npm run test:compat-artifact-bundle:manifest:verify:schema
-# bundle result now includes an artifactContracts manifest (artifact path + schema id + expected/actual schema version), now including artifact-bundle-manifest-validator-result.json
-# bundle validator supports --manifest <path> to override the default contract manifest
-# manifest verifier emits artifact-bundle-manifest-validator-result.json with schemaId/version-field contract checks
-# explicit verifier CLI options:
-node scripts/validate-compat-validator-result.mjs --validator-result /tmp/clawvault-compat-reports/validator-result.json --json --out /tmp/verifier-result.json
-# enforce success-only validator-result status in strict automation paths
-node scripts/validate-compat-validator-result.mjs --validator-result /tmp/clawvault-compat-reports/validator-result.json --require-ok
-# use --help for verifier usage and path-resolution rules
-# or run fixture generation + standalone summary validation together
-npm run test:compat-summary:fast
-# debug stack wrappers individually when isolating compat contract drift
-npm run test:compat-report-stack:fast
-npm run test:compat-validator-stack:fast
-npm run test:compat-artifact-stack:fast
-# script behavior is covered by dedicated unit tests (success + failure + env fallback)
-# validator exits with a clear error when no summary path/source input is provided
-# summary scripts respect COMPAT_REPORT_DIR (defaults to .compat-reports when unset)
-# report parsing now validates per-check schema and warning/error count coherence before artifact evaluation
-```
-
-
-## Agent Setup (AGENTS.md)
-
-Add this to your `AGENTS.md` to ensure proper memory habits:
-
-```markdown
-## Memory
-
-**Write everything down. Memory doesn't survive session restarts.**
-
-### Search (use qmd, not memory_search)
-\`\`\`bash
-qmd search "query" -c your-memory    # Fast keyword
-qmd vsearch "query" -c your-memory   # Semantic
-\`\`\`
-
-### Store
-\`\`\`bash
-clawvault remember decision "Title" --content "..."
-clawvault remember lesson "Title" --content "..."
-\`\`\`
-
-### Session Start
-\`\`\`bash
-clawvault wake
-\`\`\`
-
-### Session End
-\`\`\`bash
-clawvault sleep "..." --next "..."
-\`\`\`
-
-### Checkpoint (during heavy work)
-\`\`\`bash
-clawvault checkpoint --working-on "..." --focus "..." --blocked "..."
-\`\`\`
-
-```
-
-## Templates
-
-ClawVault includes templates for common memory types:
-
-- `decision.md` — Choices with context and reasoning
-- `lesson.md` — Things learned
-- `person.md` — People you work with
-- `project.md` — Active work
-- `handoff.md` — Session state before context death
-- `daily.md` — Daily notes
-
-Use with: `clawvault store -c category -t "Title" -f decision`
-
-## Library Usage
-
-```typescript
-import { ClawVault, createVault, findVault } from 'clawvault';
-
-const vault = await createVault('./memory', { qmdCollection: 'my-memory' });
-
-await vault.store({
-  category: 'decisions',
-  title: 'Use ClawVault',
-  content: 'Decided to use ClawVault for memory.',
-});
-
-const results = await vault.find('memory', { limit: 5 });
-```
+Full documentation at **[docs.clawvault.dev](https://docs.clawvault.dev)**
 
 ## License
 
@@ -404,4 +196,4 @@ MIT
 
 ---
 
-*"An elephant never forgets." — Now neither do you.* 🐘
+*Built by [Versatly](https://versatly.com) — autonomous AI employees for businesses.* 🐘

@@ -25,7 +25,7 @@ function parseBdTasksFromJson(raw: string): BdTask[] {
     return [];
   }
   return parsed
-    .map((entry) => {
+    .map((entry): BdTask | null => {
       if (!entry || typeof entry !== 'object') return null;
       const record = entry as Record<string, unknown>;
       const title = typeof record.title === 'string'
@@ -35,7 +35,7 @@ function parseBdTasksFromJson(raw: string): BdTask[] {
           : '';
       const status = typeof record.status === 'string' ? record.status.trim().toLowerCase() : undefined;
       if (!title) return null;
-      return { title, status };
+      return status ? { title, status } : { title };
     })
     .filter((entry): entry is BdTask => entry !== null);
 }

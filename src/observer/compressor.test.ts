@@ -94,4 +94,93 @@ describe('Compressor', () => {
     expect(output).toMatch(/\[[a-z]+\|c=\d\.\d{2}\|i=0\.(4\d|5\d|6\d|7\d)\].*Routine deadline next sprint for docs refresh/);
     expect(output).toMatch(/\[[a-z]+\|c=\d\.\d{2}\|i=0\.(8\d|9\d)\].*Release deadline is 2026-02-28 for migration cutover/);
   });
+
+  it('detects explicit TODO variants as todo observations', async () => {
+    process.env.ANTHROPIC_API_KEY = '';
+    process.env.OPENAI_API_KEY = '';
+    process.env.GEMINI_API_KEY = '';
+
+    const compressor = new Compressor({
+      now: () => new Date('2026-02-11T12:00:00.000Z')
+    });
+    const output = await compressor.compress(
+      [
+        'TODO: review the PR',
+        'we need to close the release checklist',
+        "don't forget to update the changelog",
+        'remember to rotate API keys',
+        'make sure to run smoke tests'
+      ],
+      ''
+    );
+
+    expect(output).toMatch(/\[todo\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*TODO: review the PR/i);
+    expect(output).toMatch(/\[todo\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*we need to close the release checklist/i);
+    expect(output).toMatch(/\[todo\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*don't forget to update the changelog/i);
+    expect(output).toMatch(/\[todo\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*remember to rotate API keys/i);
+    expect(output).toMatch(/\[todo\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*make sure to run smoke tests/i);
+  });
+
+  it('detects commitment phrasing as task observations', async () => {
+    process.env.ANTHROPIC_API_KEY = '';
+    process.env.OPENAI_API_KEY = '';
+    process.env.GEMINI_API_KEY = '';
+
+    const compressor = new Compressor({
+      now: () => new Date('2026-02-11T12:00:00.000Z')
+    });
+    const output = await compressor.compress(
+      [
+        "I'll deploy after lunch",
+        'I will prepare the migration plan',
+        'let me open a bug ticket',
+        'going to add rollback checks',
+        'plan to share release notes',
+        'should add a post-deploy monitor'
+      ],
+      ''
+    );
+
+    expect(output).toMatch(/\[task\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*I'll deploy after lunch/i);
+    expect(output).toMatch(/\[task\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*I will prepare the migration plan/i);
+    expect(output).toMatch(/\[task\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*let me open a bug ticket/i);
+    expect(output).toMatch(/\[task\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*going to add rollback checks/i);
+    expect(output).toMatch(/\[task\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*plan to share release notes/i);
+    expect(output).toMatch(/\[task\|c=\d\.\d{2}\|i=0\.(6\d|7\d|8\d|9\d)\].*should add a post-deploy monitor/i);
+  });
+
+  it('deduplicates repeated TODO observations during merges', async () => {
+    process.env.ANTHROPIC_API_KEY = '';
+    process.env.GEMINI_API_KEY = '';
+    process.env.OPENAI_API_KEY = 'test-key';
+
+    const fetchImpl: typeof fetch = async () => {
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: [
+                  '## 2026-02-11',
+                  '',
+                  '- [todo|c=0.84|i=0.66] 10:30 TODO: fix flaky tests'
+                ].join('\n')
+              }
+            }
+          ]
+        })
+      } as Response;
+    };
+
+    const compressor = new Compressor({
+      now: () => new Date('2026-02-11T10:30:00.000Z'),
+      fetchImpl
+    });
+
+    const existing = '## 2026-02-11\n\n- [todo|c=0.83|i=0.65] 09:00 TODO: fix flaky tests';
+    const merged = await compressor.compress(['merge updates'], existing);
+
+    expect((merged.match(/TODO: fix flaky tests/g) ?? []).length).toBe(1);
+  });
 });

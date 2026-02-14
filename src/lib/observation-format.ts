@@ -3,6 +3,9 @@ export const OBSERVATION_TYPES = [
   'preference',
   'fact',
   'commitment',
+  'task',
+  'todo',
+  'commitment-unresolved',
   'milestone',
   'lesson',
   'relationship',
@@ -37,12 +40,16 @@ export const IMPORTANCE_THRESHOLDS: ImportanceThresholds = {
 
 export const DATE_HEADING_RE = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
 const SCORED_LINE_RE =
-  /^(?:-\s*)?\[(decision|preference|fact|commitment|milestone|lesson|relationship|project)\|c=(0(?:\.\d+)?|1(?:\.0+)?)\|i=(0(?:\.\d+)?|1(?:\.0+)?)\]\s+(.+)$/i;
+  /^(?:-\s*)?\[(decision|preference|fact|commitment|task|todo|commitment-unresolved|milestone|lesson|relationship|project)\|c=(0(?:\.\d+)?|1(?:\.0+)?)\|i=(0(?:\.\d+)?|1(?:\.0+)?)\]\s+(.+)$/i;
 const EMOJI_LINE_RE = /^(?:-\s*)?(🔴|🟡|🟢)\s+(\d{2}:\d{2})?\s*(.+)$/u;
 
 const DECISION_RE = /\b(decis(?:ion|ions)?|decid(?:e|ed|ing)|chose|selected|opted|went with|picked)\b/i;
 const PREFERENCE_RE = /\b(prefer(?:ence|s|red)?|likes?|dislikes?|default to|always use|never use)\b/i;
 const COMMITMENT_RE = /\b(commit(?:ment|ted)?|promised|deadline|due|scheduled|will deliver|agreed to)\b/i;
+const TODO_RE = /(?:\btodo:\s*|\bwe need to\b|\bdon't forget(?: to)?\b|\bremember to\b|\bmake sure to\b)/i;
+const COMMITMENT_TASK_RE = /\b(?:i'?ll|i will|let me|(?:i'?m\s+)?going to|plan to|should)\b/i;
+const UNRESOLVED_RE = /\b(?:need to figure out|tbd|to be determined)\b/i;
+const DEADLINE_RE = /\b(?:by\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)|before\s+the\s+\w+|deadline is)\b/i;
 const MILESTONE_RE = /\b(released?|shipped|launched|merged|published|milestone|v\d+\.\d+)\b/i;
 const LESSON_RE = /\b(learn(?:ed|ing|t)|lesson|insight|realized|discovered|never again)\b/i;
 const RELATIONSHIP_RE = /\b(talked to|met with|spoke with|asked|client|partner|teammate|colleague)\b/i;
@@ -69,6 +76,9 @@ export function confidenceFromLegacyPriority(priority: LegacyObservationPriority
 
 export function inferObservationType(content: string): ObservationType {
   if (DECISION_RE.test(content)) return 'decision';
+  if (UNRESOLVED_RE.test(content)) return 'commitment-unresolved';
+  if (TODO_RE.test(content)) return 'todo';
+  if (COMMITMENT_TASK_RE.test(content) || DEADLINE_RE.test(content)) return 'task';
   if (COMMITMENT_RE.test(content)) return 'commitment';
   if (MILESTONE_RE.test(content)) return 'milestone';
   if (PREFERENCE_RE.test(content)) return 'preference';

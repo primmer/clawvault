@@ -7,6 +7,15 @@ import {
   renderScoredObservationLine,
   type ObservationType
 } from '../lib/observation-format.js';
+import {
+  createBacklogItem,
+  listBacklogItems,
+  listTasks,
+  updateBacklogItem,
+  updateTask,
+  type BacklogItem,
+  type Task
+} from '../lib/task-utils.js';
 
 /**
  * Routes observations into the appropriate vault category files.
@@ -21,6 +30,27 @@ interface RoutedItem {
   confidence: number;
   importance: number;
   date: string;
+}
+
+interface RouterOptions {
+  extractTasks?: boolean;
+  now?: () => Date;
+}
+
+export interface RouteContext {
+  source?: string;
+  sessionKey?: string;
+  transcriptId?: string;
+  timestamp?: Date;
+}
+
+interface ExistingWorkItem {
+  kind: 'task' | 'backlog';
+  slug: string;
+  title: string;
+  status: string;
+  source?: string;
+  tags: string[];
 }
 
 const CATEGORY_PATTERNS: Array<{ category: string; patterns: RegExp[] }> = [
@@ -77,6 +107,9 @@ const TYPE_TO_CATEGORY: Record<ObservationType, string> = {
   preference: 'preferences',
   fact: 'facts',
   commitment: 'commitments',
+  task: 'commitments',
+  todo: 'commitments',
+  'commitment-unresolved': 'commitments',
   milestone: 'projects',
   lesson: 'lessons',
   relationship: 'people',
@@ -85,9 +118,13 @@ const TYPE_TO_CATEGORY: Record<ObservationType, string> = {
 
 export class Router {
   private readonly vaultPath: string;
+  private readonly extractTasks: boolean;
+  private readonly now: () => Date;
 
-  constructor(vaultPath: string) {
+  constructor(vaultPath: string, options: RouterOptions = {}) {
     this.vaultPath = path.resolve(vaultPath);
+    this.extractTasks = options.extractTasks ?? true;
+    this.now = options.now ?? (() => new Date());
   }
 
   /**
@@ -95,12 +132,28 @@ export class Router {
    * Routes only items with importance >= 0.4.
    * Returns a summary of what was routed where.
    */
-  route(observationMarkdown: string): { routed: RoutedItem[]; summary: string } {
+  route(
+    observationMarkdown: string,
+    context: RouteContext = {}
+  ): { routed: RoutedItem[]; summary: string } {
     const items = this.parseObservations(observationMarkdown);
     const routed: RoutedItem[] = [];
+    const knownWorkItems = this.extractTasks ? this.loadExistingWorkItems() : [];
+    let dedupHits = 0;
 
     for (const item of items) {
       if (item.importance < 0.4) continue;
+
+      if (this.extractTasks && this.isTaskObservation(item.type)) {
+        const taskResult = this.routeTaskObservation(item, context, knownWorkItems);
+        if (taskResult.routedItem) {
+          routed.push(taskResult.routedItem);
+        }
+        if (taskResult.dedupHit) {
+          dedupHits += 1;
+        }
+        continue;
+      }
 
       const category = this.categorize(item.type, item.content);
       if (!category) continue;
@@ -118,8 +171,263 @@ export class Router {
       this.appendToCategory(category, routedItem);
     }
 
-    const summary = this.buildSummary(routed);
+    const summary = this.buildSummary(routed, dedupHits);
     return { routed, summary };
+  }
+
+  private isTaskObservation(
+    type: ObservationType
+  ): type is 'task' | 'todo' | 'commitment-unresolved' {
+    return type === 'task' || type === 'todo' || type === 'commitment-unresolved';
+  }
+
+  private routeTaskObservation(
+    item: {
+      type: ObservationType;
+      confidence: number;
+      importance: number;
+      content: string;
+      date: string;
+      title: string;
+    },
+    context: RouteContext,
+    knownWorkItems: ExistingWorkItem[]
+  ): { routedItem: RoutedItem | null; dedupHit: boolean } {
+    const title = this.deriveTaskTitle(item.content, item.type);
+    if (!title) {
+      return { routedItem: null, dedupHit: false };
+    }
+
+    const duplicate = this.findDuplicateWorkItem(title, knownWorkItems);
+    if (duplicate) {
+      if (item.type === 'commitment-unresolved' && this.isOpenWorkItem(duplicate)) {
+        this.touchExistingWorkItem(duplicate);
+      }
+      console.log(`[observer] dedup hit for task candidate: "${title}"`);
+      return { routedItem: null, dedupHit: true };
+    }
+
+    const tags = this.mergeTags(
+      ['open', 'observer'],
+      item.type === 'task' ? ['task'] : [],
+      item.type === 'todo' ? ['todo'] : [],
+      item.type === 'commitment-unresolved' ? ['commitment'] : []
+    );
+
+    const content = this.buildTaskContextContent(item, context);
+    let backlogItem: BacklogItem;
+    try {
+      backlogItem = createBacklogItem(this.vaultPath, title, {
+        source: 'observer',
+        content,
+        tags
+      });
+    } catch (error) {
+      if (error instanceof Error && /already exists/i.test(error.message)) {
+        console.log(`[observer] dedup hit for task candidate: "${title}"`);
+        return { routedItem: null, dedupHit: true };
+      }
+      throw error;
+    }
+
+    knownWorkItems.push({
+      kind: 'backlog',
+      slug: backlogItem.slug,
+      title: backlogItem.title,
+      status: 'open',
+      source: backlogItem.frontmatter.source,
+      tags: backlogItem.frontmatter.tags ?? []
+    });
+
+    return {
+      dedupHit: false,
+      routedItem: {
+        category: 'backlog',
+        title: backlogItem.title,
+        content: item.content,
+        type: item.type,
+        confidence: item.confidence,
+        importance: item.importance,
+        date: item.date
+      }
+    };
+  }
+
+  private loadExistingWorkItems(): ExistingWorkItem[] {
+    const taskItems: ExistingWorkItem[] = listTasks(this.vaultPath).map((task: Task) => ({
+      kind: 'task',
+      slug: task.slug,
+      title: task.title,
+      status: task.frontmatter.status,
+      source: task.frontmatter.source,
+      tags: task.frontmatter.tags ?? []
+    }));
+    const backlogItems: ExistingWorkItem[] = listBacklogItems(this.vaultPath).map((item: BacklogItem) => ({
+      kind: 'backlog',
+      slug: item.slug,
+      title: item.title,
+      status: item.frontmatter.tags?.includes('done') ? 'done' : 'open',
+      source: item.frontmatter.source,
+      tags: item.frontmatter.tags ?? []
+    }));
+    return [...taskItems, ...backlogItems];
+  }
+
+  private findDuplicateWorkItem(title: string, knownWorkItems: ExistingWorkItem[]): ExistingWorkItem | null {
+    const normalizedTitle = this.normalizeTaskTitle(title);
+    if (!normalizedTitle) {
+      return null;
+    }
+
+    for (const item of knownWorkItems) {
+      const normalizedExisting = this.normalizeTaskTitle(item.title);
+      if (!normalizedExisting) {
+        continue;
+      }
+      if (normalizedExisting === normalizedTitle) {
+        return item;
+      }
+      if (this.jaccardWordSimilarity(normalizedTitle, normalizedExisting) > 0.8) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeTaskTitle(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 50);
+  }
+
+  private jaccardWordSimilarity(a: string, b: string): number {
+    const aWords = new Set(a.split(' ').filter(Boolean));
+    const bWords = new Set(b.split(' ').filter(Boolean));
+    if (aWords.size === 0 || bWords.size === 0) {
+      return 0;
+    }
+
+    let intersection = 0;
+    for (const word of aWords) {
+      if (bWords.has(word)) {
+        intersection += 1;
+      }
+    }
+    const unionSize = aWords.size + bWords.size - intersection;
+    return unionSize === 0 ? 0 : intersection / unionSize;
+  }
+
+  private deriveTaskTitle(content: string, type: ObservationType): string {
+    let title = content
+      .replace(/^\d{2}:\d{2}\s+/, '')
+      .replace(/\[[^\]]+\]\s*/g, '')
+      .trim();
+
+    if (type === 'todo') {
+      title = title.replace(
+        /^(?:todo:\s*|we need to\s+|don't forget(?: to)?\s+|remember to\s+|make sure to\s+)/i,
+        ''
+      );
+    } else if (type === 'task') {
+      title = title.replace(
+        /^(?:i'?ll\s+|i will\s+|let me\s+|(?:i'?m\s+)?going to\s+|plan to\s+|should\s+)/i,
+        ''
+      );
+    } else if (type === 'commitment-unresolved') {
+      title = title.replace(/^(?:need to figure out\s+|tbd[:\s-]*|to be determined[:\s-]*)/i, '');
+    }
+
+    title = title
+      .replace(/\s+/g, ' ')
+      .replace(/^[^a-zA-Z0-9]+/, '')
+      .replace(/[.?!:;,]+$/, '')
+      .trim();
+
+    return title.slice(0, 120);
+  }
+
+  private buildTaskContextContent(
+    item: {
+      type: ObservationType;
+      content: string;
+      date: string;
+    },
+    context: RouteContext
+  ): string {
+    const lines: string[] = ['Auto-extracted by observer from session transcript.'];
+
+    if (context.sessionKey) {
+      lines.push(`Session: ${context.sessionKey}`);
+    }
+    if (context.transcriptId) {
+      lines.push(`Transcript: ${context.transcriptId}`);
+    }
+    if (context.source) {
+      lines.push(`Source: ${context.source}`);
+    }
+
+    const approximateTimestamp = this.extractApproximateTimestamp(item.date, item.content, context.timestamp);
+    lines.push(`Approximate timestamp: ${approximateTimestamp}`);
+    lines.push(`Observation type: ${item.type}`);
+    lines.push(`Original observation: ${item.content}`);
+    return lines.join('\n');
+  }
+
+  private extractApproximateTimestamp(
+    date: string,
+    content: string,
+    timestamp?: Date
+  ): string {
+    if (timestamp) {
+      return timestamp.toISOString();
+    }
+    const timeMatch = content.match(/\b([01]\d|2[0-3]):([0-5]\d)\b/);
+    if (timeMatch) {
+      return `${date} ${timeMatch[0]}`;
+    }
+    return date;
+  }
+
+  private isOpenWorkItem(item: ExistingWorkItem): boolean {
+    if (item.kind === 'task') {
+      return item.status !== 'done';
+    }
+    return item.status !== 'done';
+  }
+
+  private touchExistingWorkItem(item: ExistingWorkItem): void {
+    if (item.kind === 'task') {
+      if (!this.isOpenWorkItem(item)) {
+        return;
+      }
+      updateTask(this.vaultPath, item.slug, {});
+      return;
+    }
+
+    const nextTags = this.mergeTags(item.tags, ['commitment']);
+    updateBacklogItem(this.vaultPath, item.slug, {
+      source: item.source ?? 'observer',
+      tags: nextTags,
+      lastSeen: this.now().toISOString()
+    });
+    item.tags = nextTags;
+  }
+
+  private mergeTags(...groups: string[][]): string[] {
+    const merged = new Set<string>();
+    for (const group of groups) {
+      for (const tag of group) {
+        const normalized = tag.trim().toLowerCase();
+        if (normalized) {
+          merged.add(normalized);
+        }
+      }
+    }
+    return [...merged];
   }
 
   private parseObservations(markdown: string): Array<{
@@ -340,8 +648,13 @@ export class Router {
     return intersection / (setA.size + setB.size - intersection);
   }
 
-  private buildSummary(routed: RoutedItem[]): string {
-    if (routed.length === 0) return 'No items routed to vault categories.';
+  private buildSummary(routed: RoutedItem[], dedupHits: number): string {
+    if (routed.length === 0) {
+      if (dedupHits > 0) {
+        return `No items routed to vault categories (dedup hits: ${dedupHits}).`;
+      }
+      return 'No items routed to vault categories.';
+    }
 
     const byCat = new Map<string, number>();
     for (const item of routed) {
@@ -349,6 +662,7 @@ export class Router {
     }
 
     const parts = [...byCat.entries()].map(([cat, count]) => `${cat}: ${count}`);
-    return `Routed ${routed.length} observations → ${parts.join(', ')}`;
+    const suffix = dedupHits > 0 ? ` (dedup hits: ${dedupHits})` : '';
+    return `Routed ${routed.length} observations → ${parts.join(', ')}${suffix}`;
   }
 }

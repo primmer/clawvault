@@ -75,4 +75,64 @@ describe('Router', () => {
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }
   });
+
+  it('routes task and todo observations into backlog with observer source/context', () => {
+    const vaultPath = makeTempVault();
+    const router = new Router(vaultPath);
+
+    const markdown = [
+      '## 2026-02-11',
+      '',
+      '- [todo|c=0.86|i=0.66] 10:05 TODO: review the PR before the demo',
+      "- [task|c=0.83|i=0.65] 10:10 I'll deploy the patch by Friday"
+    ].join('\n');
+
+    try {
+      const { routed } = router.route(markdown, {
+        source: 'openclaw',
+        sessionKey: 'agent:clawdious:main',
+        transcriptId: 'session-abc',
+        timestamp: new Date('2026-02-11T10:15:00.000Z')
+      });
+
+      const backlogItems = routed.filter((item) => item.category === 'backlog');
+      expect(backlogItems).toHaveLength(2);
+
+      const backlogDir = path.join(vaultPath, 'backlog');
+      const backlogFiles = fs.readdirSync(backlogDir).filter((entry) => entry.endsWith('.md'));
+      expect(backlogFiles).toHaveLength(2);
+
+      const joined = backlogFiles
+        .map((file) => fs.readFileSync(path.join(backlogDir, file), 'utf-8'))
+        .join('\n');
+      expect(joined).toContain('source: observer');
+      expect(joined).toContain('Session: agent:clawdious:main');
+      expect(joined).toContain('Transcript: session-abc');
+      expect(joined).toContain('Approximate timestamp: 2026-02-11T10:15:00.000Z');
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
+
+  it('deduplicates repeated task observations into a single backlog item', () => {
+    const vaultPath = makeTempVault();
+    const router = new Router(vaultPath);
+    const markdown = [
+      '## 2026-02-11',
+      '',
+      '- [todo|c=0.82|i=0.66] 09:00 TODO: fix flaky tests'
+    ].join('\n');
+
+    try {
+      router.route(markdown, { sessionKey: 'agent:clawdious:main' });
+      const second = router.route(markdown, { sessionKey: 'agent:clawdious:main' });
+
+      const backlogDir = path.join(vaultPath, 'backlog');
+      const backlogFiles = fs.readdirSync(backlogDir).filter((entry) => entry.endsWith('.md'));
+      expect(backlogFiles).toHaveLength(1);
+      expect(second.summary).toContain('dedup hits: 1');
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
 });

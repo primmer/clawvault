@@ -18,6 +18,10 @@ const CRITICAL_RE =
   /(?:\b(?:decision|decided|chose|chosen|selected|picked|opted|switched to)\s*:?|\bdecid(?:e|ed|ing|ion)\b|\berror\b|\bfail(?:ed|ure|ing)?\b|\bblock(?:ed|er)?\b|\bbreaking(?:\s+change)?s?\b|\bcritical\b|\b\w+\s+chosen\s+(?:for|over|as)\b|\bpublish(?:ed)?\b.*@?\d+\.\d+|\bmerge[d]?\s+(?:PR|pull\s+request)\b|\bshipped\b|\breleased?\b.*v?\d+\.\d+|\bsigned\b.*\b(?:contract|agreement|deal)\b|\bpricing\b.*\$|\bdemo\b.*\b(?:completed?|done|finished)\b|\bmeeting\b.*\b(?:completed?|done|finished)\b|\bstrategy\b.*\b(?:pivot|change|shift)\b)/i;
 const DEADLINE_WITH_DATE_RE = /(?:(?:\bdeadline\b|\bdue(?:\s+date)?\b|\bcutoff\b).*(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2})|(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}).*(?:\bdeadline\b|\bdue(?:\s+date)?\b|\bcutoff\b))/i;
 const NOTABLE_RE = /\b(prefer(?:ence|s)?|likes?|dislikes?|context|pattern|architecture|approach|trade[- ]?off|milestone|stakeholder|teammate|collaborat(?:e|ed|ion)|discussion|notable|deadline|due|timeline|deploy(?:ed|ment)?|built|configured|launched|proposal|pitch|onboard(?:ed|ing)?|migrat(?:e|ed|ion)|domain|DNS|infra(?:structure)?)\b/i;
+const TODO_SIGNAL_RE = /(?:\btodo:\s*|\bwe need to\b|\bdon't forget(?: to)?\b|\bremember to\b|\bmake sure to\b)/i;
+const COMMITMENT_TASK_SIGNAL_RE = /\b(?:i'?ll|i will|let me|(?:i'?m\s+)?going to|plan to|should)\b/i;
+const UNRESOLVED_COMMITMENT_RE = /\b(?:need to figure out|tbd|to be determined)\b/i;
+const DEADLINE_SIGNAL_RE = /\b(?:by\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)|before\s+the\s+\w+|deadline is)\b/i;
 
 export class Compressor {
   private readonly model?: string;
@@ -81,12 +85,18 @@ export class Compressor {
       '- Output markdown only.',
       '- Group observations by date heading: ## YYYY-MM-DD',
       '- Each observation line MUST follow: - [type|c=<0.00-1.00>|i=<0.00-1.00>] <observation>',
-      '- Allowed type tags: decision, preference, fact, commitment, milestone, lesson, relationship, project',
+      '- Allowed type tags: decision, preference, fact, commitment, task, todo, commitment-unresolved, milestone, lesson, relationship, project',
       '- i >= 0.80 for structural/persistent observations (major decisions, blockers, releases, commitments)',
       '- i 0.40-0.79 for potentially important observations (notable context, preferences, milestones)',
       '- i < 0.40 for contextual/routine observations',
       '- Confidence c reflects extraction certainty, not importance.',
       '- Preserve source tags when present (e.g., [main], [telegram-dm], [discord], [telegram-group]).',
+      '',
+      'TASK EXTRACTION (required):',
+      '- Emit [todo] for explicit TODO phrasing: "TODO:", "we need to", "don\'t forget", "remember to", "make sure to".',
+      '- Emit [task] for commitments/action intent: "I\'ll", "I will", "let me", "going to", "plan to", "should".',
+      '- Emit [commitment-unresolved] for unresolved commitments/questions: "need to figure out", "TBD", "to be determined".',
+      '- Deadline language ("by Friday", "before the demo", "deadline is") should increase importance and usually map to [task] unless unresolved.',
       '',
       'QUALITY FILTERS (important):',
       '- DO NOT observe: CLI errors, command failures, tool output parsing issues, retry attempts, debug logs.',
@@ -297,6 +307,7 @@ export class Compressor {
     let importance = record.importance;
     let confidence = record.confidence;
     let type = record.type;
+    const inferredTaskType = this.inferTaskType(record.content);
 
     if (this.isCriticalContent(record.content)) {
       importance = Math.max(importance, 0.85);
@@ -307,6 +318,12 @@ export class Compressor {
     } else if (this.isNotableContent(record.content)) {
       importance = Math.max(importance, 0.5);
       confidence = Math.max(confidence, 0.75);
+    }
+
+    if (inferredTaskType) {
+      type = type === 'fact' || type === 'commitment' ? inferredTaskType : type;
+      importance = Math.max(importance, inferredTaskType === 'commitment-unresolved' ? 0.72 : 0.65);
+      confidence = Math.max(confidence, 0.8);
     }
 
     if (type === 'decision' || type === 'commitment' || type === 'milestone') {
@@ -450,7 +467,10 @@ export class Compressor {
   }
 
   private inferImportance(text: string, type: ObservationType): number {
+    const inferredTaskType = this.inferTaskType(text);
     if (this.isCriticalContent(text)) return 0.9;
+    if (inferredTaskType === 'commitment-unresolved') return 0.72;
+    if (inferredTaskType === 'task' || inferredTaskType === 'todo') return 0.65;
     if (this.isNotableContent(text)) return 0.6;
     if (type === 'decision' || type === 'commitment' || type === 'milestone') return 0.55;
     if (type === 'preference' || type === 'lesson' || type === 'relationship' || type === 'project') return 0.45;
@@ -458,9 +478,11 @@ export class Compressor {
   }
 
   private inferConfidence(text: string, type: ObservationType, importance: number): number {
+    const inferredTaskType = this.inferTaskType(text);
     let confidence = 0.72;
     if (importance >= 0.8) confidence += 0.12;
     if (type === 'decision' || type === 'commitment' || type === 'milestone') confidence += 0.06;
+    if (inferredTaskType) confidence += 0.06;
     if (/\b(?:decided|chose|committed|deadline|released|merged)\b/i.test(text)) {
       confidence += 0.05;
     }
@@ -473,6 +495,19 @@ export class Compressor {
 
   private isNotableContent(text: string): boolean {
     return NOTABLE_RE.test(text);
+  }
+
+  private inferTaskType(text: string): 'task' | 'todo' | 'commitment-unresolved' | null {
+    if (UNRESOLVED_COMMITMENT_RE.test(text)) {
+      return 'commitment-unresolved';
+    }
+    if (TODO_SIGNAL_RE.test(text)) {
+      return 'todo';
+    }
+    if (COMMITMENT_TASK_SIGNAL_RE.test(text) || DEADLINE_SIGNAL_RE.test(text)) {
+      return 'task';
+    }
+    return null;
   }
 
   private normalizeText(text: string): string {

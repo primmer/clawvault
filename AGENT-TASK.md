@@ -1,228 +1,252 @@
-# ClawVault Tailscale Network Layer — Native Multi-Agent Collaboration
+# ClawVault: Canvas Export + MCP Server
 
-## Overview
+Build two new features for ClawVault: (1) Obsidian Canvas export from the memory graph, and (2) a stdio MCP server for external tool integration.
 
-Add a native Tailscale-based network layer to ClawVault that lets multiple agents on different machines (different OpenClaw gateways) collaborate through shared vault access over a Tailscale network. This is NOT federation (symlinks/copies) — this is live network access to vault data.
+## Component 1: `clawvault canvas` command
 
-## Architecture
+Generates an Obsidian Canvas file (`.canvas` JSON format) from the vault's memory graph.
 
-### Core Concept
-Each ClawVault instance can optionally run a lightweight HTTP server on its Tailscale IP, exposing a read/write API for vault operations. Other agents on the same Tailnet can discover and connect to these vaults as "remote vaults".
-
-### Components to Build
-
-#### 1. `clawvault serve` command (NEW)
-Starts a lightweight HTTP server bound to the Tailscale interface.
-
-```bash
-clawvault serve [--port 7283] [--vault .] [--read-only] [--auth-token <token>]
-```
-
-- Binds to Tailscale IP only (100.x.x.x) — never 0.0.0.0
-- Default port: 7283 (CVLT on phone keypad)
-- Optional `--read-only` mode for vaults that only publish
-- Bearer token auth (auto-generated if not provided, stored in `.clawvault.json`)
-- Serves these endpoints:
-
-**API Endpoints:**
-```
-GET  /v1/status          — Vault name, version, stats, capabilities
-GET  /v1/search?q=...    — Search vault (keyword)
-GET  /v1/vsearch?q=...   — Semantic search (if qmd available)
-GET  /v1/documents/:id   — Get a specific document by ID
-GET  /v1/observations     — Get observations (date range params)
-GET  /v1/graph            — Get memory graph (nodes + edges)
-GET  /v1/context          — Get context-injected content (like `clawvault context`)
-POST /v1/store            — Store a document (body: {category, title, content, frontmatter})
-POST /v1/observe          — Submit an observation
-GET  /v1/ledger/reflections — Get reflections
-GET  /v1/ledger/observations/:date — Get compiled observations for a date
-```
-
-#### 2. Network discovery via `.clawvault.json` config
-
-Add a `network` section to `.clawvault.json`:
-
+### Obsidian Canvas Format
+The `.canvas` file is JSON with this structure:
 ```json
 {
-  "network": {
-    "serve": {
-      "enabled": true,
-      "port": 7283,
-      "readOnly": false,
-      "authToken": "cv_xxxxx"
-    },
-    "peers": [
-      {
-        "name": "eli-vault",
-        "host": "elis-mac-mini",
-        "port": 7283,
-        "authToken": "cv_yyyyy",
-        "trust": "read"
-      },
-      {
-        "name": "roman-vault",
-        "host": "openclaw-hub",
-        "port": 7283,
-        "authToken": "cv_zzzzz",
-        "trust": "read-write"
-      }
-    ]
-  }
+  "nodes": [
+    {
+      "id": "unique-id",
+      "type": "text",  // or "file", "link", "group"
+      "x": 0,
+      "y": 0,
+      "width": 250,
+      "height": 60,
+      "text": "Content here",  // for type=text
+      "file": "path/to/file.md",  // for type=file
+      "color": "1"  // 1-6 for preset colors, or hex "#ff0000"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-id",
+      "fromNode": "node-id-1",
+      "fromSide": "bottom",
+      "toNode": "node-id-2",
+      "toSide": "top",
+      "color": "1",
+      "label": "optional label"
+    }
+  ]
 }
 ```
 
-Trust levels:
-- `read` — can search and read documents from this peer
-- `read-write` — can also store documents and submit observations
-- `full` — can also modify graph, run admin commands
+Canvas colors: 1=red, 2=orange, 3=yellow, 4=green, 5=cyan, 6=purple. Or hex strings.
 
-#### 3. `clawvault peers` command (NEW)
-
+### Command Interface
 ```bash
-clawvault peers                    # List configured peers + status (online/offline)
-clawvault peers add <name> <host>  # Add a peer (interactive auth token exchange)
-clawvault peers remove <name>      # Remove a peer
-clawvault peers ping [name]        # Ping one or all peers
+clawvault canvas -v <vault-path> [options]
 ```
 
-#### 4. `clawvault net-search` command (NEW)
+Options:
+- `--output <path>` — Output .canvas file path (default: `<vault>/brain-architecture.canvas`)
+- `--mode architecture|graph|dashboard` — What to generate:
+  - `architecture` — High-level vault structure (groups for categories, key files as nodes)
+  - `graph` — Full memory graph (all nodes + edges from `clawvault graph`)
+  - `dashboard` — Summary dashboard (stats, recent observations, open loops, key entities)
+- `--max-nodes <n>` — Limit nodes for large graphs (default: 100, prune by degree)
+- `--filter-type <type>` — Only include nodes of this type (decision, person, project, etc.)
+- `--include-unresolved` — Include unresolved wiki-link nodes (default: exclude)
+- `--layout force|grid|radial` — Layout algorithm:
+  - `force` — Force-directed (default, best for graphs)
+  - `grid` — Grid layout by category
+  - `radial` — Radial from highest-degree node
 
-Search across all connected peer vaults + local vault:
+### Architecture Mode Layout
+Creates groups (Obsidian Canvas groups) for each major vault section:
+- **Knowledge Vault** (green group) — categories as sub-groups, key files as file nodes
+- **Ledger** (orange group) — raw/, observations/, reflections/ structure
+- **Agent Config** (cyan group) — AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, etc.
+- **Memory Graph** (purple group) — stats node showing node/edge counts, top entities
 
-```bash
-clawvault net-search "query"       # Search all peers + local
-clawvault net-search "query" --peer eli-vault  # Search specific peer
-clawvault net-search "query" --local-only      # Just local (same as regular search)
+Connect groups with edges showing data flow:
+- Agent → writes → Ledger/raw
+- Ledger/raw → observe → Ledger/observations
+- Observations → reflect → Ledger/reflections
+- Observations → route → Knowledge Vault categories
+
+### Graph Mode Layout
+Implements a simple force-directed layout algorithm:
+1. Initialize nodes at random positions
+2. Iterate: repulsion between all nodes, attraction along edges
+3. Apply Barnes-Hut optimization for O(n log n)
+4. Output final positions
+
+Each node type gets a different color:
+- person: cyan (#00b4d8)
+- project: green (#2d6a4f)
+- decision: orange (#e8590c)
+- lesson: yellow (#fcc419)
+- observation: purple (#7950f2)
+- tag: gray (#868e96)
+- note: default
+- unresolved: red (#e03131)
+
+Node size (width/height) scales with degree (more connections = bigger).
+
+### Dashboard Mode
+Creates a canvas with:
+- Stats card (total nodes, edges, files, observations)
+- Recent observations card (last 7 days, scored format)
+- Open loops card (from latest reflection)
+- Top entities card (highest-degree nodes)
+- Category breakdown card
+- Data flow diagram (same as architecture mode)
+
+### Implementation
+```
+src/commands/canvas.ts       — Command implementation
+src/commands/canvas.test.ts  — Tests
+src/lib/canvas-layout.ts     — Layout algorithms (force-directed, grid, radial)
+src/lib/canvas-layout.test.ts — Layout tests
 ```
 
-Results include source attribution: `[local] result...` vs `[eli-vault] result...`
+Use the existing `buildOrUpdateMemoryGraphIndex()` from `src/lib/memory-graph.ts` to get graph data. The canvas command reads the graph and transforms it into the Obsidian Canvas JSON format.
 
-#### 5. Cross-vault context injection
+## Component 2: `clawvault mcp` — MCP Server (stdio)
 
-Extend `clawvault context` with `--include-peers` flag:
+Implements a Model Context Protocol server over stdio for integration with MCP clients (Obsidian, Cursor, Claude Desktop, etc.).
 
-```bash
-clawvault context --include-peers   # Include high-importance observations from peers
-clawvault context --peer eli-vault  # Include context from specific peer
+### MCP Protocol (stdio)
+- Transport: stdin/stdout, JSON-RPC 2.0
+- One message per line (newline-delimited JSON)
+- Server reads requests from stdin, writes responses to stdout
+- stderr for logging (never write non-JSON to stdout)
+
+### MCP Methods to Implement
+
+**Tools (callable by client):**
+
+1. `search` — Search vault
+   - Params: `{ query: string, limit?: number, category?: string }`
+   - Returns: `{ results: [{ title, path, snippet, score }] }`
+
+2. `vsearch` — Semantic search (if qmd available)
+   - Params: `{ query: string, limit?: number }`
+   - Returns: same as search
+
+3. `store` — Store a document
+   - Params: `{ category: string, title: string, content: string, frontmatter?: object }`
+   - Returns: `{ path: string, success: boolean }`
+
+4. `read` — Read a document
+   - Params: `{ path: string }` (relative to vault)
+   - Returns: `{ content: string, frontmatter: object, title: string }`
+
+5. `context` — Get context injection (like `clawvault context`)
+   - Params: `{ profile?: string, maxTokens?: number }`
+   - Returns: `{ context: string, tokenCount: number }`
+
+6. `graph_stats` — Get memory graph statistics
+   - Params: `{}`
+   - Returns: `{ nodeCount, edgeCount, nodeTypeCounts, topEntities: [{id, degree}] }`
+
+7. `observe` — Submit an observation
+   - Params: `{ content: string, source?: string }`
+   - Returns: `{ path: string, success: boolean }`
+
+8. `remember` — Quick memory capture (like `clawvault remember`)
+   - Params: `{ type: string, title: string, content: string }`
+   - Returns: `{ path: string, success: boolean }`
+
+9. `status` — Vault status
+   - Params: `{}`
+   - Returns: `{ name, path, documentCount, categories, graphStats }`
+
+**Resources (readable by client):**
+
+1. `vault://status` — Current vault status
+2. `vault://graph` — Full graph as JSON
+3. `vault://observations/latest` — Latest observations
+
+### MCP JSON-RPC Format
+```json
+// Request
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test"}}}
+
+// Response
+{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}, "resources": {}}, "serverInfo": {"name": "clawvault", "version": "2.2.0"}}}
+
+// Tool call
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "search", "arguments": {"query": "decisions about auth"}}}
+
+// Tool list
+{"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}}
+
+// Resource read
+{"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": "vault://status"}}
 ```
 
-This fetches structural (i>=0.8) observations from peer vaults and includes them in the context output, attributed to source.
+### Implementation
+```
+src/mcp/server.ts       — MCP server (stdin/stdout JSON-RPC)
+src/mcp/server.test.ts  — Server tests
+src/mcp/handlers.ts     — Tool/resource handlers
+src/mcp/handlers.test.ts — Handler tests  
+src/mcp/types.ts        — MCP protocol types
+src/commands/mcp.ts     — `clawvault mcp` CLI command
+src/commands/mcp.test.ts
+```
 
-#### 6. Observation forwarding
+### Command Interface
+```bash
+clawvault mcp -v <vault-path> [--log-level debug|info|warn|error]
+```
 
-When observing a session, if the observation mentions entities that belong to a peer vault, optionally forward the observation:
+Starts the MCP server on stdio. Logs go to stderr.
 
+### MCP Client Configuration Examples
+
+**Cursor (`.cursor/mcp.json`):**
 ```json
 {
-  "network": {
-    "forwarding": {
-      "enabled": true,
-      "rules": [
-        { "entity": "hale-pet-door", "peer": "eli-vault" },
-        { "tag": "#sales", "peer": "roman-vault" }
-      ]
+  "mcpServers": {
+    "clawvault": {
+      "command": "clawvault",
+      "args": ["mcp", "-v", "/path/to/vault"]
     }
   }
 }
 ```
 
-### Implementation Details
-
-#### HTTP Server
-- Use Node.js built-in `http` module (NO express, NO external HTTP framework)
-- Keep it minimal — this is an agent tool, not a web app
-- JSON request/response throughout
-- Auth via `Authorization: Bearer cv_xxxxx` header
-- Bind specifically to Tailscale interface IP (detect via `tailscale ip -4`)
-- Graceful shutdown on SIGTERM/SIGINT
-
-#### File Structure
-```
-src/
-  network/
-    server.ts          — HTTP server implementation
-    server.test.ts     — Server tests
-    client.ts          — Client for connecting to peer vaults  
-    client.test.ts     — Client tests
-    discovery.ts       — Peer discovery + Tailscale integration
-    discovery.test.ts  — Discovery tests
-    routes.ts          — API route handlers
-    routes.test.ts     — Route tests
-    auth.ts            — Token generation + validation
-    auth.test.ts       — Auth tests
-    types.ts           — Network-specific types
-  commands/
-    serve.ts           — `clawvault serve` command
-    serve.test.ts
-    peers.ts           — `clawvault peers` command  
-    peers.test.ts
-    net-search.ts      — `clawvault net-search` command
-    net-search.test.ts
+**Claude Desktop (`claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "clawvault": {
+      "command": "clawvault",
+      "args": ["mcp", "-v", "/path/to/vault"]
+    }
+  }
+}
 ```
 
-#### Tailscale Integration
-- Detect Tailscale IP via `tailscale ip -4` (shell out)
-- Detect Tailscale status via `tailscale status --json`
-- Resolve peer hostnames via Tailscale MagicDNS (just use hostname directly)
-- If Tailscale is not available, `serve` refuses to start (security: never bind to non-Tailscale interfaces)
-- Auto-detect if running on Tailscale network
+## Constraints
+- Zero new runtime dependencies (use Node.js built-in readline for stdio)
+- TypeScript strict mode, ESM
+- Follow existing patterns in src/commands/ and src/lib/
+- Don't modify existing tests or break existing functionality
+- Must pass all existing tests + new ones
+- `npm run build` must succeed
+- Register both commands in the CLI entry point (check bin/ for registration pattern)
 
-#### Security Model
-- Server ONLY binds to Tailscale IP (100.x.x.x range)
-- Bearer token auth on every request
-- Trust levels limit what operations peers can perform
-- `--read-only` mode for sensitive vaults
-- No plaintext credentials in logs
-- Token format: `cv_` prefix + 32 random hex chars
+## Testing
+- Canvas: test all 3 modes, verify valid JSON output, verify Obsidian canvas schema
+- MCP: test JSON-RPC protocol, tool calls, resource reads, error handling
+- MCP: test with mock stdin/stdout streams
+- `npm test` and `npm run build` must pass
 
-#### Registration in CLI
-- Register `serve`, `peers`, and `net-search` commands in the CLI entry point
-- Follow existing command registration pattern (see `bin/` directory for how commands are registered)
-- All new commands should have `--help` with usage examples
-
-### Testing Requirements
-- Unit tests for server, client, routes, auth, discovery
-- Integration test: start server -> client connects -> search -> get results
-- Test auth rejection (wrong token, no token)
-- Test read-only mode (reject writes)
-- Test Tailscale detection (mock `tailscale` binary)
-- Test peer discovery (mock config)
-- Run `npm test` to verify — must pass ALL existing 353 tests plus new ones
-- Run `npm run build` to verify TypeScript compilation
-
-### Constraints
-- Zero new runtime dependencies (use Node.js built-in `http`, `crypto`, `child_process`)
-- TypeScript strict mode
-- Follow existing code patterns in `src/lib/` and `src/commands/`
-- ESM modules (the project uses `"type": "module"`)
-- Don't modify existing tests
-- Don't break any existing functionality
-- Keep the server lightweight — this runs on resource-constrained machines (Raspberry Pi, Mac Mini)
-
-### What Done Looks Like
-1. `clawvault serve` starts an HTTP server on Tailscale IP
-2. `clawvault peers add eli elis-mac-mini` configures a peer
-3. `clawvault peers` shows online/offline status of all peers
-4. `clawvault net-search "query"` returns results from local + all online peers
-5. `clawvault context --include-peers` includes peer observations in context
-6. All existing tests pass + new tests for network layer
-7. `npm run build` succeeds
-
-### Build & Test Commands
-```bash
-npm run build          # TypeScript compilation
-npm test               # Run all tests (vitest)
-npm run test:coverage  # Coverage report
-```
-
-### Reference Files
-- Existing vault operations: `src/lib/vault.ts`
-- Config handling: `src/lib/config.ts`
-- Types: `src/types.ts`
-- Command pattern: `src/commands/status.ts` (simple), `src/commands/observe.ts` (complex)
+## Reference Files
+- Memory graph: `src/lib/memory-graph.ts` (buildOrUpdateMemoryGraphIndex, MemoryGraph types)
+- Context: `src/commands/context.ts` (context injection logic)
+- Search: `src/lib/search.ts`
+- Observe: `src/commands/observe.ts`
+- Store: existing store logic in `src/lib/vault.ts`
 - CLI registration: `bin/` directory
-- Search implementation: `src/lib/search.ts`
-- Observation format: `src/lib/observation-format.ts`
-- Ledger: `src/lib/ledger.ts`
-- Memory graph: `src/lib/memory-graph.ts`
+- Types: `src/types.ts`

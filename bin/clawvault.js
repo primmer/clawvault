@@ -16,7 +16,10 @@ import { registerResilienceCommands } from './register-resilience-commands.js';
 import { registerSessionLifecycleCommands } from './register-session-lifecycle-commands.js';
 import { registerTemplateCommands } from './register-template-commands.js';
 import { registerVaultOperationsCommands } from './register-vault-operations-commands.js';
+
 import { registerTaskCommands } from './register-task-commands.js';
+
+import { registerTailscaleCommands } from './register-tailscale-commands.js';
 import {
   getVault,
   resolveVaultPath,
@@ -83,10 +86,13 @@ registerVaultOperationsCommands(program, {
   path
 });
 
+
 registerTaskCommands(program, {
   chalk,
   resolveVaultPath
 });
+
+registerTailscaleCommands(program, { chalk });
 
 // Parse and run
 program.parse();

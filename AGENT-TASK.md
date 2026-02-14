@@ -1,202 +1,269 @@
-# ClawVault v2.3.0: Canvas Export + MCP Server + Obsidian CLI Integration
+# ClawVault v2.3.0: Task Tracking + Canvas Dashboard
 
-Build three new features for ClawVault as a proper version bump (v2.3.0).
+Build task tracking primitives and an Obsidian Canvas dashboard generator for ClawVault.
 
-## Component 1: `clawvault canvas` command
+## The Vision
 
-Generates Obsidian-compatible JSON Canvas files (`.canvas`) from the vault's memory graph.
+ClawVault becomes the single source of truth for what needs to get done across a business. Humans and agents both have tasks. Everything is visible in an Obsidian Canvas dashboard. An agent says "add this to the backlog" and it appears. The canvas regenerates to show the current state.
 
-### JSON Canvas Spec (from jsoncanvas.org/spec/1.0/)
+## Component 1: Task Primitives
 
-The `.canvas` file format has two top-level arrays: `nodes` and `edges`.
+### New vault categories
+Add these to DEFAULT_CATEGORIES in src/types.ts:
+- `tasks` — active work items
+- `backlog` — ideas and future work
 
-**Node types:** `text`, `file`, `link`, `group`
+### Task file format
+Tasks are markdown files in `tasks/` with frontmatter:
 
-All nodes have: `id` (16-char hex string), `type`, `x`, `y`, `width`, `height`, optional `color` (preset "1"-"6" or hex).
+```markdown
+---
+status: open | in-progress | blocked | done
+owner: pedro
+project: clawvault
+priority: critical | high | medium | low
+blocked_by: gemini-api-timeout
+due: 2026-02-15
+created: 2026-02-14T02:15:00Z
+updated: 2026-02-14T02:15:00Z
+tags: [engineering, v2.3.0]
+---
+# Fix Gemini API timeout on large sessions
 
-- **text nodes:** `{ "text": "Markdown content" }` — newlines as `\n` in JSON
-- **file nodes:** `{ "file": "path/to/file.md", "subpath": "#heading" }` — references vault files
-- **link nodes:** `{ "url": "https://..." }`
-- **group nodes:** `{ "label": "Group Name" }` — visual containers, other nodes inside by position
+Compressor stalls on sessions >5MB. Needs timeout + retry in callGemini().
 
-**Edges:** `{ "id", "fromNode", "toNode", "fromSide?", "toSide?", "color?", "label?" }`
-- Sides: "top", "right", "bottom", "left"
+## Notes
+- Affects observation backlog (118 sessions remaining)
+- Consider chunking large sessions before sending
+```
+
+### Backlog file format
+Backlog items are simpler — just captured ideas:
+
+```markdown
+---
+source: pedro
+project: clawvault
+created: 2026-02-14T02:15:00Z
+tags: [feature]
+---
+# Add trust scoring to observations
+
+Track trust/reliability per source agent. Decay over time.
+Inspired by BrainMeld's trust weight reinforcement concept.
+```
+
+### New commands
+
+#### `clawvault task` — Task management
+```bash
+# Add a task
+clawvault task add "Fix Gemini timeout" --owner clawdious --project clawvault --priority high
+clawvault task add "Send Chamath email" --owner pedro --priority critical --due 2026-02-15
+
+# List tasks
+clawvault task list                          # All open/in-progress tasks
+clawvault task list --owner pedro            # Pedro's tasks
+clawvault task list --owner roman            # Roman's tasks  
+clawvault task list --status blocked         # All blocked tasks
+clawvault task list --project hale-pet-door  # Tasks for a project
+clawvault task list --priority critical      # Critical only
+
+# Update a task
+clawvault task update fix-gemini-timeout --status in-progress
+clawvault task update fix-gemini-timeout --status blocked --blocked-by "gemini-rate-limits"
+clawvault task done fix-gemini-timeout       # Mark done (moves to done status, adds completed date)
+
+# Show task details
+clawvault task show fix-gemini-timeout
+```
+
+Output format for `task list` should be clean terminal table:
+```
+STATUS      OWNER       PRIORITY  PROJECT          TITLE
+■ blocked   clawdious   high      clawvault        Fix Gemini API timeout
+● active    pedro       critical  versatly         Send Chamath email  
+● active    roman       medium    hale-pet-door    Bug report follow-up
+○ open      eli         low       clawvault        Trust scoring research
+```
+
+Status icons: ● active/in-progress, ■ blocked, ○ open, ✓ done
+
+#### `clawvault backlog` — Quick capture
+```bash
+# Add to backlog
+clawvault backlog "Add trust scoring to observations" --project clawvault --source pedro
+clawvault backlog "Obsidian plugin for live graph" --project clawvault
+clawvault backlog "Roman needs access to staging" --project hale-pet-door --source clawdious
+
+# List backlog
+clawvault backlog list                       # All items
+clawvault backlog list --project clawvault   # By project
+
+# Promote backlog item to task
+clawvault backlog promote trust-scoring --owner clawdious --priority medium
+```
+
+#### `clawvault blocked` — Quick blocker view
+```bash
+clawvault blocked                # Show all blocked tasks with what's blocking them
+clawvault blocked --project X    # Blocked tasks for a project
+```
+
+Output:
+```
+BLOCKED TASKS (3)
+
+■ Fix Gemini API timeout (clawdious, clawvault)
+  Blocked by: gemini-rate-limits
+  Since: 2026-02-13
+
+■ Deploy ClawVault Cloud (pedro, clawvault-cloud)
+  Blocked by: railway-deployment-config
+  Since: 2026-02-10
+
+■ Roman's bug report (roman, hale-pet-door)
+  Blocked by: awaiting-details
+  Since: 2026-02-12
+```
+
+### Implementation
+```
+src/commands/task.ts          — task add/list/update/done/show
+src/commands/task.test.ts
+src/commands/backlog.ts       — backlog add/list/promote  
+src/commands/backlog.test.ts
+src/commands/blocked.ts       — blocked view
+src/commands/blocked.test.ts
+src/lib/task-utils.ts         — shared task file read/write/query helpers
+src/lib/task-utils.test.ts
+```
+
+Task files are stored as: `tasks/<slugified-title>.md`
+Backlog files are stored as: `backlog/<slugified-title>.md`
+Slugify: lowercase, replace spaces with hyphens, remove special chars.
+
+When a task is marked done, add `completed: <ISO date>` to frontmatter but keep the file in tasks/ (don't move it). Use the `status: done` field to filter.
+
+## Component 2: Canvas Dashboard Generator
+
+### Command: `clawvault canvas`
+```bash
+clawvault canvas -v <vault-path> [--output <path>]
+```
+
+Default output: `dashboard.canvas` in the vault root.
+
+### Canvas Layout
+
+The dashboard canvas should look like this (inspired by BrainMeld's brain-architecture canvas):
+
+```
++--LEFT SIDE (x: 0-500)-------------------------+--RIGHT SIDE (x: 550-1400)------------------+
+|                                                |                                             |
+|  [GROUP: "🧠 Knowledge Graph"]                |  [GROUP: "● Active Tasks"]                  |
+|  - Stats text node (nodes, edges, files)       |  - One text node per active task             |
+|  - Top 10 entities as small text nodes         |  - Color by priority (1=critical, 2=high,   |
+|  - Recent decisions (last 5)                   |    3=medium, no color=low)                  |
+|  - Wiki-link connections between entities      |  - Shows: title, owner, project              |
+|                                                |  - Uses file nodes pointing to task files    |
+|                                                |                                             |
+|  [GROUP: "📊 Vault Stats"]                    |  [GROUP: "■ Blocked"]                       |
+|  - Category breakdown                          |  - One text node per blocked task            |
+|  - Recent observations (scored format)         |  - Red color ("1")                           |
+|  - Open loops from latest reflection           |  - Shows: what's blocking, since when        |
+|                                                |                                             |
+|                                                |  [GROUP: "📋 Backlog"]                      |
+|                                                |  - Backlog items as small text nodes         |
+|                                                |  - Grouped by project if >5 items            |
+|                                                |                                             |
+|                                                |  [GROUP: "✓ Recently Done"]                 |
+|                                                |  - Last 10 completed tasks                   |
+|                                                |  - Green color ("4"), faded                  |
++------------------------------------------------+---------------------------------------------+
+
+[BOTTOM: Data Flow diagram]
+- Text node showing: Session → Observe → Score → Route → Reflect → Promote pipeline
+- Edges connecting the flow steps
+```
+
+### Canvas Generation Rules
+
+1. **Use file nodes** for tasks and backlog items — clicking opens the actual file in Obsidian
+2. **Use text nodes** for computed content (stats, graphs, data flow)
+3. **Use group nodes** to organize sections
+4. **Color coding:**
+   - Critical tasks: "1" (red)
+   - High priority: "2" (orange)  
+   - Medium: "3" (yellow)
+   - Low: no color
+   - Blocked: "1" (red)
+   - Done: "4" (green)
+   - Knowledge graph group: "6" (purple)
+   - Stats group: "5" (cyan)
+5. **Node IDs:** 16-character lowercase hex strings (generate with crypto.randomBytes(8).toString('hex'))
+6. **Layout:** x increases right, y increases down. Groups at least 50px apart. Nodes 20-40px padding inside groups.
+7. **Edges:** Connect blocked tasks to their blocker. Connect tasks to their project entity if it exists as a graph node.
+
+### JSON Canvas Format Reference
+
+The output must be valid JSON Canvas (jsoncanvas.org/spec/1.0/):
+```json
+{
+  "nodes": [
+    {"id": "hex16", "type": "text|file|group", "x": 0, "y": 0, "width": 300, "height": 100, "text": "...", "color": "1-6 or #hex"},
+    {"id": "hex16", "type": "file", "x": 0, "y": 0, "width": 300, "height": 100, "file": "tasks/my-task.md"},
+    {"id": "hex16", "type": "group", "x": 0, "y": 0, "width": 500, "height": 400, "label": "Group Name", "color": "4"}
+  ],
+  "edges": [
+    {"id": "hex16", "fromNode": "id", "fromSide": "right", "toNode": "id", "toSide": "left", "label": "optional", "color": "1-6"}
+  ]
+}
+```
+
+Node types:
+- `text`: has `text` field (markdown string, `\n` for newlines)
+- `file`: has `file` field (path relative to vault root)
+- `group`: has optional `label` field, contains other nodes by position
 - Colors: "1"=red, "2"=orange, "3"=yellow, "4"=green, "5"=cyan, "6"=purple
 
-**Layout guidelines:**
-- x increases right, y increases down
-- Position = top-left corner
-- 20-50px padding inside groups
-- 50-100px between nodes
-- Align to multiples of 20
-
-### Command Interface
-```bash
-clawvault canvas -v <vault-path> [options]
+### Implementation
 ```
-
-Options:
-- `--output <path>` — Output path (default: `brain-architecture.canvas` in vault root)
-- `--mode architecture|graph|dashboard` — What to generate:
-  - `architecture` — High-level vault structure as groups with file nodes for key files
-  - `graph` — Memory graph visualization (nodes + edges with force-directed layout)
-  - `dashboard` — Summary cards (stats, recent observations, open loops, top entities)
-- `--max-nodes <n>` — Limit nodes (default: 100, prune lowest degree first)
-- `--filter-type <type>` — Only include nodes of specific type
-- `--include-unresolved` — Include unresolved wiki-link phantom nodes (default: exclude)
-
-### Architecture Mode
-Creates group nodes for major vault sections:
-- **Knowledge Vault** (green/"4") — group containing sub-groups for each category
-- **Ledger** (orange/"2") — group with raw/, observations/, reflections/ as text nodes
-- **Agent Config** (cyan/"5") — group with file nodes for AGENTS.md, SOUL.md, etc.
-- **Data Flow** (purple/"6") — text node showing the observation pipeline
-
-Use `file` type nodes to reference actual vault files (so clicking opens them in Obsidian).
-
-Edges show data flow between components:
-- Agent workspace → Ledger (writes transcripts)
-- Ledger raw → Ledger observations (LLM observe)
-- Observations → Knowledge Vault (auto-route high importance)
-- Observations → Reflections (weekly reflect)
-
-### Graph Mode
-Force-directed layout algorithm:
-1. Initialize nodes at random positions within bounded area
-2. Iterate (100 iterations): repulsion between all nodes, attraction along edges
-3. Map node types to colors:
-   - person="5" (cyan), project="4" (green), decision="2" (orange)
-   - lesson="3" (yellow), observation="6" (purple), tag=no color
-   - note=no color, unresolved="1" (red)
-4. Scale node width/height with degree (min 200x60, max 400x200)
-5. Use `file` type nodes for nodes that have a real file path
-
-### Dashboard Mode
-Creates text cards showing:
-- Stats: total nodes, edges, files, categories
-- Recent observations: last 7 days (scored format)
-- Open loops: from latest reflection if exists
-- Top 10 entities: highest-degree graph nodes
-- Category breakdown: file counts per category
-
-### Implementation Files
-```
-src/commands/canvas.ts        — Command implementation
-src/commands/canvas.test.ts   — Tests
-src/lib/canvas-layout.ts      — Layout algorithms
-src/lib/canvas-layout.test.ts — Layout tests
-```
-
-## Component 2: `clawvault mcp` — MCP Server (stdio)
-
-Implements a Model Context Protocol server for integration with any MCP client (Obsidian with MCP plugin, Cursor, Claude Desktop, etc.).
-
-### MCP Protocol
-- Transport: stdin/stdout, JSON-RPC 2.0, newline-delimited JSON
-- Server reads from stdin, writes to stdout
-- Logging to stderr only (never non-JSON to stdout)
-
-### Lifecycle
-```
-Client → {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test"}}}
-Server → {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{},"resources":{}},"serverInfo":{"name":"clawvault","version":"2.3.0"}}}
-Client → {"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
-```
-
-### Tools (9 tools)
-
-1. **search** — `{ query, limit?, category? }` → `{ results: [{title, path, snippet, score}] }`
-2. **vsearch** — `{ query, limit? }` → same (semantic, requires qmd)
-3. **store** — `{ category, title, content, frontmatter? }` → `{ path, success }`
-4. **read** — `{ path }` → `{ content, frontmatter, title }`
-5. **context** — `{ profile?, maxTokens? }` → `{ context, tokenCount }`
-6. **graph_stats** — `{}` → `{ nodeCount, edgeCount, nodeTypeCounts, topEntities }`
-7. **observe** — `{ content, source? }` → `{ path, success }`
-8. **remember** — `{ type, title, content }` → `{ path, success }`
-9. **status** — `{}` → `{ name, path, documentCount, categories, graphStats }`
-
-### Resources
-1. `vault://status` — Current vault status JSON
-2. `vault://graph` — Full memory graph as JSON
-3. `vault://observations/latest` — Latest compiled observations
-
-### Implementation Files
-```
-src/mcp/server.ts        — JSON-RPC server on stdio
-src/mcp/server.test.ts   — Protocol tests
-src/mcp/handlers.ts      — Tool/resource implementations
-src/mcp/handlers.test.ts — Handler tests
-src/mcp/types.ts         — MCP protocol types
-src/commands/mcp.ts      — CLI command
-src/commands/mcp.test.ts
-```
-
-### Command Interface
-```bash
-clawvault mcp -v <vault-path> [--log-level debug|info|warn|error]
-```
-
-### Client Configuration Examples
-
-**Cursor `.cursor/mcp.json`:**
-```json
-{"mcpServers":{"clawvault":{"command":"clawvault","args":["mcp","-v","/path/to/vault"]}}}
-```
-
-**Claude Desktop:**
-```json
-{"mcpServers":{"clawvault":{"command":"clawvault","args":["mcp","-v","/path/to/vault"]}}}
-```
-
-## Component 3: Obsidian CLI Integration
-
-The Obsidian CLI (`obsidian` command, available in Obsidian 1.12+) allows reading, writing, and searching notes in a running Obsidian instance. ClawVault should integrate with it.
-
-### New command: `clawvault obsidian`
-```bash
-clawvault obsidian sync -v <vault>     # Push canvas + key files to Obsidian vault
-clawvault obsidian dashboard -v <vault> # Generate + push dashboard canvas
-clawvault obsidian search <query>       # Search via Obsidian CLI (uses Obsidian's search)
-```
-
-**Sync subcommand:** Generates brain-architecture.canvas and pushes it to the Obsidian vault using `obsidian create` or file write (since the vault is just a folder).
-
-**Dashboard subcommand:** Generates a dashboard canvas and writes it to the vault. If Obsidian CLI is available, opens it with `obsidian open`.
-
-**Detection:** Check if `obsidian` CLI is available via `which obsidian` or trying to run it. If not available, fall back to direct file writes (since Obsidian vaults are just folders).
-
-### Implementation Files
-```
-src/commands/obsidian.ts      — Obsidian CLI integration
-src/commands/obsidian.test.ts — Tests
+src/commands/canvas.ts        — Canvas generator
+src/commands/canvas.test.ts
+src/lib/canvas-layout.ts      — Layout helpers (positioning, grouping)
+src/lib/canvas-layout.test.ts
 ```
 
 ## Build & Ship
 
-After all features are built:
-1. Bump version to 2.3.0 in package.json
-2. Run `npm run build` — must succeed
-3. Run `npm test` — all existing 353+ tests must pass, plus new tests
-4. Update CHANGELOG.md with v2.3.0 entry
+1. Add `tasks` and `backlog` to DEFAULT_CATEGORIES in src/types.ts
+2. Implement all commands
+3. Register in CLI entry point (check bin/ directory for pattern)
+4. Bump version to 2.3.0 in package.json
+5. All existing tests must pass + new tests
+6. `npm run build` must succeed
+7. Update CHANGELOG.md
 
 ## Constraints
-- **Zero new runtime dependencies** — use Node.js built-in http, crypto, readline, child_process
-- TypeScript strict mode, ESM (`"type": "module"`)
-- Follow existing patterns in src/commands/ and src/lib/
-- Don't modify existing tests or break existing functionality
-- Register all new commands in CLI entry point (check bin/ directory for pattern)
-- All new commands need --help with usage examples
-- Canvas output must be valid JSON Canvas spec (jsoncanvas.org/spec/1.0/)
-- MCP must follow JSON-RPC 2.0 spec exactly
+- **Zero new runtime dependencies** — Node.js built-in only (crypto, fs, path, child_process)
+- TypeScript strict mode, ESM ("type": "module")
+- Follow existing patterns in src/commands/ (see status.ts for simple, observe.ts for complex)
+- Follow existing store/read patterns in src/lib/vault.ts
+- Don't modify existing tests
+- All file operations use the vault path from -v flag or CLAWVAULT_PATH env
+- Wiki-link task owners and projects: `[[pedro]]`, `[[clawvault]]` in content
+- Task slugs must be deterministic (same title = same slug = same filename)
 
 ## Reference Files
-- Memory graph: `src/lib/memory-graph.ts`
-- Context profiles: `src/lib/context-profile.ts`
-- Search: `src/lib/search.ts`
-- Vault operations: `src/lib/vault.ts`
-- Config: `src/lib/config.ts`
-- Types: `src/types.ts`
-- Observe: `src/commands/observe.ts`
-- CLI registration: `bin/` directory
-- Ledger: `src/lib/ledger.ts`
-- Observation format: `src/lib/observation-format.ts`
+- Types + categories: src/types.ts (DEFAULT_CATEGORIES array)
+- Vault operations (store/read): src/lib/vault.ts
+- Memory graph: src/lib/memory-graph.ts
+- Observation reader: src/lib/observation-reader.ts
+- Observation format: src/lib/observation-format.ts
+- Ledger (reflections): src/lib/ledger.ts
+- Context profiles: src/lib/context-profile.ts
+- CLI registration: bin/ directory (check all files for command registration pattern)
+- Config: src/lib/config.ts
+- Example simple command: src/commands/status.ts
+- Example complex command: src/commands/observe.ts

@@ -315,11 +315,13 @@ describe('canvas command', () => {
       const parsed = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as {
         nodes: Array<{ type: string; file?: string }>;
       };
-      const fileNodes = parsed.nodes
-        .filter((node) => node.type === 'file' && typeof node.file === 'string')
-        .map((node) => node.file as string);
-      expect(fileNodes).toContain(`tasks/${alphaTask.slug}.md`);
-      expect(fileNodes).not.toContain('tasks/beta-task.md');
+      // Project-board uses text cards — verify by content
+      const allText = parsed.nodes
+        .filter((node: { type: string; text?: string }) => node.type === 'text' && node.text)
+        .map((node: { text?: string }) => node.text!)
+        .join('\n');
+      expect(allText).toContain('Alpha Task');
+      expect(allText).not.toContain('Beta Task');
     });
 
     it('throws for unknown template ids', async () => {

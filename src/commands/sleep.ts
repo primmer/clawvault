@@ -25,6 +25,7 @@ export interface SleepOptions {
   git?: boolean;
   sessionTranscript?: string;
   reflect?: boolean;
+  qmdIndexName?: string;
   prompt?: PromptFn;
   cwd?: string;
 }
@@ -230,7 +231,7 @@ export async function sleep(options: SleepOptions): Promise<SleepResult> {
   await clearDirtyFlag(vault.getPath());
 
   if (options.index) {
-    qmdUpdate(vault.getQmdCollection());
+    qmdUpdate(vault.getQmdCollection(), options.qmdIndexName);
   }
 
   const git = await maybeCommitDirtyRepo({

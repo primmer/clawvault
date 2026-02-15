@@ -15,6 +15,23 @@ async function loadSearchModule() {
   return await import('./search.js');
 }
 
+function withQmdIndexEnv<T>(value: string | undefined, run: () => Promise<T>): Promise<T> {
+  const previous = process.env.CLAWVAULT_QMD_INDEX;
+  if (value === undefined) {
+    delete process.env.CLAWVAULT_QMD_INDEX;
+  } else {
+    process.env.CLAWVAULT_QMD_INDEX = value;
+  }
+
+  return run().finally(() => {
+    if (previous === undefined) {
+      delete process.env.CLAWVAULT_QMD_INDEX;
+    } else {
+      process.env.CLAWVAULT_QMD_INDEX = previous;
+    }
+  });
+}
+
 afterEach(() => {
   vi.clearAllMocks();
 });
@@ -31,6 +48,57 @@ describe('search qmd dependency', () => {
     const { SearchEngine, QmdUnavailableError } = await loadSearchModule();
     const engine = new SearchEngine();
     expect(() => engine.search('hello')).toThrow(QmdUnavailableError);
+  });
+
+  it('keeps default qmd index when no override is provided', async () => {
+    await withQmdIndexEnv(undefined, async () => {
+      spawnSyncMock.mockReturnValue({ error: undefined });
+      const { qmdUpdate } = await loadSearchModule();
+      qmdUpdate('vault');
+
+      expect(execFileSyncMock).toHaveBeenCalledWith('qmd', ['update', '-c', 'vault'], { stdio: 'inherit' });
+    });
+  });
+
+  it('passes explicit qmd index to update/embed helpers', async () => {
+    spawnSyncMock.mockReturnValue({ error: undefined });
+    const { qmdUpdate, qmdEmbed } = await loadSearchModule();
+
+    qmdUpdate('vault', 'clawvault-test');
+    qmdEmbed('vault', 'clawvault-test');
+
+    expect(execFileSyncMock).toHaveBeenNthCalledWith(
+      1,
+      'qmd',
+      ['--index', 'clawvault-test', 'update', '-c', 'vault'],
+      { stdio: 'inherit' }
+    );
+    expect(execFileSyncMock).toHaveBeenNthCalledWith(
+      2,
+      'qmd',
+      ['--index', 'clawvault-test', 'embed', '-c', 'vault'],
+      { stdio: 'inherit' }
+    );
+  });
+
+  it('uses configured qmd index when search engine executes queries', async () => {
+    await withQmdIndexEnv('clawvault-test', async () => {
+      spawnSyncMock.mockReturnValue({ error: undefined });
+      execFileSyncMock.mockReturnValue(JSON.stringify([]));
+
+      const { SearchEngine } = await loadSearchModule();
+      const engine = new SearchEngine();
+      engine.setCollection('vault');
+      engine.search('hello');
+
+      expect(execFileSyncMock).toHaveBeenCalledWith(
+        'qmd',
+        ['--index', 'clawvault-test', 'search', 'hello', '-n', '20', '--json', '-c', 'vault'],
+        expect.objectContaining({
+          encoding: 'utf-8'
+        })
+      );
+    });
   });
 
   it('converts qmd results and applies filters', async () => {

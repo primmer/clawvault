@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { ClawVault } from '../lib/vault.js';
-import { hasQmd, QmdUnavailableError } from '../lib/search.js';
+import { hasQmd, QmdUnavailableError, withQmdIndexArgs } from '../lib/search.js';
 import { formatAge } from '../lib/time.js';
 import { scanVaultLinks } from '../lib/backlinks.js';
 import { loadMemoryGraphIndex } from '../lib/memory-graph.js';
@@ -119,9 +119,9 @@ function parseQmdCollectionsText(raw: string): string[] {
   return names;
 }
 
-function getQmdIndexStatus(collection: string, root: string): 'present' | 'missing' | 'root-mismatch' {
+function getQmdIndexStatus(collection: string, root: string, indexName?: string): 'present' | 'missing' | 'root-mismatch' {
   // qmd collection list doesn't support --json, parse text output instead
-  const output = execFileSync('qmd', ['collection', 'list'], { encoding: 'utf-8' });
+  const output = execFileSync('qmd', withQmdIndexArgs(['collection', 'list'], indexName), { encoding: 'utf-8' });
   const names = parseQmdCollectionsText(output);
   
   if (names.includes(collection)) {
@@ -144,7 +144,10 @@ function loadCheckpoint(vaultPath: string): { data: CheckpointData | null; error
   }
 }
 
-export async function getStatus(vaultPath: string): Promise<VaultStatus> {
+export async function getStatus(
+  vaultPath: string,
+  options: { qmdIndexName?: string } = {}
+): Promise<VaultStatus> {
   if (!hasQmd()) {
     throw new QmdUnavailableError();
   }
@@ -187,7 +190,7 @@ export async function getStatus(vaultPath: string): Promise<VaultStatus> {
   let qmdIndexStatus: VaultStatus['qmd']['indexStatus'] = 'missing';
   let qmdError: string | undefined;
   try {
-    qmdIndexStatus = getQmdIndexStatus(qmdCollection, qmdRoot);
+    qmdIndexStatus = getQmdIndexStatus(qmdCollection, qmdRoot, options.qmdIndexName);
     if (qmdIndexStatus !== 'present') {
       issues.push(`qmd collection ${qmdIndexStatus.replace('-', ' ')}`);
     }
@@ -329,9 +332,9 @@ export function formatStatus(status: VaultStatus): string {
 
 export async function statusCommand(
   vaultPath: string,
-  options: { json?: boolean } = {}
+  options: { json?: boolean; qmdIndexName?: string } = {}
 ): Promise<void> {
-  const status = await getStatus(vaultPath);
+  const status = await getStatus(vaultPath, { qmdIndexName: options.qmdIndexName });
   if (options.json) {
     console.log(JSON.stringify(status, null, 2));
     return;

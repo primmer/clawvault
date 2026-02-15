@@ -68,6 +68,40 @@ describe('command runtime helpers', () => {
     await expect(runQmd(['update'])).rejects.toBeInstanceOf(QmdUnavailableError);
   });
 
+  it('injects qmd index from environment when configured', async () => {
+    const previous = process.env.CLAWVAULT_QMD_INDEX;
+    process.env.CLAWVAULT_QMD_INDEX = 'clawvault-test';
+
+    try {
+      const { runQmd } = await loadRuntimeModule();
+      spawnMock.mockImplementation((_command, _args) => {
+        const handlers = {};
+        const proc = {
+          on: (event, handler) => {
+            handlers[event] = handler;
+          }
+        };
+        queueMicrotask(() => {
+          handlers.close?.(0);
+        });
+        return proc;
+      });
+
+      await runQmd(['update']);
+      expect(spawnMock).toHaveBeenCalledWith(
+        'qmd',
+        ['--index', 'clawvault-test', 'update'],
+        { stdio: 'inherit' }
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CLAWVAULT_QMD_INDEX;
+      } else {
+        process.env.CLAWVAULT_QMD_INDEX = previous;
+      }
+    }
+  });
+
   it('surfaces qmd non-zero exit codes as errors', async () => {
     const { runQmd } = await loadRuntimeModule();
     spawnMock.mockImplementation(() => {

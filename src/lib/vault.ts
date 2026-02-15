@@ -271,7 +271,8 @@ export class ClawVault {
       frontmatter = {}, 
       overwrite = false,
       qmdUpdate: triggerUpdate = false,
-      qmdEmbed: triggerEmbed = false
+      qmdEmbed: triggerEmbed = false,
+      qmdIndexName
     } = options;
 
     // Create filename from title
@@ -311,9 +312,9 @@ export class ClawVault {
 
     // Trigger qmd reindex if requested
     if (triggerUpdate || triggerEmbed) {
-      qmdUpdate(this.getQmdCollection());
+      qmdUpdate(this.getQmdCollection(), qmdIndexName);
       if (triggerEmbed) {
-        qmdEmbed(this.getQmdCollection());
+        qmdEmbed(this.getQmdCollection(), qmdIndexName);
       }
     }
 

@@ -92,6 +92,8 @@ export interface StoreOptions {
   qmdUpdate?: boolean;
   /** Trigger qmd embed after storing (implies qmdUpdate) */
   qmdEmbed?: boolean;
+  /** Optional qmd index name override (defaults to configured/global index) */
+  qmdIndexName?: string;
 }
 
 export interface SyncOptions {

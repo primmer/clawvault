@@ -11,6 +11,7 @@ import { Document, SearchResult, SearchOptions } from '../types.js';
 export const QMD_INSTALL_URL = 'https://github.com/tobi/qmd';
 export const QMD_INSTALL_COMMAND = 'bun install -g github:tobi/qmd';
 const QMD_NOT_INSTALLED_MESSAGE = `ClawVault requires qmd. Install: ${QMD_INSTALL_COMMAND}`;
+export const QMD_INDEX_ENV_VAR = 'CLAWVAULT_QMD_INDEX';
 
 export class QmdUnavailableError extends Error {
   constructor(message: string = QMD_NOT_INSTALLED_MESSAGE) {
@@ -32,6 +33,29 @@ interface QmdResult {
 
 function ensureJsonArgs(args: string[]): string[] {
   return args.includes('--json') ? args : [...args, '--json'];
+}
+
+export function resolveQmdIndexName(indexName?: string): string | undefined {
+  const explicit = indexName?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const fromEnv = process.env[QMD_INDEX_ENV_VAR]?.trim();
+  return fromEnv || undefined;
+}
+
+export function withQmdIndexArgs(args: string[], indexName?: string): string[] {
+  if (args.includes('--index')) {
+    return [...args];
+  }
+
+  const resolvedIndexName = resolveQmdIndexName(indexName);
+  if (!resolvedIndexName) {
+    return [...args];
+  }
+
+  return ['--index', resolvedIndexName, ...args];
 }
 
 function tryParseJson(raw: string): unknown | null {
@@ -109,9 +133,9 @@ function ensureQmdAvailable(): void {
 /**
  * Execute qmd command and return parsed JSON
  */
-function execQmd(args: string[]): QmdResult[] {
+function execQmd(args: string[], indexName?: string): QmdResult[] {
   ensureQmdAvailable();
-  const finalArgs = ensureJsonArgs(args);
+  const finalArgs = withQmdIndexArgs(ensureJsonArgs(args), indexName);
 
   try {
     const result = execFileSync('qmd', finalArgs, {
@@ -151,25 +175,25 @@ export function hasQmd(): boolean {
 /**
  * Trigger qmd update (reindex)
  */
-export function qmdUpdate(collection?: string): void {
+export function qmdUpdate(collection?: string, indexName?: string): void {
   ensureQmdAvailable();
   const args = ['update'];
   if (collection) {
     args.push('-c', collection);
   }
-  execFileSync('qmd', args, { stdio: 'inherit' });
+  execFileSync('qmd', withQmdIndexArgs(args, indexName), { stdio: 'inherit' });
 }
 
 /**
  * Trigger qmd embed (create/update vector embeddings)
  */
-export function qmdEmbed(collection?: string): void {
+export function qmdEmbed(collection?: string, indexName?: string): void {
   ensureQmdAvailable();
   const args = ['embed'];
   if (collection) {
     args.push('-c', collection);
   }
-  execFileSync('qmd', args, { stdio: 'inherit' });
+  execFileSync('qmd', withQmdIndexArgs(args, indexName), { stdio: 'inherit' });
 }
 
 /**
@@ -180,6 +204,7 @@ export class SearchEngine {
   private collection: string = 'clawvault';
   private vaultPath: string = '';
   private collectionRoot: string = '';
+  private qmdIndexName?: string;
 
   /**
    * Set the collection name (usually vault name)
@@ -200,6 +225,13 @@ export class SearchEngine {
    */
   setCollectionRoot(root: string): void {
     this.collectionRoot = path.resolve(root);
+  }
+
+  /**
+   * Set qmd index name (defaults to qmd global default when omitted)
+   */
+  setIndexName(indexName?: string): void {
+    this.qmdIndexName = indexName;
   }
 
   /**
@@ -268,7 +300,7 @@ export class SearchEngine {
       args.push('-c', this.collection);
     }
 
-    const qmdResults = execQmd(args);
+    const qmdResults = execQmd(args, this.qmdIndexName);
 
     return this.convertResults(qmdResults, {
       limit,

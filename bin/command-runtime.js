@@ -8,6 +8,8 @@ import {
   resolveVaultPath as resolveConfiguredVaultPath
 } from '../dist/index.js';
 
+const QMD_INDEX_ENV_VAR = 'CLAWVAULT_QMD_INDEX';
+
 /**
  * Validates that a path is within an allowed base directory.
  * Prevents path traversal attacks.
@@ -40,6 +42,19 @@ function sanitizeQmdArg(arg) {
   return arg;
 }
 
+function withQmdIndex(args) {
+  if (args.includes('--index')) {
+    return [...args];
+  }
+
+  const indexName = process.env[QMD_INDEX_ENV_VAR]?.trim();
+  if (!indexName) {
+    return [...args];
+  }
+
+  return ['--index', indexName, ...args];
+}
+
 export function resolveVaultPath(vaultPath) {
   return resolveConfiguredVaultPath({ explicitPath: vaultPath });
 }
@@ -53,7 +68,7 @@ export async function getVault(vaultPath) {
 export async function runQmd(args) {
   return new Promise((resolve, reject) => {
     // Sanitize all arguments before passing to spawn
-    const sanitizedArgs = args.map(sanitizeQmdArg);
+    const sanitizedArgs = withQmdIndex(args).map(sanitizeQmdArg);
     const proc = spawn('qmd', sanitizedArgs, { stdio: 'inherit' });
     proc.on('close', (code) => {
       if (code === 0) resolve();

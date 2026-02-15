@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { DEFAULT_CATEGORIES } from '../types.js';
-import { hasQmd } from '../lib/search.js';
+import { hasQmd, withQmdIndexArgs } from '../lib/search.js';
 
 const CONFIG_FILE = '.clawvault.json';
 
@@ -14,6 +14,7 @@ export interface SetupOptions {
   theme?: 'neural' | 'minimal' | 'none';
   force?: boolean;
   vault?: string;
+  qmdIndexName?: string;
 }
 
 function resolveVaultTarget(vaultOverride?: string): { vaultPath: string; source: string; existed: boolean } {
@@ -378,7 +379,7 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   if (hasQmd()) {
     const { collection, root } = getQmdConfig(target.vaultPath);
     try {
-      execFileSync('qmd', ['collection', 'add', root, '--name', collection, '--mask', '**/*.md'], {
+      execFileSync('qmd', withQmdIndexArgs(['collection', 'add', root, '--name', collection, '--mask', '**/*.md'], options.qmdIndexName), {
         stdio: 'ignore'
       });
       console.log(`✓ qmd collection ready: ${collection}`);

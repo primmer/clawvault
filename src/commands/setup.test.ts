@@ -3,8 +3,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-const { hasQmdMock } = vi.hoisted(() => ({
-  hasQmdMock: vi.fn()
+const { hasQmdMock, execFileSyncMock } = vi.hoisted(() => ({
+  hasQmdMock: vi.fn(),
+  execFileSyncMock: vi.fn()
+}));
+
+vi.mock('child_process', () => ({
+  execFileSync: execFileSyncMock
 }));
 
 vi.mock('../lib/search.js', async () => {
@@ -42,5 +47,18 @@ describe('setup command', () => {
     expect(fs.existsSync(vaultPath)).toBe(true);
     expect(fs.existsSync(path.join(vaultPath, '.clawvault.json'))).toBe(true);
     expect(fs.existsSync(path.join(vaultPath, 'inbox'))).toBe(true);
+  });
+
+  it('passes qmd index name when provided', async () => {
+    hasQmdMock.mockReturnValue(true);
+    execFileSyncMock.mockReturnValue('');
+
+    await setupCommand({ qmdIndexName: 'clawvault-test' });
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'qmd',
+      expect.arrayContaining(['--index', 'clawvault-test']),
+      expect.objectContaining({ stdio: 'ignore' })
+    );
   });
 });

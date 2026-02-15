@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Compressor } from './compressor.js';
 
 const originalAnthropic = process.env.ANTHROPIC_API_KEY;
@@ -190,12 +190,9 @@ describe('Compressor', () => {
     process.env.ANTHROPIC_API_KEY = '';
     process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
+    process.env.CLAWVAULT_NO_LLM = '';
 
-    let capturedUrl = '';
-    let capturedRequest: RequestInit | undefined;
-    const fetchImpl: typeof fetch = async (input, init) => {
-      capturedUrl = typeof input === 'string' ? input : input.toString();
-      capturedRequest = init;
+    const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => {
       return {
         ok: true,
         json: async () => ({
@@ -208,7 +205,8 @@ describe('Compressor', () => {
           ]
         })
       } as Response;
-    };
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
 
     const compressor = new Compressor({
       provider: 'openai-compatible',
@@ -220,11 +218,15 @@ describe('Compressor', () => {
     });
 
     const output = await compressor.compress(['run compression'], '');
-    const headers = (capturedRequest?.headers ?? {}) as Record<string, string>;
-    const body = JSON.parse(String(capturedRequest?.body)) as { model?: string };
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchMock.mock.calls[0] as [unknown, RequestInit];
+    const requestUrl = typeof url === 'string' ? url : String(url);
+    const headers = new Headers(request.headers as HeadersInit);
+    const bodyRaw = typeof request.body === 'string' ? request.body : '{}';
+    const body = JSON.parse(bodyRaw) as { model?: string };
 
-    expect(capturedUrl).toBe('https://api.example.com/v1/chat/completions');
-    expect(headers.authorization).toBe('Bearer custom-key');
+    expect(requestUrl).toBe('https://api.example.com/v1/chat/completions');
+    expect(headers.get('authorization')).toBe('Bearer custom-key');
     expect(body.model).toBe('custom-model');
     expect(output).toContain('OpenAI-compatible path works');
   });
@@ -233,12 +235,9 @@ describe('Compressor', () => {
     process.env.ANTHROPIC_API_KEY = '';
     process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
+    process.env.CLAWVAULT_NO_LLM = '';
 
-    let capturedUrl = '';
-    let capturedRequest: RequestInit | undefined;
-    const fetchImpl: typeof fetch = async (input, init) => {
-      capturedUrl = typeof input === 'string' ? input : input.toString();
-      capturedRequest = init;
+    const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => {
       return {
         ok: true,
         json: async () => ({
@@ -251,7 +250,8 @@ describe('Compressor', () => {
           ]
         })
       } as Response;
-    };
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
 
     const compressor = new Compressor({
       provider: 'ollama',
@@ -260,11 +260,15 @@ describe('Compressor', () => {
     });
 
     const output = await compressor.compress(['run compression'], '');
-    const headers = (capturedRequest?.headers ?? {}) as Record<string, string>;
-    const body = JSON.parse(String(capturedRequest?.body)) as { model?: string };
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchMock.mock.calls[0] as [unknown, RequestInit];
+    const requestUrl = typeof url === 'string' ? url : String(url);
+    const headers = new Headers(request.headers as HeadersInit);
+    const bodyRaw = typeof request.body === 'string' ? request.body : '{}';
+    const body = JSON.parse(bodyRaw) as { model?: string };
 
-    expect(capturedUrl).toBe('http://localhost:11434/v1/chat/completions');
-    expect(headers.authorization).toBeUndefined();
+    expect(requestUrl).toBe('http://localhost:11434/v1/chat/completions');
+    expect(headers.get('authorization')).toBeNull();
     expect(body.model).toBe('llama3.2');
     expect(output).toContain('Ollama shorthand works');
   });
@@ -273,12 +277,9 @@ describe('Compressor', () => {
     process.env.ANTHROPIC_API_KEY = 'anthropic-test-key';
     process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
+    process.env.CLAWVAULT_NO_LLM = '';
 
-    let capturedUrl = '';
-    let capturedRequest: RequestInit | undefined;
-    const fetchImpl: typeof fetch = async (input, init) => {
-      capturedUrl = typeof input === 'string' ? input : input.toString();
-      capturedRequest = init;
+    const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => {
       return {
         ok: true,
         json: async () => ({
@@ -290,7 +291,8 @@ describe('Compressor', () => {
           ]
         })
       } as Response;
-    };
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
 
     const compressor = new Compressor({
       provider: 'openai',
@@ -299,10 +301,13 @@ describe('Compressor', () => {
     });
 
     const output = await compressor.compress(['run compression'], '');
-    const headers = (capturedRequest?.headers ?? {}) as Record<string, string>;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchMock.mock.calls[0] as [unknown, RequestInit];
+    const requestUrl = typeof url === 'string' ? url : String(url);
+    const headers = new Headers(request.headers as HeadersInit);
 
-    expect(capturedUrl).toBe('https://api.anthropic.com/v1/messages');
-    expect(headers['x-api-key']).toBe('anthropic-test-key');
+    expect(requestUrl).toBe('https://api.anthropic.com/v1/messages');
+    expect(headers.get('x-api-key')).toBe('anthropic-test-key');
     expect(output).toContain('Env fallback selected Anthropic');
   });
 });

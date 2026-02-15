@@ -6,6 +6,7 @@
 - Hardened cross-platform qmd result handling by normalizing URI-derived paths and cache key resolution across Windows and Unix path separators.
 - Fixed WebDAV path safety and root containment checks to avoid false 403s and traversal edge-cases on Windows.
 - Stabilized cross-platform test behavior for WebDAV temp vault setup/cleanup and shell-init path expectations.
+- Corrected npm package `bin` metadata to preserve global CLI install wiring for `clawvault`.
 
 ### Improved
 - Strengthened primitives reliability baseline: full test suite now passes on Windows (`449/449`) after path portability fixes.

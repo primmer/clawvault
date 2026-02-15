@@ -401,7 +401,11 @@ function normalizeScopeInput(scope: string | string[] | undefined): string[] {
 }
 
 function scopeMatches(itemScope: string[], requestedScope: string[]): boolean {
-  if (requestedScope.length === 0) {
+  if (
+    requestedScope.length === 0
+    || requestedScope.includes('global')
+    || requestedScope.includes('*')
+  ) {
     return true;
   }
   if (itemScope.length === 0 || itemScope.includes('global') || itemScope.includes('*')) {

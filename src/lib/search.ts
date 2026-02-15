@@ -332,7 +332,7 @@ export class SearchEngine {
       const relativePath = this.vaultPath 
         ? path.relative(this.vaultPath, filePath)
         : filePath;
-      const normalizedRelativePath = relativePath.split(path.sep).join('/');
+      const normalizedRelativePath = relativePath.replace(/\\/g, '/');
       if (
         normalizedRelativePath.startsWith('ledger/archive/')
         || normalizedRelativePath.includes('/ledger/archive/')
@@ -341,12 +341,13 @@ export class SearchEngine {
       }
       
       // Get document from cache or create minimal one
-      const docId = relativePath.replace(/\.md$/, '');
-      let doc = this.documents.get(docId);
+      const docId = normalizedRelativePath.replace(/\.md$/, '');
+      let doc = this.documents.get(docId)
+        ?? this.documents.get(docId.split('/').join(path.sep));
       const modifiedAt = this.resolveModifiedAt(doc, filePath);
       
       // Determine category from path
-      const parts = relativePath.split(path.sep);
+      const parts = normalizedRelativePath.split('/');
       const docCategory = parts.length > 1 ? parts[0] : 'root';
       
       // Apply category filter

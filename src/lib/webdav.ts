@@ -70,27 +70,35 @@ const SUPPORTED_METHODS = ['GET', 'PUT', 'DELETE', 'MKCOL', 'PROPFIND', 'OPTIONS
 // Security Utilities
 // ============================================================================
 
+function toRequestSegments(requestPath: string): string[] {
+  return requestPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean);
+}
+
+function isWithinRoot(fullPath: string, rootPath: string): boolean {
+  const resolvedRoot = path.resolve(rootPath);
+  const relative = path.relative(resolvedRoot, fullPath);
+  return !(relative.startsWith('..') || path.isAbsolute(relative));
+}
+
 /**
  * Check if a path is safe (no traversal attacks, not blocked)
  */
 export function isPathSafe(requestPath: string, rootPath: string): boolean {
-  // Check for path traversal patterns before normalization
-  if (requestPath.includes('..')) {
+  const pathParts = toRequestSegments(requestPath);
+  if (pathParts.includes('..')) {
     return false;
   }
-  
-  // Normalize and resolve the path
-  const normalizedPath = path.normalize(requestPath).replace(/^\/+/, '');
-  const fullPath = path.resolve(rootPath, normalizedPath);
-  const resolvedRoot = path.resolve(rootPath);
-  
-  // Check for path traversal (after normalization)
-  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+
+  const normalizedRelativePath = path.normalize(pathParts.join(path.sep));
+  const fullPath = path.resolve(rootPath, normalizedRelativePath);
+  if (!isWithinRoot(fullPath, rootPath)) {
     return false;
   }
-  
+
   // Check for blocked paths
-  const pathParts = normalizedPath.split(path.sep);
   for (const part of pathParts) {
     if (BLOCKED_PATHS.includes(part)) {
       return false;
@@ -104,20 +112,17 @@ export function isPathSafe(requestPath: string, rootPath: string): boolean {
  * Resolve a WebDAV path to filesystem path
  */
 export function resolveWebDAVPath(requestPath: string, rootPath: string): string | null {
-  // Check for path traversal patterns before normalization
-  if (requestPath.includes('..')) {
+  const pathParts = toRequestSegments(requestPath);
+  if (pathParts.includes('..')) {
     return null;
   }
-  
-  const normalizedPath = path.normalize(requestPath).replace(/^\/+/, '');
-  const fullPath = path.resolve(rootPath, normalizedPath);
-  const resolvedRoot = path.resolve(rootPath);
-  
-  // Security check
-  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+
+  const normalizedRelativePath = path.normalize(pathParts.join(path.sep));
+  const fullPath = path.resolve(rootPath, normalizedRelativePath);
+  if (!isWithinRoot(fullPath, rootPath)) {
     return null;
   }
-  
+
   return fullPath;
 }
 

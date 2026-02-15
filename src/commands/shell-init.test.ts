@@ -14,7 +14,7 @@ describe('shellInit', () => {
       env: { CLAWVAULT_PATH: '/tmp/vault' } as NodeJS.ProcessEnv,
       cwd: '/'
     });
-    expect(output).toContain("export CLAWVAULT_PATH='/tmp/vault'");
+    expect(output).toContain(`export CLAWVAULT_PATH='${path.resolve('/tmp/vault')}'`);
     expect(output).toContain("alias cvwake='clawvault wake'");
     expect(output).toContain("alias cvsleep='clawvault sleep'");
     expect(output).toContain("alias cvcheck='clawvault doctor'");

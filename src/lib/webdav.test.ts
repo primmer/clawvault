@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as http from 'http';
 import type { AddressInfo } from 'net';
 import {
@@ -20,11 +21,11 @@ import {
 // Test Utilities
 // ============================================================================
 
-const TEST_ROOT = '/tmp/test-webdav-vault';
+const TEST_ROOT_BASE = path.join(os.tmpdir(), 'test-webdav-vault');
+let TEST_ROOT = TEST_ROOT_BASE;
 
 function setupTestVault(): void {
-  // Clean up first if exists
-  fs.rmSync(TEST_ROOT, { recursive: true, force: true });
+  TEST_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-webdav-'));
   
   // Create test vault structure
   fs.mkdirSync(TEST_ROOT, { recursive: true });
@@ -59,7 +60,10 @@ function setupTestVault(): void {
 }
 
 function cleanupTestVault(): void {
-  fs.rmSync(TEST_ROOT, { recursive: true, force: true });
+  if (!TEST_ROOT) return;
+  if (fs.existsSync(TEST_ROOT)) {
+    fs.rmSync(TEST_ROOT, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
 }
 
 async function makeRequest(
@@ -154,53 +158,53 @@ async function createTestServer(auth?: { username: string; password: string }): 
 describe('Path Security', () => {
   describe('isPathSafe', () => {
     it('allows normal paths', () => {
-      expect(isPathSafe('/tasks/my-task.md', TEST_ROOT)).toBe(true);
-      expect(isPathSafe('/notes/note1.md', TEST_ROOT)).toBe(true);
-      expect(isPathSafe('/', TEST_ROOT)).toBe(true);
-      expect(isPathSafe('/subfolder/deep/file.md', TEST_ROOT)).toBe(true);
+      expect(isPathSafe('/tasks/my-task.md', TEST_ROOT_BASE)).toBe(true);
+      expect(isPathSafe('/notes/note1.md', TEST_ROOT_BASE)).toBe(true);
+      expect(isPathSafe('/', TEST_ROOT_BASE)).toBe(true);
+      expect(isPathSafe('/subfolder/deep/file.md', TEST_ROOT_BASE)).toBe(true);
     });
     
     it('blocks path traversal attempts', () => {
-      expect(isPathSafe('/../../../etc/passwd', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/tasks/../../etc/passwd', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/../', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/..', TEST_ROOT)).toBe(false);
+      expect(isPathSafe('/../../../etc/passwd', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/tasks/../../etc/passwd', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/../', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/..', TEST_ROOT_BASE)).toBe(false);
     });
     
     it('blocks .clawvault directory', () => {
-      expect(isPathSafe('/.clawvault/internal.json', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/.clawvault/', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/.clawvault', TEST_ROOT)).toBe(false);
+      expect(isPathSafe('/.clawvault/internal.json', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/.clawvault/', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/.clawvault', TEST_ROOT_BASE)).toBe(false);
     });
     
     it('blocks .git directory', () => {
-      expect(isPathSafe('/.git/config', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/.git/', TEST_ROOT)).toBe(false);
-      expect(isPathSafe('/.git', TEST_ROOT)).toBe(false);
+      expect(isPathSafe('/.git/config', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/.git/', TEST_ROOT_BASE)).toBe(false);
+      expect(isPathSafe('/.git', TEST_ROOT_BASE)).toBe(false);
     });
     
     it('blocks .obsidian directory', () => {
-      expect(isPathSafe('/.obsidian/config', TEST_ROOT)).toBe(false);
+      expect(isPathSafe('/.obsidian/config', TEST_ROOT_BASE)).toBe(false);
     });
     
     it('blocks node_modules directory', () => {
-      expect(isPathSafe('/node_modules/package/index.js', TEST_ROOT)).toBe(false);
+      expect(isPathSafe('/node_modules/package/index.js', TEST_ROOT_BASE)).toBe(false);
     });
   });
   
   describe('resolveWebDAVPath', () => {
     it('resolves valid paths', () => {
-      const resolved = resolveWebDAVPath('/tasks/my-task.md', TEST_ROOT);
-      expect(resolved).toBe(path.join(TEST_ROOT, 'tasks', 'my-task.md'));
+      const resolved = resolveWebDAVPath('/tasks/my-task.md', TEST_ROOT_BASE);
+      expect(resolved).toBe(path.resolve(TEST_ROOT_BASE, 'tasks', 'my-task.md'));
     });
     
     it('returns null for path traversal', () => {
-      expect(resolveWebDAVPath('/../../../etc/passwd', TEST_ROOT)).toBe(null);
+      expect(resolveWebDAVPath('/../../../etc/passwd', TEST_ROOT_BASE)).toBe(null);
     });
     
     it('handles root path', () => {
-      const resolved = resolveWebDAVPath('/', TEST_ROOT);
-      expect(resolved).toBe(TEST_ROOT);
+      const resolved = resolveWebDAVPath('/', TEST_ROOT_BASE);
+      expect(resolved).toBe(path.resolve(TEST_ROOT_BASE));
     });
   });
   
@@ -302,7 +306,9 @@ describe('WebDAV Handler', () => {
   });
   
   afterEach(async () => {
-    await testServer.close();
+    if (testServer) {
+      await testServer.close();
+    }
     cleanupTestVault();
   });
   
@@ -608,7 +614,9 @@ describe('WebDAV Handler with Authentication', () => {
   });
   
   afterEach(async () => {
-    await testServer.close();
+    if (testServer) {
+      await testServer.close();
+    }
     cleanupTestVault();
   });
   

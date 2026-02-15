@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as path from 'path';
 
 const { execFileSyncMock, spawnSyncMock } = vi.hoisted(() => ({
   execFileSyncMock: vi.fn(),
@@ -169,7 +170,7 @@ describe('search qmd dependency', () => {
 
     const results = engine.search('fallback', { limit: 1 });
     expect(results).toHaveLength(1);
-    expect(results[0].document.path).toBe('/vault/notes/a.md');
+    expect(results[0].document.path).toBe(path.resolve('/vault/notes/a.md'));
   });
 
   it('applies temporal boosting when enabled', async () => {

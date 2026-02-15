@@ -1,6 +1,6 @@
 ---
 name: clawvault
-version: 2.5.3
+version: 2.5.4
 description: Agent memory system with memory graph, context profiles, checkpoint/recover, structured storage, semantic search, and observational memory. Use when: storing/searching memories, preventing context death, graph-aware context retrieval, repairing broken sessions. Don't use when: general file I/O.
 author: Versatly
 repository: https://github.com/Versatly/clawvault
@@ -85,6 +85,9 @@ clawvault compat
 
 # Verify qmd is available
 qmd --version
+
+# Verify OpenClaw CLI is installed in this shell
+openclaw --version
 ```
 
 ClawVault currently depends on `qmd` for core vault/query flows.
@@ -128,6 +131,7 @@ clawvault context --profile auto "current task"
 | `planning` | Broader strategic context |
 | `incident` | Recent events, blockers, urgent items |
 | `handoff` | Session transition context |
+| `auto` | Hook-selected profile based on session intent |
 
 ### OpenClaw Compatibility Diagnostics
 
@@ -305,6 +309,16 @@ Backups are created automatically (use `--no-backup` to skip).
 - **Graph out of date** — run `clawvault graph --refresh`
 - **Wrong context for task** — try `clawvault context --profile incident` or `--profile planning`
 
+## Stability Snapshot
+
+- Typecheck passes (`npm run typecheck`)
+- Test suite passes (`449/449`)
+- Cross-platform path handling hardened for Windows in:
+  - qmd URI/document path normalization
+  - WebDAV path safety and filesystem resolution
+  - shell-init output expectations
+- OpenClaw runtime wiring validated by `clawvault compat --strict` (requires local `openclaw` binary for full runtime validation)
+
 ## Integration with qmd
 
 ClawVault uses [qmd](https://github.com/tobi/qmd) for search:
@@ -312,6 +326,9 @@ ClawVault uses [qmd](https://github.com/tobi/qmd) for search:
 ```bash
 # Install qmd
 bun install -g github:tobi/qmd
+
+# Alternative
+npm install -g github:tobi/qmd
 
 # Add vault as collection
 qmd collection add /path/to/vault --name my-memory --mask "**/*.md"

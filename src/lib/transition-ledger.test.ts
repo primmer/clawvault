@@ -114,6 +114,46 @@ describe('transition-ledger', () => {
     it('returns empty array for missing ledger dir', () => {
       expect(readAllTransitions(tempDir)).toEqual([]);
     });
+
+    it('retries append when the ledger file path is transiently missing', () => {
+      const originalAppend = fs.appendFileSync;
+      let attempts = 0;
+      const appendSpy = vi.spyOn(fs, 'appendFileSync').mockImplementation(((...args: Parameters<typeof fs.appendFileSync>) => {
+        attempts += 1;
+        if (attempts === 1) {
+          const error = new Error('transient missing file') as NodeJS.ErrnoException;
+          error.code = 'ENOENT';
+          throw error;
+        }
+        return originalAppend(...args);
+      }) as typeof fs.appendFileSync);
+
+      try {
+        appendTransition(tempDir, buildTransitionEvent('retry-task', 'open', 'in-progress'));
+      } finally {
+        appendSpy.mockRestore();
+      }
+
+      expect(attempts).toBe(2);
+      const events = readAllTransitions(tempDir);
+      expect(events).toHaveLength(1);
+      expect(events[0].task_id).toBe('retry-task');
+    });
+
+    it('throws descriptive error when transition ledger runs out of disk space', () => {
+      const appendSpy = vi.spyOn(fs, 'appendFileSync').mockImplementation(() => {
+        const error = new Error('simulated disk full') as NodeJS.ErrnoException;
+        error.code = 'ENOSPC';
+        throw error;
+      });
+
+      try {
+        expect(() => appendTransition(tempDir, buildTransitionEvent('disk-task', 'open', 'blocked')))
+          .toThrow(/no space left on device/i);
+      } finally {
+        appendSpy.mockRestore();
+      }
+    });
   });
 
   describe('queryTransitions', () => {

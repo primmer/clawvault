@@ -171,6 +171,34 @@ function startOfToday(): number {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 }
 
+const VALID_TASK_STATUSES = new Set<TaskStatus>([
+  'open',
+  'in-progress',
+  'blocked',
+  'done'
+]);
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  return typeof value === 'string' && VALID_TASK_STATUSES.has(value as TaskStatus);
+}
+
+function persistTaskFrontmatter(task: Task, frontmatter: TaskFrontmatter): void {
+  fs.writeFileSync(task.path, matter.stringify(task.content, frontmatter));
+}
+
+function resolveStatusTransition(
+  previousStatus: unknown,
+  nextStatus: unknown
+): { fromStatus: TaskStatus; toStatus: TaskStatus } | null {
+  if (!isTaskStatus(previousStatus) || !isTaskStatus(nextStatus)) {
+    return null;
+  }
+  if (previousStatus === nextStatus) {
+    return null;
+  }
+  return { fromStatus: previousStatus, toStatus: nextStatus };
+}
+
 interface LogStatusTransitionParams {
   vaultPath: string;
   task: Task;
@@ -195,14 +223,25 @@ function logStatusTransition({
     confidence: options.confidence,
     reason,
   });
-  appendTransition(vaultPath, event);
+  try {
+    appendTransition(vaultPath, event);
+  } catch {
+    // Transition logging is best-effort; task updates should still succeed.
+    return frontmatter;
+  }
 
   if (toStatus !== 'blocked' || frontmatter.escalation) {
     return frontmatter;
   }
 
   // Escalate tasks that have been blocked 3+ times.
-  const blockedCount = countBlockedTransitions(vaultPath, task.slug);
+  let blockedCount = 0;
+  try {
+    blockedCount = countBlockedTransitions(vaultPath, task.slug);
+  } catch {
+    return frontmatter;
+  }
+
   if (blockedCount < 3) {
     return frontmatter;
   }
@@ -211,8 +250,13 @@ function logStatusTransition({
     ...frontmatter,
     escalation: true,
   };
-  fs.writeFileSync(task.path, matter.stringify(task.content, escalatedFrontmatter));
-  return escalatedFrontmatter;
+
+  try {
+    persistTaskFrontmatter(task, escalatedFrontmatter);
+    return escalatedFrontmatter;
+  } catch {
+    return frontmatter;
+  }
 }
 
 /**
@@ -479,6 +523,11 @@ export function updateTask(
   if (!task) {
     throw new Error(`Task not found: ${slug}`);
   }
+
+  if (updates.status !== undefined && !isTaskStatus(updates.status)) {
+    throw new Error(`Invalid task status: ${String(updates.status)}`);
+  }
+
   const previousStatus = task.frontmatter.status;
 
   const now = new Date().toISOString();
@@ -626,22 +675,24 @@ export function updateTask(
     } else {
       newFrontmatter.blocked_by = updates.blocked_by;
     }
-  } else if (updates.status && updates.status !== 'blocked') {
+  } else if (updates.status !== undefined && updates.status !== 'blocked') {
     delete newFrontmatter.blocked_by;
   }
 
-  const fileContent = matter.stringify(task.content, newFrontmatter);
-  fs.writeFileSync(task.path, fileContent);
+  persistTaskFrontmatter(task, newFrontmatter);
 
-  const nextStatus = newFrontmatter.status;
-  if (!options.skipTransition && previousStatus !== nextStatus) {
+  const transition = options.skipTransition
+    ? null
+    : resolveStatusTransition(previousStatus, newFrontmatter.status);
+
+  if (transition) {
     const confidence = options.confidence ?? (typeof updates.confidence === 'number' ? updates.confidence : undefined);
     const reason = options.reason ?? updates.reason ?? null;
     newFrontmatter = logStatusTransition({
       vaultPath,
       task,
-      fromStatus: previousStatus,
-      toStatus: nextStatus,
+      fromStatus: transition.fromStatus,
+      toStatus: transition.toStatus,
       frontmatter: newFrontmatter,
       options: {
         confidence,
@@ -660,44 +711,7 @@ export function updateTask(
  * Mark a task as done
  */
 export function completeTask(vaultPath: string, slug: string, options: TaskTransitionOptions = {}): Task {
-  const task = readTask(vaultPath, slug);
-  if (!task) {
-    throw new Error(`Task not found: ${slug}`);
-  }
-  const previousStatus = task.frontmatter.status;
-
-  const now = new Date().toISOString();
-  let newFrontmatter: TaskFrontmatter = {
-    ...task.frontmatter,
-    status: 'done',
-    updated: now,
-    completed: now
-  };
-
-  // Clear blocked_by when completing
-  delete newFrontmatter.blocked_by;
-
-  const fileContent = matter.stringify(task.content, newFrontmatter);
-  fs.writeFileSync(task.path, fileContent);
-
-  if (!options.skipTransition && previousStatus !== 'done') {
-    newFrontmatter = logStatusTransition({
-      vaultPath,
-      task,
-      fromStatus: previousStatus,
-      toStatus: 'done',
-      frontmatter: newFrontmatter,
-      options: {
-        confidence: options.confidence,
-        reason: options.reason ?? null,
-      },
-    });
-  }
-
-  return {
-    ...task,
-    frontmatter: newFrontmatter
-  };
+  return updateTask(vaultPath, slug, { status: 'done' }, options);
 }
 
 /**

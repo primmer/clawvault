@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import matter from 'gray-matter';
 import {
   slugify,
   getTasksDir,
@@ -260,6 +261,68 @@ describe('task-utils', () => {
       });
     });
 
+    it('does not log when status is unchanged', () => {
+      createTask(tempDir, 'No-op Transition');
+      updateTask(tempDir, 'no-op-transition', { status: 'in-progress' });
+      updateTask(tempDir, 'no-op-transition', { status: 'in-progress' });
+
+      const events = readAllTransitions(tempDir).filter((event) => event.task_id === 'no-op-transition');
+      expect(events).toHaveLength(1);
+    });
+
+    it('skips transition logging when previous status is missing', () => {
+      const task = createTask(tempDir, 'Missing Status');
+      const raw = fs.readFileSync(task.path, 'utf-8');
+      const parsed = matter(raw);
+      delete (parsed.data as Record<string, unknown>).status;
+      fs.writeFileSync(task.path, matter.stringify(parsed.content, parsed.data));
+
+      const updated = updateTask(tempDir, task.slug, { status: 'in-progress' });
+      expect(updated.frontmatter.status).toBe('in-progress');
+
+      const events = readAllTransitions(tempDir).filter((event) => event.task_id === task.slug);
+      expect(events).toHaveLength(0);
+    });
+
+    it('rejects invalid status values at runtime', () => {
+      createTask(tempDir, 'Invalid Status');
+      const invalidStatus = 'not-a-status' as unknown as Parameters<typeof updateTask>[2]['status'];
+
+      expect(() => updateTask(tempDir, 'invalid-status', { status: invalidStatus })).toThrow('Invalid task status');
+      expect(readAllTransitions(tempDir)).toHaveLength(0);
+      expect(readTask(tempDir, 'invalid-status')?.frontmatter.status).toBe('open');
+    });
+
+    it('keeps task updates successful when transition ledger writes fail', () => {
+      createTask(tempDir, 'Ledger Failure');
+      const appendSpy = vi.spyOn(fs, 'appendFileSync').mockImplementation(() => {
+        const error = new Error('simulated disk full') as NodeJS.ErrnoException;
+        error.code = 'ENOSPC';
+        throw error;
+      });
+
+      try {
+        const updated = updateTask(tempDir, 'ledger-failure', { status: 'in-progress' });
+        expect(updated.frontmatter.status).toBe('in-progress');
+      } finally {
+        appendSpy.mockRestore();
+      }
+
+      expect(readAllTransitions(tempDir)).toHaveLength(0);
+      expect(readTask(tempDir, 'ledger-failure')?.frontmatter.status).toBe('in-progress');
+    });
+
+    it('marks escalation after three transitions into blocked', () => {
+      createTask(tempDir, 'Escalate Utility');
+      updateTask(tempDir, 'escalate-utility', { status: 'blocked', blocked_by: 'blocker-1' });
+      updateTask(tempDir, 'escalate-utility', { status: 'open' });
+      updateTask(tempDir, 'escalate-utility', { status: 'blocked', blocked_by: 'blocker-2' });
+      updateTask(tempDir, 'escalate-utility', { status: 'open' });
+      updateTask(tempDir, 'escalate-utility', { status: 'blocked', blocked_by: 'blocker-3' });
+
+      expect(readTask(tempDir, 'escalate-utility')?.frontmatter.escalation).toBe(true);
+    });
+
     it('supports opting out of transition logging', () => {
       createTask(tempDir, 'Skip Transition');
       updateTask(tempDir, 'skip-transition', { status: 'in-progress' }, { skipTransition: true });
@@ -329,6 +392,27 @@ describe('task-utils', () => {
         to_status: 'done',
         reason: 'shipped'
       });
+    });
+
+    it('preserves original completion timestamp when already done', () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+        createTask(tempDir, 'Idempotent Complete');
+
+        vi.setSystemTime(new Date('2026-01-02T00:00:00.000Z'));
+        const first = completeTask(tempDir, 'idempotent-complete');
+        expect(first.frontmatter.completed).toBe('2026-01-02T00:00:00.000Z');
+
+        vi.setSystemTime(new Date('2026-01-03T00:00:00.000Z'));
+        const second = completeTask(tempDir, 'idempotent-complete');
+        expect(second.frontmatter.completed).toBe(first.frontmatter.completed);
+
+        const events = readAllTransitions(tempDir).filter((event) => event.task_id === 'idempotent-complete');
+        expect(events).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

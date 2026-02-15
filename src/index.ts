@@ -79,15 +79,9 @@ export { rebuildCommand, registerRebuildCommand } from './commands/rebuild.js';
 export type { RebuildCommandOptions } from './commands/rebuild.js';
 export {
   doctor,
-  doctorCommand,
-  formatDoctorReport,
-  registerDoctorCommand
 } from './commands/doctor.js';
 export type {
   DoctorCheck,
-  DoctorCheckId,
-  DoctorCommandOptions,
-  DoctorOptions,
   DoctorReport,
   DoctorStatus
 } from './commands/doctor.js';

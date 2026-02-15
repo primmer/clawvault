@@ -7,6 +7,8 @@ describe('CLI help contract', () => {
     expect(help).toContain('init');
     expect(help).toContain('context');
     expect(help).toContain('inject');
+    expect(help).toContain('doctor');
+    expect(help).toContain('embed');
     expect(help).toContain('compat');
     expect(help).toContain('graph');
     expect(help).toContain('reflect');

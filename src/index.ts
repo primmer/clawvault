@@ -26,11 +26,7 @@
 
 import * as fs from 'fs';
 import type { Command } from 'commander';
-import { registerContextCommand } from './commands/context.js';
-import { registerInjectCommand } from './commands/inject.js';
-import { registerObserveCommand } from './commands/observe.js';
-import { registerReflectCommand } from './commands/reflect.js';
-import { registerTailscaleCommands } from './commands/tailscale.js';
+import { registerCliCommands } from './cli/index.js';
 
 // Core exports
 export { ClawVault, createVault, findVault } from './lib/vault.js';
@@ -81,6 +77,22 @@ export { archiveCommand, registerArchiveCommand } from './commands/archive.js';
 export type { ArchiveCommandOptions } from './commands/archive.js';
 export { rebuildCommand, registerRebuildCommand } from './commands/rebuild.js';
 export type { RebuildCommandOptions } from './commands/rebuild.js';
+export {
+  doctor,
+  doctorCommand,
+  formatDoctorReport,
+  registerDoctorCommand
+} from './commands/doctor.js';
+export type {
+  DoctorCheck,
+  DoctorCheckId,
+  DoctorCommandOptions,
+  DoctorOptions,
+  DoctorReport,
+  DoctorStatus
+} from './commands/doctor.js';
+export { embedCommand, registerEmbedCommand } from './commands/embed.js';
+export type { EmbedCommandOptions, EmbedCommandResult } from './commands/embed.js';
 export { replayCommand, registerReplayCommand } from './commands/replay.js';
 export type { ReplayCommandOptions } from './commands/replay.js';
 export {
@@ -114,6 +126,7 @@ export {
   QMD_INSTALL_URL
 } from './lib/search.js';
 export { getVaultPath, findNearestVaultPath, resolveVaultPath } from './lib/config.js';
+export { registerCliCommands } from './cli/index.js';
 export {
   SUPPORTED_CONFIG_KEYS,
   getConfig,
@@ -302,10 +315,5 @@ function readPackageVersion(): string {
 export const VERSION = readPackageVersion();
 
 export function registerCommanderCommands(program: Command): Command {
-  registerContextCommand(program);
-  registerInjectCommand(program);
-  registerObserveCommand(program);
-  registerReflectCommand(program);
-  registerTailscaleCommands(program);
-  return program;
+  return registerCliCommands(program);
 }

@@ -3,31 +3,31 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-const { hasQmdMock, scanVaultLinksMock } = vi.hoisted(() => ({
+const {
+  execFileSyncMock,
+  hasQmdMock,
+  qmdUpdateMock,
+  qmdEmbedMock,
+  scanVaultLinksMock
+} = vi.hoisted(() => ({
+  execFileSyncMock: vi.fn(),
   hasQmdMock: vi.fn(),
+  qmdUpdateMock: vi.fn(),
+  qmdEmbedMock: vi.fn(),
   scanVaultLinksMock: vi.fn()
 }));
 
-let mockStats = { documents: 0, categories: {} as Record<string, number> };
-let mockDocuments: Array<{
-  id: string;
-  path: string;
-  category: string;
-  title: string;
-  content: string;
-  frontmatter: Record<string, unknown>;
-  links: string[];
-  tags: string[];
-  modified: Date;
-}> = [];
-let mockHandoffs: typeof mockDocuments = [];
-let mockInbox: typeof mockDocuments = [];
+vi.mock('child_process', () => ({
+  execFileSync: execFileSyncMock
+}));
 
 vi.mock('../lib/search.js', async () => {
   const actual = await vi.importActual<typeof import('../lib/search.js')>('../lib/search.js');
   return {
     ...actual,
-    hasQmd: hasQmdMock
+    hasQmd: hasQmdMock,
+    qmdUpdate: qmdUpdateMock,
+    qmdEmbed: qmdEmbedMock
   };
 });
 
@@ -35,119 +35,196 @@ vi.mock('../lib/backlinks.js', () => ({
   scanVaultLinks: scanVaultLinksMock
 }));
 
-vi.mock('../lib/vault.js', () => ({
-  ClawVault: class {
-    private vaultPath: string;
-
-    constructor(vaultPath: string) {
-      this.vaultPath = vaultPath;
-    }
-
-    async load(): Promise<void> {
-      return;
-    }
-
-    async stats(): Promise<{ documents: number; categories: Record<string, number> }> {
-      return mockStats;
-    }
-
-    async list(category?: string) {
-      if (category === 'handoffs') return mockHandoffs;
-      if (category === 'inbox') return mockInbox;
-      if (category) return [];
-      return mockDocuments;
-    }
-
-    getPath(): string {
-      return this.vaultPath;
-    }
-
-    getQmdCollection(): string {
-      return 'vault';
-    }
-  },
-  findVault: async () => null
-}));
-
 import { doctor } from './doctor.js';
 
-function makeDoc(category: string, modified: Date) {
-  return {
-    id: `${category}/doc`,
-    path: `/tmp/${category}/doc.md`,
-    category,
-    title: 'doc',
-    content: '',
-    frontmatter: {},
-    links: [],
-    tags: [],
-    modified
-  };
-}
+const createdTempDirs: string[] = [];
 
 function makeTempDir(prefix: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  createdTempDirs.push(dir);
+  return dir;
 }
 
-const envSnapshot = {
-  HOME: process.env.HOME,
-  SHELL: process.env.SHELL
-};
+function writeVaultConfig(vaultPath: string, overrides: { qmdCollection?: string; qmdRoot?: string } = {}): void {
+  const payload = {
+    name: 'vault',
+    version: '1.0.0',
+    created: new Date().toISOString(),
+    lastUpdated: new Date().toISOString(),
+    categories: ['inbox'],
+    documentCount: 0,
+    qmdCollection: overrides.qmdCollection ?? 'vault',
+    qmdRoot: overrides.qmdRoot ?? vaultPath
+  };
+  fs.writeFileSync(path.join(vaultPath, '.clawvault.json'), JSON.stringify(payload, null, 2));
+}
+
+function writeDefaultMarkdown(vaultPath: string): void {
+  fs.mkdirSync(path.join(vaultPath, 'inbox'), { recursive: true });
+  fs.writeFileSync(path.join(vaultPath, 'inbox', 'a.md'), '# A');
+  fs.writeFileSync(path.join(vaultPath, 'inbox', 'b.md'), '# B');
+}
+
+function mockCollectionList(raw: string): void {
+  execFileSyncMock.mockImplementation((command: string, args: string[]) => {
+    if (command === 'qmd' && args[0] === 'collection' && args[1] === 'list') {
+      return raw;
+    }
+    if (command === 'qmd' && args[0] === 'collection' && (args[1] === 'remove' || args[1] === 'rm')) {
+      return '';
+    }
+    if (command === 'git') {
+      return '';
+    }
+    return '';
+  });
+}
 
 afterEach(() => {
   vi.clearAllMocks();
-  process.env.HOME = envSnapshot.HOME;
-  process.env.SHELL = envSnapshot.SHELL;
+  while (createdTempDirs.length > 0) {
+    const dir = createdTempDirs.pop();
+    if (dir) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 describe('doctor', () => {
-  it('reports when qmd is unavailable', async () => {
-    hasQmdMock.mockReturnValue(false);
-    const report = await doctor('/tmp/vault');
-    const qmdCheck = report.checks.find(check => check.label === 'qmd installed');
-    expect(qmdCheck?.status).toBe('error');
-    expect(report.errors).toBeGreaterThan(0);
-  });
-
-  it('warns on stale handoff/checkpoint and backlog', async () => {
+  it('reports all seven checks and flags stale/dirty conditions', async () => {
     hasQmdMock.mockReturnValue(true);
     scanVaultLinksMock.mockReturnValue({
       backlinks: new Map(),
-      orphans: Array.from({ length: 25 }, () => ({ source: 'a', target: 'b' })),
-      linkCount: 30
+      orphans: [{ source: 'inbox/a', target: 'missing-note' }],
+      linkCount: 1
     });
 
     const vaultPath = makeTempDir('clawvault-doctor-');
-    const homePath = makeTempDir('clawvault-home-');
+    writeVaultConfig(vaultPath);
+    writeDefaultMarkdown(vaultPath);
+    fs.mkdirSync(path.join(vaultPath, '.git'), { recursive: true });
+
     const clawvaultDir = path.join(vaultPath, '.clawvault');
     fs.mkdirSync(clawvaultDir, { recursive: true });
-    const checkpointTime = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const staleTimestamp = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
+    fs.writeFileSync(
+      path.join(clawvaultDir, 'observe-cursors.json'),
+      JSON.stringify({
+        main: {
+          sessionKey: 'agent:main',
+          lastObservedAt: staleTimestamp,
+          lastObservedOffset: 42,
+          lastFileSize: 99
+        }
+      }, null, 2)
+    );
     fs.writeFileSync(
       path.join(clawvaultDir, 'last-checkpoint.json'),
-      JSON.stringify({ timestamp: checkpointTime }, null, 2)
+      JSON.stringify({ timestamp: staleTimestamp }, null, 2)
     );
 
-    process.env.HOME = homePath;
-    process.env.SHELL = '/bin/bash';
-    fs.writeFileSync(path.join(homePath, '.bashrc'), 'export CLAWVAULT_PATH="/tmp/vault"');
+    execFileSyncMock.mockImplementation((command: string, args: string[]) => {
+      if (command === 'qmd' && args[0] === 'collection' && args[1] === 'list') {
+        return `Collections (2):
 
-    mockStats = { documents: 10, categories: { inbox: 6 } };
-    mockDocuments = [makeDoc('projects', new Date())];
-    mockHandoffs = [makeDoc('handoffs', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000))];
-    mockInbox = Array.from({ length: 6 }, () => makeDoc('inbox', new Date()));
+vault (qmd://vault/)
+  Root: ${vaultPath}
+  Pattern: **/*.md
+  Files: 1
+  Vectors: 0
+  Pending: 1
+dead (qmd://dead/)
+  Root: /tmp/clawvault-test-dead-collection
+  Pattern: **/*.md
+  Files: 10
+  Vectors: 10
+`;
+      }
+      if (command === 'git') {
+        return ' M inbox/a.md\n?? inbox/c.md\n';
+      }
+      return '';
+    });
 
-    try {
-      const report = await doctor(vaultPath);
-      const warnings = report.checks.filter(check => check.status === 'warn').map(check => check.label);
-      expect(warnings).toEqual(expect.arrayContaining([
-        'recent handoff',
-        'checkpoint freshness',
-        'orphan links',
-        'inbox backlog'
-      ]));
-    } finally {
-      fs.rmSync(vaultPath, { recursive: true, force: true });
-      fs.rmSync(homePath, { recursive: true, force: true });
-    }
+    const report = await doctor({ vaultPath });
+    expect(report.checks).toHaveLength(7);
+
+    const checkById = new Map(report.checks.map((check) => [check.id, check]));
+    expect(checkById.get('stale_qmd_index')?.status).toBe('warn');
+    expect(checkById.get('pending_embeddings')?.status).toBe('warn');
+    expect(checkById.get('dead_qmd_collections')?.status).toBe('error');
+    expect(checkById.get('stale_observer')?.status).toBe('warn');
+    expect(checkById.get('stale_checkpoint')?.status).toBe('warn');
+    expect(checkById.get('orphan_wiki_links')?.status).toBe('warn');
+    expect(checkById.get('dirty_git')?.status).toBe('warn');
+    expect(report.warnings).toBe(6);
+    expect(report.errors).toBe(1);
+  });
+
+  it('applies fixes for stale index, pending embeddings, and dead collections', async () => {
+    hasQmdMock.mockReturnValue(true);
+    scanVaultLinksMock.mockReturnValue({
+      backlinks: new Map(),
+      orphans: [],
+      linkCount: 0
+    });
+
+    const vaultPath = makeTempDir('clawvault-doctor-fix-');
+    writeVaultConfig(vaultPath);
+    writeDefaultMarkdown(vaultPath);
+
+    mockCollectionList(`Collections (2):
+
+vault (qmd://vault/)
+  Root: ${vaultPath}
+  Files: 1
+  Vectors: 0
+  Pending: 1
+dead (qmd://dead/)
+  Root: /tmp/clawvault-test-dead
+  Files: 3
+`);
+
+    const report = await doctor({ vaultPath, fix: true });
+
+    expect(qmdUpdateMock).toHaveBeenCalledWith('vault');
+    expect(qmdEmbedMock).toHaveBeenCalledWith('vault');
+    expect(
+      execFileSyncMock.mock.calls.some(
+        ([command, args]) =>
+          command === 'qmd'
+          && args[0] === 'collection'
+          && (args[1] === 'remove' || args[1] === 'rm')
+          && args[2] === 'dead'
+      )
+    ).toBe(true);
+
+    const checkById = new Map(report.checks.map((check) => [check.id, check]));
+    expect(checkById.get('stale_qmd_index')?.fixed).toBe(true);
+    expect(checkById.get('pending_embeddings')?.fixed).toBe(true);
+    expect(checkById.get('dead_qmd_collections')?.fixed).toBe(true);
+  });
+
+  it('still reports seven checks when qmd is unavailable', async () => {
+    hasQmdMock.mockReturnValue(false);
+    scanVaultLinksMock.mockReturnValue({
+      backlinks: new Map(),
+      orphans: [],
+      linkCount: 0
+    });
+
+    const vaultPath = makeTempDir('clawvault-doctor-noqmd-');
+    writeVaultConfig(vaultPath);
+    writeDefaultMarkdown(vaultPath);
+
+    const report = await doctor({ vaultPath });
+    expect(report.checks).toHaveLength(7);
+
+    const qmdChecks = report.checks.filter((check) =>
+      check.id === 'stale_qmd_index'
+      || check.id === 'pending_embeddings'
+      || check.id === 'dead_qmd_collections'
+    );
+    expect(qmdChecks.every((check) => check.status === 'error')).toBe(true);
   });
 });

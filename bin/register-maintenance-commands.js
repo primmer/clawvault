@@ -7,18 +7,28 @@ export function registerMaintenanceCommands(program, { chalk }) {
   // === DOCTOR (health check) ===
   program
     .command('doctor')
-    .description('Check ClawVault setup health')
+    .description('Diagnose vault health and optionally apply fixes')
     .option('-v, --vault <path>', 'Vault path')
+    .option('--fix', 'Apply safe auto-fixes for qmd index, embeddings, and dead collections')
+    .option('--json', 'Output machine-readable JSON')
     .action(async (options) => {
       try {
         const { doctor } = await import('../dist/commands/doctor.js');
-        const report = await doctor(options.vault);
+        const report = await doctor({
+          vaultPath: options.vault,
+          fix: options.fix
+        });
+
+        if (options.json) {
+          console.log(JSON.stringify(report, null, 2));
+          return;
+        }
 
         console.log(chalk.cyan('\n🩺 ClawVault Health Check\n'));
-        if (report.vaultPath) {
-          console.log(chalk.dim(`Vault: ${report.vaultPath}`));
-          console.log();
-        }
+        console.log(chalk.dim(`Vault: ${report.vaultPath}`));
+        console.log(chalk.dim(`qmd collection: ${report.qmdCollection}`));
+        console.log(chalk.dim(`qmd root: ${report.qmdRoot}`));
+        console.log();
 
         for (const check of report.checks) {
           const prefix = check.status === 'ok'
@@ -26,8 +36,13 @@ export function registerMaintenanceCommands(program, { chalk }) {
             : check.status === 'warn'
               ? chalk.yellow('⚠')
               : chalk.red('✗');
-          const detail = check.detail ? ` — ${check.detail}` : '';
-          console.log(`${prefix} ${check.label}${detail}`);
+          const line = `${check.label}: ${check.detail}`;
+          const renderedLine = check.status === 'ok'
+            ? chalk.green(line)
+            : check.status === 'warn'
+              ? chalk.yellow(line)
+              : chalk.red(line);
+          console.log(`${prefix} ${renderedLine}`);
           if (check.hint) {
             console.log(chalk.dim(`  ${check.hint}`));
           }
@@ -38,8 +53,27 @@ export function registerMaintenanceCommands(program, { chalk }) {
         if (issues === 0) {
           console.log(chalk.green('✅ ClawVault is healthy!\n'));
         } else {
-          console.log(chalk.yellow(`⚠ ${issues} issue(s) found\n`));
+          const summary = `${report.errors} error(s), ${report.warnings} warning(s)`;
+          const colorized = report.errors > 0 ? chalk.red(summary) : chalk.yellow(summary);
+          console.log(`${report.errors > 0 ? '✗' : '⚠'} ${colorized}\n`);
         }
+      } catch (err) {
+        console.error(chalk.red(`Error: ${err.message}`));
+        process.exit(1);
+      }
+    });
+
+  // === EMBED ===
+  program
+    .command('embed')
+    .description('Run qmd embedding for pending vault documents')
+    .option('-v, --vault <path>', 'Vault path')
+    .action(async (options) => {
+      try {
+        const { embedCommand } = await import('../dist/commands/embed.js');
+        await embedCommand({
+          vaultPath: options.vault
+        });
       } catch (err) {
         console.error(chalk.red(`Error: ${err.message}`));
         process.exit(1);

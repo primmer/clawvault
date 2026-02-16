@@ -13,15 +13,18 @@ export function registerTemplateCommands(program, { chalk }) {
     .option('-v, --vault <path>', 'Vault path')
     .action(async (options) => {
       try {
-        const { listTemplates } = await import('../dist/commands/template.js');
-        const templates = listTemplates({ vaultPath: options.vault });
+        const { listTemplateDefinitions } = await import('../dist/commands/template.js');
+        const templates = listTemplateDefinitions({ vaultPath: options.vault });
         if (templates.length === 0) {
           console.log(chalk.yellow('No templates found.'));
           return;
         }
         console.log(chalk.cyan('\n📄 Templates:\n'));
-        for (const name of templates) {
-          console.log(`- ${name}`);
+        for (const templateDef of templates) {
+          const fieldSummary = templateDef.fields.length > 0
+            ? ` (${templateDef.fields.join(', ')})`
+            : '';
+          console.log(`- ${templateDef.name}${fieldSummary}`);
         }
         console.log();
       } catch (err) {

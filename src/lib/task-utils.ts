@@ -12,6 +12,10 @@ import {
   countBlockedTransitions,
   isRegression,
 } from './transition-ledger.js';
+import {
+  loadSchemaTemplateDefinition,
+  renderDocumentFromTemplate,
+} from './primitive-templates.js';
 
 // Task status types
 export type TaskStatus = 'open' | 'in-progress' | 'blocked' | 'done';
@@ -88,6 +92,20 @@ export interface TaskTransitionOptions {
   confidence?: number;
   reason?: string | null;
 }
+
+type CreateTaskOptions = {
+  source?: string;
+  owner?: string;
+  project?: string;
+  priority?: TaskPriority;
+  due?: string;
+  content?: string;
+  tags?: string[];
+  description?: string;
+  estimate?: string;
+  parent?: string;
+  depends_on?: string[];
+};
 
 /**
  * Slugify a title for use as filename
@@ -169,6 +187,90 @@ function parseDueDate(value?: string): number | null {
 function startOfToday(): number {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+}
+
+function buildTaskFrontmatterFallback(now: string, options: CreateTaskOptions): TaskFrontmatter {
+  const frontmatter: TaskFrontmatter = {
+    status: 'open',
+    created: now,
+    updated: now
+  };
+
+  if (options.source) frontmatter.source = options.source;
+  if (options.owner) frontmatter.owner = options.owner;
+  if (options.project) frontmatter.project = options.project;
+  if (options.priority) frontmatter.priority = options.priority;
+  if (options.due) frontmatter.due = options.due;
+  if (options.tags && options.tags.length > 0) frontmatter.tags = options.tags;
+  if (options.description) frontmatter.description = options.description;
+  if (options.estimate) frontmatter.estimate = options.estimate;
+  if (options.parent) frontmatter.parent = options.parent;
+  if (options.depends_on && options.depends_on.length > 0) frontmatter.depends_on = options.depends_on;
+
+  return frontmatter;
+}
+
+function buildTaskContentFallback(title: string, options: CreateTaskOptions): string {
+  let content = `# ${title}\n`;
+
+  const links: string[] = [];
+  if (options.owner) links.push(`[[${options.owner}]]`);
+  if (options.project) links.push(`[[${options.project}]]`);
+  if (links.length > 0) {
+    content += `\n${links.join(' | ')}\n`;
+  }
+
+  if (options.content) {
+    content += `\n${options.content}\n`;
+  }
+
+  return content;
+}
+
+function buildTaskTemplateOverrides(options: CreateTaskOptions): Record<string, unknown> {
+  const overrides: Record<string, unknown> = {};
+
+  if (options.source) overrides.source = options.source;
+  if (options.owner) overrides.owner = options.owner;
+  if (options.project) overrides.project = options.project;
+  if (options.priority) overrides.priority = options.priority;
+  if (options.due) overrides.due = options.due;
+  if (options.tags && options.tags.length > 0) overrides.tags = options.tags;
+  if (options.description) overrides.description = options.description;
+  if (options.estimate) overrides.estimate = options.estimate;
+  if (options.parent) overrides.parent = options.parent;
+  if (options.depends_on && options.depends_on.length > 0) overrides.depends_on = options.depends_on;
+
+  return overrides;
+}
+
+function buildTaskTemplateVariables(
+  title: string,
+  slug: string,
+  options: CreateTaskOptions
+): Record<string, unknown> {
+  const ownerLink = options.owner ? `[[${options.owner}]]` : '';
+  const projectLink = options.project ? `[[${options.project}]]` : '';
+  const linksLine = [ownerLink, projectLink].filter(Boolean).join(' | ');
+
+  return {
+    title,
+    slug,
+    source: options.source ?? '',
+    owner: options.owner ?? '',
+    project: options.project ?? '',
+    priority: options.priority ?? '',
+    due: options.due ?? '',
+    tags_csv: (options.tags || []).join(', '),
+    description: options.description ?? '',
+    estimate: options.estimate ?? '',
+    parent: options.parent ?? '',
+    depends_on_csv: (options.depends_on || []).join(', '),
+    content: options.content ?? '',
+    owner_link: ownerLink,
+    project_link: projectLink,
+    links_line: linksLine
+  };
 }
 
 const VALID_TASK_STATUSES = new Set<TaskStatus>([
@@ -427,19 +529,7 @@ export function listBacklogItems(vaultPath: string, filters?: BacklogFilterOptio
 export function createTask(
   vaultPath: string,
   title: string,
-  options: {
-    source?: string;
-    owner?: string;
-    project?: string;
-    priority?: TaskPriority;
-    due?: string;
-    content?: string;
-    tags?: string[];
-    description?: string;
-    estimate?: string;
-    parent?: string;
-    depends_on?: string[];
-  } = {}
+  options: CreateTaskOptions = {}
 ): Task {
   ensureTasksDir(vaultPath);
   const slug = slugify(title);
@@ -450,35 +540,37 @@ export function createTask(
   }
 
   const now = new Date().toISOString();
-  const frontmatter: TaskFrontmatter = {
-    status: 'open',
-    created: now,
-    updated: now
-  };
+  const template = loadSchemaTemplateDefinition('task', {
+    vaultPath: path.resolve(vaultPath),
+  });
 
-  if (options.source) frontmatter.source = options.source;
-  if (options.owner) frontmatter.owner = options.owner;
-  if (options.project) frontmatter.project = options.project;
-  if (options.priority) frontmatter.priority = options.priority;
-  if (options.due) frontmatter.due = options.due;
-  if (options.tags && options.tags.length > 0) frontmatter.tags = options.tags;
-  if (options.description) frontmatter.description = options.description;
-  if (options.estimate) frontmatter.estimate = options.estimate;
-  if (options.parent) frontmatter.parent = options.parent;
-  if (options.depends_on && options.depends_on.length > 0) frontmatter.depends_on = options.depends_on;
+  let frontmatter: TaskFrontmatter;
+  let content: string;
 
-  // Build content with wiki-links for owner and project
-  let content = `# ${title}\n`;
-  
-  const links: string[] = [];
-  if (options.owner) links.push(`[[${options.owner}]]`);
-  if (options.project) links.push(`[[${options.project}]]`);
-  if (links.length > 0) {
-    content += `\n${links.join(' | ')}\n`;
-  }
-
-  if (options.content) {
-    content += `\n${options.content}\n`;
+  if (template) {
+    const rendered = renderDocumentFromTemplate(template, {
+      title,
+      type: 'task',
+      now: new Date(now),
+      variables: buildTaskTemplateVariables(title, slug, options),
+      overrides: buildTaskTemplateOverrides(options),
+      frontmatter: { pruneEmpty: true },
+    });
+    const templateFrontmatter = rendered.frontmatter as unknown as TaskFrontmatter;
+    frontmatter = {
+      ...templateFrontmatter,
+      status: isTaskStatus(templateFrontmatter.status) ? templateFrontmatter.status : 'open',
+      created: typeof templateFrontmatter.created === 'string' && templateFrontmatter.created
+        ? templateFrontmatter.created
+        : now,
+      updated: typeof templateFrontmatter.updated === 'string' && templateFrontmatter.updated
+        ? templateFrontmatter.updated
+        : now,
+    };
+    content = rendered.content;
+  } else {
+    frontmatter = buildTaskFrontmatterFallback(now, options);
+    content = buildTaskContentFallback(title, options);
   }
 
   const fileContent = matter.stringify(content, frontmatter);

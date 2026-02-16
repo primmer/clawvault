@@ -7,6 +7,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import matter from 'gray-matter';
 import { listTasks, slugify, type Task } from './task-utils.js';
+import {
+  loadSchemaTemplateDefinition,
+  renderDocumentFromTemplate,
+} from './primitive-templates.js';
 
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
 
@@ -125,6 +129,114 @@ function normalizeProjectStatus(value: unknown): ProjectStatus {
     return value;
   }
   return 'active';
+}
+
+function buildProjectFrontmatterFallback(now: string, options: CreateProjectOptions): ProjectFrontmatter {
+  const frontmatter: ProjectFrontmatter = {
+    type: 'project',
+    status: options.status ?? 'active',
+    created: now,
+    updated: now
+  };
+
+  if (options.owner) frontmatter.owner = options.owner;
+  if (options.team && options.team.length > 0) {
+    const team = normalizeStringArray(options.team);
+    if (team.length > 0) frontmatter.team = team;
+  }
+  if (options.client) frontmatter.client = options.client;
+  if (options.tags && options.tags.length > 0) {
+    const tags = normalizeStringArray(options.tags);
+    if (tags.length > 0) frontmatter.tags = tags;
+  }
+  if (options.description) frontmatter.description = options.description;
+  if (options.started) frontmatter.started = options.started;
+  if (options.deadline) frontmatter.deadline = options.deadline;
+  if (options.repo) frontmatter.repo = options.repo;
+  if (options.url) frontmatter.url = options.url;
+  if (options.completed) frontmatter.completed = options.completed;
+  if (options.reason) frontmatter.reason = options.reason;
+
+  return frontmatter;
+}
+
+function buildProjectContentFallback(title: string, options: CreateProjectOptions): string {
+  let content = `# ${title}\n`;
+  const wikiLinks = new Set<string>();
+  if (options.owner) wikiLinks.add(options.owner);
+  if (options.client) wikiLinks.add(options.client);
+  for (const member of options.team || []) {
+    const trimmed = member.trim();
+    if (trimmed) wikiLinks.add(trimmed);
+  }
+  if (wikiLinks.size > 0) {
+    content += `\n${Array.from(wikiLinks).map((link) => `[[${link}]]`).join(' | ')}\n`;
+  }
+
+  if (options.content) {
+    content += `\n${options.content}\n`;
+  }
+
+  return content;
+}
+
+function buildProjectTemplateOverrides(options: CreateProjectOptions): Record<string, unknown> {
+  const overrides: Record<string, unknown> = {};
+  if (options.status) overrides.status = options.status;
+  if (options.owner) overrides.owner = options.owner;
+  if (options.team && options.team.length > 0) {
+    const team = normalizeStringArray(options.team);
+    if (team.length > 0) overrides.team = team;
+  }
+  if (options.client) overrides.client = options.client;
+  if (options.tags && options.tags.length > 0) {
+    const tags = normalizeStringArray(options.tags);
+    if (tags.length > 0) overrides.tags = tags;
+  }
+  if (options.description) overrides.description = options.description;
+  if (options.started) overrides.started = options.started;
+  if (options.deadline) overrides.deadline = options.deadline;
+  if (options.repo) overrides.repo = options.repo;
+  if (options.url) overrides.url = options.url;
+  if (options.completed) overrides.completed = options.completed;
+  if (options.reason) overrides.reason = options.reason;
+  return overrides;
+}
+
+function buildProjectTemplateVariables(
+  title: string,
+  slug: string,
+  options: CreateProjectOptions
+): Record<string, unknown> {
+  const ownerLink = options.owner ? `[[${options.owner}]]` : '';
+  const clientLink = options.client ? `[[${options.client}]]` : '';
+  const teamLinks = (options.team || [])
+    .map((member) => member.trim())
+    .filter(Boolean)
+    .map((member) => `[[${member}]]`);
+  const linksLine = [ownerLink, clientLink, ...teamLinks].filter(Boolean).join(' | ');
+
+  return {
+    title,
+    slug,
+    status: options.status ?? '',
+    owner: options.owner ?? '',
+    client: options.client ?? '',
+    team_csv: (options.team || []).join(', '),
+    tags_csv: (options.tags || []).join(', '),
+    description: options.description ?? '',
+    started: options.started ?? '',
+    deadline: options.deadline ?? '',
+    repo: options.repo ?? '',
+    url: options.url ?? '',
+    completed: options.completed ?? '',
+    reason: options.reason ?? '',
+    content: options.content ?? '',
+    owner_link: ownerLink,
+    client_link: clientLink,
+    team_links_line: teamLinks.join(' | '),
+    links_line: linksLine
+  };
 }
 
 function normalizeProjectFrontmatter(frontmatter: ProjectFrontmatter): ProjectFrontmatter {
@@ -262,45 +374,38 @@ export function createProject(
   }
 
   const now = new Date().toISOString();
-  const frontmatter: ProjectFrontmatter = {
-    type: 'project',
-    status: options.status ?? 'active',
-    created: now,
-    updated: now
-  };
+  const template = loadSchemaTemplateDefinition('project', {
+    vaultPath: path.resolve(vaultPath),
+  });
 
-  if (options.owner) frontmatter.owner = options.owner;
-  if (options.team && options.team.length > 0) {
-    const team = normalizeStringArray(options.team);
-    if (team.length > 0) frontmatter.team = team;
-  }
-  if (options.client) frontmatter.client = options.client;
-  if (options.tags && options.tags.length > 0) {
-    const tags = normalizeStringArray(options.tags);
-    if (tags.length > 0) frontmatter.tags = tags;
-  }
-  if (options.description) frontmatter.description = options.description;
-  if (options.started) frontmatter.started = options.started;
-  if (options.deadline) frontmatter.deadline = options.deadline;
-  if (options.repo) frontmatter.repo = options.repo;
-  if (options.url) frontmatter.url = options.url;
-  if (options.completed) frontmatter.completed = options.completed;
-  if (options.reason) frontmatter.reason = options.reason;
+  let frontmatter: ProjectFrontmatter;
+  let content: string;
 
-  let content = `# ${title}\n`;
-  const wikiLinks = new Set<string>();
-  if (options.owner) wikiLinks.add(options.owner);
-  if (options.client) wikiLinks.add(options.client);
-  for (const member of options.team || []) {
-    const trimmed = member.trim();
-    if (trimmed) wikiLinks.add(trimmed);
-  }
-  if (wikiLinks.size > 0) {
-    content += `\n${Array.from(wikiLinks).map((link) => `[[${link}]]`).join(' | ')}\n`;
-  }
-
-  if (options.content) {
-    content += `\n${options.content}\n`;
+  if (template) {
+    const rendered = renderDocumentFromTemplate(template, {
+      title,
+      type: 'project',
+      now: new Date(now),
+      variables: buildProjectTemplateVariables(title, slug, options),
+      overrides: buildProjectTemplateOverrides(options),
+      frontmatter: { pruneEmpty: true },
+    });
+    const templateFrontmatter = rendered.frontmatter as unknown as ProjectFrontmatter;
+    frontmatter = normalizeProjectFrontmatter({
+      ...templateFrontmatter,
+      type: 'project',
+      status: normalizeProjectStatus(templateFrontmatter.status),
+      created: typeof templateFrontmatter.created === 'string' && templateFrontmatter.created
+        ? templateFrontmatter.created
+        : now,
+      updated: typeof templateFrontmatter.updated === 'string' && templateFrontmatter.updated
+        ? templateFrontmatter.updated
+        : now,
+    });
+    content = rendered.content;
+  } else {
+    frontmatter = buildProjectFrontmatterFallback(now, options);
+    content = buildProjectContentFallback(title, options);
   }
 
   const fileContent = matter.stringify(content, frontmatter);

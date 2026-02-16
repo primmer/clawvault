@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { addTemplate, createFromTemplate, listTemplates } from './template.js';
+import matter from 'gray-matter';
+import { addTemplate, createFromTemplate, listTemplateDefinitions, listTemplates } from './template.js';
 
 const tempDirs: string[] = [];
 
@@ -67,5 +68,50 @@ type: {{type}}
     const result = addTemplate(sourcePath, { vaultPath: vaultDir, name: 'added' });
     const saved = fs.readFileSync(result.templatePath, 'utf-8');
     expect(saved).toBe('# Custom Template');
+  });
+
+  it('shows schema fields in template definitions and renders schema defaults', () => {
+    const vaultDir = makeTempDir('clawvault-template-vault-');
+    const templatesDir = path.join(vaultDir, 'templates');
+    fs.mkdirSync(templatesDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(templatesDir, 'task.md'),
+      `---
+primitive: task
+fields:
+  status:
+    type: string
+    default: open
+  created:
+    type: datetime
+    default: "{{datetime}}"
+  updated:
+    type: datetime
+    default: "{{datetime}}"
+---
+# {{title}}
+{{content}}
+`
+    );
+
+    const definitions = listTemplateDefinitions({ vaultPath: vaultDir });
+    const task = definitions.find((definition) => definition.name === 'task');
+    expect(task).toBeDefined();
+    expect(task?.fields).toEqual(expect.arrayContaining(['status', 'created', 'updated']));
+
+    const outputDir = makeTempDir('clawvault-template-out-');
+    const result = createFromTemplate('task', {
+      vaultPath: vaultDir,
+      cwd: outputDir,
+      title: 'Ship API',
+      type: 'task'
+    });
+
+    const rendered = fs.readFileSync(result.outputPath, 'utf-8');
+    const parsed = matter(rendered);
+    expect(parsed.data.status).toBe('open');
+    expect(parsed.data.created).toBeTypeOf('string');
+    expect(parsed.data.updated).toBeTypeOf('string');
+    expect(parsed.content).toContain('# Ship API');
   });
 });

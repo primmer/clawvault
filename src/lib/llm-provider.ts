@@ -129,10 +129,10 @@ async function callGemini(options: LlmCompletionOptions, provider: LlmProvider):
   const fetchImpl = options.fetchImpl ?? fetch;
   const model = options.model ?? DEFAULT_MODELS[provider];
   const response = await fetchImpl(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{ parts: [{ text: options.prompt }] }],
         generationConfig: {

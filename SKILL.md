@@ -1,65 +1,14 @@
 ---
 name: clawvault
-version: "2.5.8"
+version: "2.5.13"
 description: Agent memory system with memory graph, context profiles, checkpoint/recover, structured storage, semantic search, and observational memory. Use when: storing/searching memories, preventing context death, graph-aware context retrieval, repairing broken sessions. Don't use when: general file I/O.
 author: Versatly
+source: https://github.com/Versatly/clawvault
 repository: https://github.com/Versatly/clawvault
 homepage: https://clawvault.dev
 user-invocable: true
-metadata:
-  openclaw:
-    emoji: "🐘"
-    requires:
-      bins:
-        - "clawvault"
-        - "qmd"
-      env_optional:
-        - "CLAWVAULT_PATH"
-        - "GEMINI_API_KEY"
-        - "OPENCLAW_HOME"
-        - "OPENCLAW_STATE_DIR"
-    install:
-      - id: "node"
-        kind: "node"
-        package: "clawvault"
-        bins:
-          - "clawvault"
-        label: "Install ClawVault CLI (npm)"
-      - id: "qmd"
-        kind: "node"
-        package: "github:tobi/qmd"
-        bins:
-          - "qmd"
-        label: "Install qmd backend (required for query/context workflows)"
-  clawvault:
-    kind: "cli"
-    hooks:
-      clawvault:
-        events:
-          - "gateway:startup"
-          - "gateway:heartbeat"
-          - "command:new"
-          - "session:start"
-          - "compaction:memoryFlush"
-          - "cron.weekly"
-        capabilities:
-          - "auto-checkpoint plus active observation flush before session reset"
-          - "context death detection and alert injection"
-          - "session start context injection via --profile auto"
-          - "heartbeat-triggered active session observation with threshold checks"
-          - "compaction-triggered incremental observation flush"
-          - "weekly reflection trigger on cron.weekly"
-        does_not:
-          - "make network calls (except optional GEMINI_API_KEY for observe --compress)"
-          - "access external APIs or cloud services"
-          - "send telemetry or analytics"
-          - "modify files outside vault directory and OpenClaw session transcripts"
-    capabilities:
-      - "reads/writes markdown files in vault directory"
-      - "reads/modifies OpenClaw session transcripts (repair-session, with backup)"
-      - "builds memory graph index (.clawvault/graph-index.json)"
-      - "requires qmd for core query/memory workflows"
-      - "LLM API calls for observe --compress and observe --active (optional, requires GEMINI_API_KEY)"
+openclaw: {"emoji":"🐘","requires":{"bins":["clawvault","qmd"],"env":[]},"install":[{"id":"node","kind":"node","package":"clawvault","bins":["clawvault"],"label":"Install ClawVault CLI (npm)"},{"id":"qmd","kind":"node","package":"github:tobi/qmd","bins":["qmd"],"label":"Install qmd backend (required for query/context workflows)"}],"homepage":"https://clawvault.dev"}
+metadata: {"openclaw":{"emoji":"🐘","requires":{"bins":["clawvault","qmd"],"env":[]},"install":[{"id":"node","kind":"node","package":"clawvault","bins":["clawvault"],"label":"Install ClawVault CLI (npm)"},{"id":"qmd","kind":"node","package":"github:tobi/qmd","bins":["qmd"],"label":"Install qmd backend (required for query/context workflows)"}],"homepage":"https://clawvault.dev"}}
 ---
 
 # ClawVault 🐘

@@ -131,6 +131,60 @@ describe('task-utils', () => {
       expect(task.frontmatter.depends_on).toEqual(['dep-a', 'dep-b']);
       expect(task.frontmatter.tags).toEqual(['backend', 'kanban']);
     });
+
+    it('reads task schema defaults and body scaffold from vault templates', () => {
+      const templatesDir = path.join(tempDir, 'templates');
+      fs.mkdirSync(templatesDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(templatesDir, 'task.md'),
+        `---
+primitive: task
+fields:
+  status:
+    type: string
+    default: blocked
+  created:
+    type: datetime
+    default: "{{datetime}}"
+  updated:
+    type: datetime
+    default: "{{datetime}}"
+  owner:
+    type: string
+  project:
+    type: string
+  estimate:
+    type: string
+  effort:
+    type: string
+    default: "{{estimate}}"
+---
+# CUSTOM {{title}}
+{{links_line}}
+Effort: {{estimate}}
+{{content}}
+`
+      );
+
+      const task = createTask(tempDir, 'Template Task', {
+        owner: 'alice',
+        project: 'core-platform',
+        estimate: '3h',
+        content: 'Ship the patch.'
+      });
+
+      expect(task.frontmatter.status).toBe('blocked');
+      expect(task.frontmatter.owner).toBe('alice');
+      expect(task.frontmatter.project).toBe('core-platform');
+      expect(task.frontmatter.estimate).toBe('3h');
+      expect((task.frontmatter as Record<string, unknown>).effort).toBe('3h');
+
+      const raw = fs.readFileSync(task.path, 'utf-8');
+      expect(raw).toContain('# CUSTOM Template Task');
+      expect(raw).toContain('[[alice]] | [[core-platform]]');
+      expect(raw).toContain('Effort: 3h');
+      expect(raw).toContain('Ship the patch.');
+    });
   });
 
   describe('readTask', () => {

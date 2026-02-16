@@ -3,6 +3,7 @@ export interface TemplateVariables {
   date: string;
   datetime: string;
   type: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export function buildTemplateVariables(

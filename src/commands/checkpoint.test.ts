@@ -22,6 +22,16 @@ function makeTempVaultDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-test-'));
 }
 
+function listCheckpointHistoryFiles(vaultPath: string): string[] {
+  const historyDir = path.join(vaultPath, '.clawvault', 'checkpoints');
+  if (!fs.existsSync(historyDir)) {
+    return [];
+  }
+  return fs.readdirSync(historyDir)
+    .filter((entry) => entry.endsWith('.json'))
+    .sort();
+}
+
 async function loadCheckpointModule() {
   vi.resetModules();
   return await import('./checkpoint.js');
@@ -37,6 +47,34 @@ afterEach(() => {
 });
 
 describe('checkpoint debounce', () => {
+  it('writes each flushed checkpoint to history with timestamped filenames', async () => {
+    vi.useFakeTimers();
+    const { checkpoint, flush } = await loadCheckpointModule();
+
+    const vaultPath = makeTempVaultDir();
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+      await checkpoint({ vaultPath, workingOn: 'first' });
+      await flush();
+
+      vi.setSystemTime(new Date('2026-01-01T00:00:01.000Z'));
+      await checkpoint({ vaultPath, workingOn: 'second' });
+      await flush();
+
+      expect(listCheckpointHistoryFiles(vaultPath)).toEqual([
+        '2026-01-01T00-00-00-000Z.json',
+        '2026-01-01T00-00-01-000Z.json'
+      ]);
+
+      const latest = JSON.parse(
+        fs.readFileSync(path.join(vaultPath, '.clawvault', 'last-checkpoint.json'), 'utf-8')
+      );
+      expect(latest.workingOn).toBe('second');
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
+
   it('coalesces rapid checkpoint calls into a single disk write', async () => {
     vi.useFakeTimers();
     const { checkpoint } = await loadCheckpointModule();
@@ -86,6 +124,56 @@ describe('checkpoint debounce', () => {
 
       await vi.advanceTimersByTimeAsync(2000);
       expect(fs.statSync(checkpointPath).mtimeMs).toBe(mtime);
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
+
+  it('prunes checkpoints older than 7 days when count exceeds 50', async () => {
+    vi.useFakeTimers();
+    const { checkpoint, flush } = await loadCheckpointModule();
+
+    const vaultPath = makeTempVaultDir();
+    try {
+      const baseTime = new Date('2026-01-01T00:00:00.000Z');
+      for (let index = 0; index < 60; index += 1) {
+        vi.setSystemTime(new Date(baseTime.getTime() + index * 1000));
+        await checkpoint({ vaultPath, workingOn: `old-${index}` });
+        await flush();
+      }
+
+      vi.setSystemTime(new Date(baseTime.getTime() + 10 * 24 * 60 * 60 * 1000));
+      await checkpoint({ vaultPath, workingOn: 'fresh' });
+      await flush();
+
+      const historyDir = path.join(vaultPath, '.clawvault', 'checkpoints');
+      const retainedRecords = fs.readdirSync(historyDir)
+        .filter((entry) => entry.endsWith('.json'))
+        .map((fileName) => JSON.parse(fs.readFileSync(path.join(historyDir, fileName), 'utf-8')));
+
+      expect(retainedRecords).toHaveLength(50);
+      expect(retainedRecords.some((record) => record.workingOn === 'fresh')).toBe(true);
+      expect(retainedRecords.some((record) => record.workingOn === 'old-0')).toBe(false);
+      expect(retainedRecords.some((record) => record.workingOn === 'old-59')).toBe(true);
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps more than 50 checkpoints when they are within 7 days', async () => {
+    vi.useFakeTimers();
+    const { checkpoint, flush } = await loadCheckpointModule();
+
+    const vaultPath = makeTempVaultDir();
+    try {
+      const baseTime = new Date('2026-01-01T00:00:00.000Z');
+      for (let index = 0; index < 55; index += 1) {
+        vi.setSystemTime(new Date(baseTime.getTime() + index * 60 * 1000));
+        await checkpoint({ vaultPath, workingOn: `recent-${index}` });
+        await flush();
+      }
+
+      expect(listCheckpointHistoryFiles(vaultPath)).toHaveLength(55);
     } finally {
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }
@@ -149,6 +237,31 @@ describe('checkpoint debounce', () => {
       expect(data.model).toBe('env-model');
       expect(data.tokenEstimate).toBe(456);
       expect(data.sessionStartedAt).toBe(savedState.startedAt);
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
+
+  it('populates recover --list history from checkpoint writes', async () => {
+    vi.useFakeTimers();
+    const { checkpoint, flush } = await loadCheckpointModule();
+    const { listCheckpoints } = await import('./recover.js');
+
+    const vaultPath = makeTempVaultDir();
+    try {
+      vi.setSystemTime(new Date('2026-02-01T10:00:00.000Z'));
+      await checkpoint({ vaultPath, workingOn: 'first', focus: 'setup' });
+      await flush();
+
+      vi.setSystemTime(new Date('2026-02-01T10:00:05.000Z'));
+      await checkpoint({ vaultPath, workingOn: 'second', focus: 'tests' });
+      await flush();
+
+      const listed = listCheckpoints(vaultPath);
+      expect(listed).toHaveLength(2);
+      expect(listed[0].workingOn).toBe('second');
+      expect(listed[1].workingOn).toBe('first');
+      expect(listed[0].filePath).toContain(path.join('.clawvault', 'checkpoints'));
     } finally {
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }

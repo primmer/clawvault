@@ -1,10 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { buildTemplateVariables, renderTemplate, TemplateVariables } from '../lib/template-engine.js';
+import {
+  buildTemplateIndex,
+  normalizeTemplateName,
+  parseTemplateDefinition,
+  renderDocumentFromTemplate,
+  listTemplateDefinitions as listPrimitiveTemplateDefinitions,
+  TEMPLATE_EXTENSION
+} from '../lib/primitive-templates.js';
 
 const VAULT_CONFIG_FILE = '.clawvault.json';
-const TEMPLATE_EXTENSION = '.md';
+const TEMPLATE_LIST_IGNORED_BUILTINS = new Set(['daily']);
 
 export interface TemplateCommandContext {
   vaultPath?: string;
@@ -20,27 +27,6 @@ export interface TemplateCreateOptions extends TemplateCommandContext {
 export interface TemplateAddOptions extends TemplateCommandContext {
   name: string;
   overwrite?: boolean;
-}
-
-function resolveBuiltinTemplatesDir(override?: string): string | null {
-  if (override) {
-    const resolved = path.resolve(override);
-    return fs.existsSync(resolved) ? resolved : null;
-  }
-
-  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    path.resolve(moduleDir, '../templates'),
-    path.resolve(moduleDir, '../../templates')
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-      return candidate;
-    }
-  }
-
-  return null;
 }
 
 function findVaultRoot(start: string): string | null {
@@ -69,11 +55,6 @@ function resolveVaultPath(options: TemplateCommandContext): string | null {
   return findVaultRoot(cwd);
 }
 
-function normalizeTemplateName(name: string): string {
-  const base = path.basename(name, path.extname(name));
-  return base.trim();
-}
-
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -83,45 +64,42 @@ function slugify(text: string): string {
     .trim();
 }
 
-function listTemplateFiles(dir: string, ignore?: Set<string>): Map<string, string> {
-  const entries = new Map<string, string>();
-  if (!fs.existsSync(dir)) return entries;
-
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith(TEMPLATE_EXTENSION)) continue;
-    const name = normalizeTemplateName(entry.name);
-    if (!name) continue;
-    if (ignore?.has(name)) continue;
-    entries.set(name, path.join(dir, entry.name));
-  }
-
-  return entries;
+function buildTemplateIndexForContext(options: TemplateCommandContext): Map<string, string> {
+  const vaultPath = resolveVaultPath(options) ?? undefined;
+  return buildTemplateIndex({
+    vaultPath,
+    builtinDir: options.builtinDir,
+    ignoreBuiltinNames: TEMPLATE_LIST_IGNORED_BUILTINS,
+  });
 }
 
-function buildTemplateIndex(options: TemplateCommandContext): Map<string, string> {
-  const index = new Map<string, string>();
-  const builtinDir = resolveBuiltinTemplatesDir(options.builtinDir);
-  if (builtinDir) {
-    const ignore = new Set(['daily']);
-    for (const [name, filePath] of listTemplateFiles(builtinDir, ignore)) {
-      index.set(name, filePath);
-    }
-  }
+export interface TemplateDefinitionInfo {
+  name: string;
+  primitive: string;
+  description?: string;
+  fields: string[];
+  path: string;
+  format: 'schema' | 'legacy';
+}
 
-  const vaultPath = resolveVaultPath(options);
-  if (vaultPath) {
-    const vaultTemplatesDir = path.join(vaultPath, 'templates');
-    for (const [name, filePath] of listTemplateFiles(vaultTemplatesDir)) {
-      index.set(name, filePath);
-    }
-  }
-
-  return index;
+export function listTemplateDefinitions(options: TemplateCommandContext = {}): TemplateDefinitionInfo[] {
+  const vaultPath = resolveVaultPath(options) ?? undefined;
+  return listPrimitiveTemplateDefinitions({
+    vaultPath,
+    builtinDir: options.builtinDir,
+    ignoreBuiltinNames: TEMPLATE_LIST_IGNORED_BUILTINS,
+  }).map((definition) => ({
+    name: definition.name,
+    primitive: definition.primitive,
+    description: definition.description,
+    fields: Object.keys(definition.fields),
+    path: definition.path,
+    format: definition.format,
+  }));
 }
 
 export function listTemplates(options: TemplateCommandContext = {}): string[] {
-  const index = buildTemplateIndex(options);
-  return [...index.keys()].sort();
+  return listTemplateDefinitions(options).map((definition) => definition.name);
 }
 
 export function createFromTemplate(
@@ -133,7 +111,7 @@ export function createFromTemplate(
     throw new Error('Template name is required.');
   }
 
-  const index = buildTemplateIndex(options);
+  const index = buildTemplateIndexForContext(options);
   const templatePath = index.get(templateName);
   if (!templatePath) {
     const available = [...index.keys()].sort();
@@ -148,7 +126,22 @@ export function createFromTemplate(
   const title = options.title ?? `${type} ${date}`.trim();
 
   const variables = buildTemplateVariables({ title, type, date }, now);
-  const rendered = renderTemplate(raw, variables);
+  const parsedTemplate = parseTemplateDefinition(raw, templateName, templatePath);
+  const rendered = parsedTemplate.format === 'schema'
+    ? renderDocumentFromTemplate(parsedTemplate, {
+      title,
+      type,
+      now,
+      variables: {
+        ...variables,
+        content: '',
+        links_line: '',
+        owner_link: '',
+        project_link: '',
+        team_links_line: '',
+      },
+    }).markdown
+    : renderTemplate(raw, variables);
 
   const cwd = options.cwd ?? process.cwd();
   const slug = slugify(title) || slugify(templateName) || `template-${date}`;

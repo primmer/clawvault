@@ -69,6 +69,61 @@ describe('project-utils', () => {
     expect(raw).toContain('[[Acme Corp]]');
   });
 
+  it('reads project schema defaults and body scaffold from vault templates', () => {
+    const templatesDir = path.join(tempDir, 'templates');
+    fs.mkdirSync(templatesDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(templatesDir, 'project.md'),
+      `---
+primitive: project
+fields:
+  type:
+    type: string
+    default: project
+  status:
+    type: string
+    default: paused
+  created:
+    type: datetime
+    default: "{{datetime}}"
+  updated:
+    type: datetime
+    default: "{{datetime}}"
+  owner:
+    type: string
+  client:
+    type: string
+  repo:
+    type: string
+  stack:
+    type: string
+    default: "repo={{repo}}"
+---
+# Project: {{title}}
+{{links_line}}
+{{content}}
+`
+    );
+
+    const project = createProject(tempDir, 'Template Project', {
+      owner: 'alice',
+      client: 'Acme',
+      repo: 'https://github.com/acme/template-project',
+      content: 'Ship the onboarding flow.'
+    });
+
+    expect(project.frontmatter.status).toBe('paused');
+    expect(project.frontmatter.owner).toBe('alice');
+    expect(project.frontmatter.client).toBe('Acme');
+    expect(project.frontmatter.repo).toBe('https://github.com/acme/template-project');
+    expect((project.frontmatter as Record<string, unknown>).stack).toBe('repo=https://github.com/acme/template-project');
+
+    const raw = fs.readFileSync(path.join(tempDir, 'projects', 'template-project.md'), 'utf-8');
+    expect(raw).toContain('# Project: Template Project');
+    expect(raw).toContain('[[alice]] | [[Acme]]');
+    expect(raw).toContain('Ship the onboarding flow.');
+  });
+
   it('lists projects with filters and ignores non-definition files', () => {
     createProject(tempDir, 'Apollo', {
       status: 'active',

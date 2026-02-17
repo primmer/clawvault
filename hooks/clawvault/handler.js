@@ -178,7 +178,7 @@ function shouldObserveActiveSessions(vaultPath, agentId) {
     const sessionId = typeof value.sessionId === 'string' ? value.sessionId.trim() : '';
     if (!/^[a-zA-Z0-9._-]{1,200}$/.test(sessionId)) continue;
 
-    const filePath = path.join(sessionsDir, `${sessionId}.jsonl`);
+    let filePath = path.join(sessionsDir, `${sessionId}.jsonl`);
     let stat;
     try {
       stat = fs.statSync(filePath);
@@ -186,6 +186,27 @@ function shouldObserveActiveSessions(vaultPath, agentId) {
       continue;
     }
     if (!stat.isFile()) continue;
+
+    // After /new or /reset, the main .jsonl is emptied — fall back to reset file
+    if (stat.size < 100) {
+      const resetPrefix = `${sessionId}.jsonl.reset.`;
+      try {
+        const resetFiles = fs.readdirSync(sessionsDir)
+          .filter(f => f.startsWith(resetPrefix))
+          .sort()
+          .reverse();
+        if (resetFiles.length > 0) {
+          const resetPath = path.join(sessionsDir, resetFiles[0]);
+          const resetStat = fs.statSync(resetPath);
+          if (resetStat.isFile() && resetStat.size > stat.size) {
+            filePath = resetPath;
+            stat = resetStat;
+          }
+        }
+      } catch {
+        // Ignore — use original file
+      }
+    }
 
     const fileSize = stat.size;
     const cursorEntry = cursors[sessionId];

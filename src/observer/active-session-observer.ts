@@ -305,8 +305,42 @@ function loadSessionIndex(sessionsDir: string): Record<string, SessionIndexEntry
   }
 }
 
+function findMostRecentResetFile(sessionsDir: string, sessionId: string): string | null {
+  const prefix = `${sessionId}.jsonl.reset.`;
+  try {
+    const files = fs.readdirSync(sessionsDir)
+      .filter(f => f.startsWith(prefix))
+      .sort()
+      .reverse();
+    return files.length > 0 ? path.join(sessionsDir, files[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
 function resolveTranscriptPath(sessionsDir: string, sessionId: string): string {
-  return path.join(sessionsDir, `${sessionId}.jsonl`);
+  const mainPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+
+  // After /new or /reset, OpenClaw rotates the session file:
+  // the main .jsonl is emptied and content moves to .jsonl.reset.{timestamp}
+  // Fall back to the reset file when the main file is empty or very small
+  try {
+    const stat = fs.statSync(mainPath);
+    if (stat.size < 100) {
+      const resetFile = findMostRecentResetFile(sessionsDir, sessionId);
+      if (resetFile) {
+        return resetFile;
+      }
+    }
+  } catch {
+    // Main file doesn't exist — check for reset file
+    const resetFile = findMostRecentResetFile(sessionsDir, sessionId);
+    if (resetFile) {
+      return resetFile;
+    }
+  }
+
+  return mainPath;
 }
 
 function discoverSessionDescriptors(sessionsDir: string, fallbackAgentId: string): SessionDescriptor[] {

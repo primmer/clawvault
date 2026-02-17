@@ -99,7 +99,9 @@ async function resolveVault(vaultPath?: string): Promise<ClawVault> {
   return found;
 }
 
-export async function doctor(vaultPath?: string): Promise<DoctorReport> {
+export async function doctor(options?: string | { vaultPath?: string; fix?: boolean }): Promise<DoctorReport> {
+  const vaultPath = typeof options === 'string' ? options : options?.vaultPath;
+  const _fix = typeof options === 'object' ? options?.fix : false;
   const checks: DoctorCheck[] = [];
   let warnings = 0;
   let errors = 0;

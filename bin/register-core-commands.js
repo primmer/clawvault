@@ -81,8 +81,14 @@ export function registerCoreCommands(
             '**/*.md'
           ]);
           console.log(chalk.green('✓ qmd collection created'));
-        } catch {
-          console.log(chalk.yellow('⚠ qmd collection may already exist'));
+        } catch (err) {
+          if (err instanceof QmdUnavailableError || err?.message?.includes('ENOENT') || err?.message?.includes('ERR_MODULE_NOT_FOUND')) {
+            console.log(chalk.yellow('⚠ qmd not available — skipping semantic search setup'));
+            console.log(chalk.dim('  Install qmd for semantic search: npm install -g github:tobi/qmd'));
+            console.log(chalk.dim('  Vault initialized successfully without qmd.'));
+          } else {
+            console.log(chalk.yellow('⚠ qmd collection may already exist'));
+          }
         }
 
         // Apply theme if requested

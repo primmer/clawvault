@@ -54,15 +54,50 @@ function findPackageRoot(): string {
   return path.dirname(fileURLToPath(import.meta.url));
 }
 
+function resolveOpenClawHooksDir(): string | null {
+  // Check standard OpenClaw hooks install paths
+  const candidates = [
+    path.join(process.env.HOME || '', '.openclaw', 'hooks', 'clawvault'),
+    path.join(process.env.OPENCLAW_HOME || '', 'hooks', 'clawvault'),
+    path.join(process.env.OPENCLAW_STATE_DIR || '', 'hooks', 'clawvault'),
+  ].filter(p => p && !p.startsWith(path.sep + 'hooks')); // filter out empty env vars
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 function resolveProjectFile(relativePath: string, baseDir?: string): string {
   if (baseDir) {
     return path.resolve(baseDir, relativePath);
   }
 
+  // Check cwd first
   const fromCwd = path.resolve(process.cwd(), relativePath);
   if (fs.existsSync(fromCwd)) {
     return fromCwd;
   }
+
+  // Check OpenClaw hooks install path (for hooks/clawvault/* files)
+  if (relativePath.startsWith('hooks/clawvault/')) {
+    const hooksDir = resolveOpenClawHooksDir();
+    if (hooksDir) {
+      const hookRelative = relativePath.replace('hooks/clawvault/', '');
+      const fromHooks = path.resolve(hooksDir, hookRelative);
+      if (fs.existsSync(fromHooks)) {
+        return fromHooks;
+      }
+      // Also check nested structure (hooks/clawvault/hooks/clawvault/)
+      const fromNestedHooks = path.resolve(hooksDir, 'hooks', 'clawvault', hookRelative);
+      if (fs.existsSync(fromNestedHooks)) {
+        return fromNestedHooks;
+      }
+    }
+  }
+
   return path.resolve(findPackageRoot(), relativePath);
 }
 

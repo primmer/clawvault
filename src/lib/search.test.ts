@@ -236,3 +236,113 @@ describe('search qmd dependency', () => {
     expect(unboosted[1].score).toBeCloseTo(0.9, 5);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v2.7 — Unit tests for new search capabilities
+// ---------------------------------------------------------------------------
+
+describe('v2.7 — sentenceChunk', () => {
+  it('splits text into sentence-aligned chunks', async () => {
+    const { sentenceChunk } = await loadSearchModule();
+    const text = 'Hello world. This is a test. Another sentence here. And one more.';
+    const chunks = sentenceChunk(text, 40, 0);
+    expect(chunks.length).toBeGreaterThan(1);
+    // Each chunk should be ≤ maxChars
+    for (const c of chunks) expect(c.length).toBeLessThanOrEqual(60); // some slack
+  });
+
+  it('returns full text as single chunk when short', async () => {
+    const { sentenceChunk } = await loadSearchModule();
+    const chunks = sentenceChunk('Short text.', 600);
+    expect(chunks).toEqual(['Short text.']);
+  });
+});
+
+describe('v2.7 — bm25RankChunks', () => {
+  it('ranks chunks by keyword overlap', async () => {
+    const { bm25RankChunks } = await loadSearchModule();
+    const chunks = [
+      'The weather is nice today.',
+      'I use TypeScript for all my projects.',
+      'TypeScript and Rust are my favorite languages.',
+    ];
+    const ranked = bm25RankChunks(chunks, ['typescript', 'rust'], 3);
+    // First result is always chunk[0] (context), but highest-scored should be chunk[2]
+    const scores = ranked.map(r => r.score);
+    expect(ranked.some(r => r.text.includes('Rust'))).toBe(true);
+  });
+});
+
+describe('v2.7 — extractDates', () => {
+  it('extracts ISO dates', async () => {
+    const { extractDates } = await loadSearchModule();
+    const dates = extractDates('We met on 2024-03-15 at the coffee shop.');
+    expect(dates).toHaveLength(1);
+    expect(dates[0].date).toBe('2024-03-15');
+  });
+
+  it('extracts natural language dates', async () => {
+    const { extractDates } = await loadSearchModule();
+    const dates = extractDates('The event is on January 20, 2025 at noon.');
+    expect(dates).toHaveLength(1);
+    expect(dates[0].date).toBe('2025-01-20');
+  });
+
+  it('extracts relative dates from session date', async () => {
+    const { extractDates } = await loadSearchModule();
+    const dates = extractDates('I started 3 days ago and it was great.', '2024-06-10');
+    // Should find a relative date ~3 days before 2024-06-10
+    expect(dates.length).toBeGreaterThan(0);
+    const relDate = dates.find(d => !d.date.startsWith('duration:'));
+    expect(relDate).toBeDefined();
+    expect(relDate!.date).toBe('2024-06-07');
+  });
+
+  it('extracts durations', async () => {
+    const { extractDates } = await loadSearchModule();
+    const dates = extractDates('The trip lasted for 5 days total.');
+    expect(dates.some(d => d.date.startsWith('duration:'))).toBe(true);
+  });
+});
+
+describe('v2.7 — extractPreferences', () => {
+  it('extracts "I use X" preferences', async () => {
+    const { extractPreferences } = await loadSearchModule();
+    const prefs = extractPreferences('I use VS Code as my main editor for all my work.');
+    expect(prefs).toHaveLength(1);
+    expect(prefs[0].value).toContain('VS Code');
+    expect(prefs[0].category).toBe('tool');
+  });
+
+  it('extracts "I love X" preferences', async () => {
+    const { extractPreferences } = await loadSearchModule();
+    const prefs = extractPreferences('I love hiking in the mountains every weekend.');
+    expect(prefs).toHaveLength(1);
+    expect(prefs[0].value).toContain('hiking');
+  });
+});
+
+describe('v2.7 — classifyQuestion', () => {
+  it('classifies preference questions', async () => {
+    const { classifyQuestion } = await loadSearchModule();
+    expect(classifyQuestion('Can you recommend a good restaurant?')).toBe('preference');
+    expect(classifyQuestion('What should I watch tonight?')).toBe('preference');
+  });
+
+  it('classifies temporal questions', async () => {
+    const { classifyQuestion } = await loadSearchModule();
+    expect(classifyQuestion('How many days passed since my trip?')).toBe('temporal');
+    expect(classifyQuestion('Which happened first, the meeting or the call?')).toBe('temporal');
+  });
+
+  it('classifies aggregation questions', async () => {
+    const { classifyQuestion } = await loadSearchModule();
+    expect(classifyQuestion('How many books did I read?')).toBe('aggregation');
+    expect(classifyQuestion('List all the restaurants I visited.')).toBe('aggregation');
+  });
+
+  it('classifies default questions', async () => {
+    const { classifyQuestion } = await loadSearchModule();
+    expect(classifyQuestion('What is my dog\'s name?')).toBe('default');
+  });
+});

@@ -75,6 +75,51 @@ export interface SearchOptions {
   fullContent?: boolean;
   /** Boost recent documents in ranking */
   temporalBoost?: boolean;
+  /**
+   * v2.7 — Enable chunk-level BM25 pre-filtering before semantic search.
+   * Chunks documents into ~600-char sentence windows and ranks chunks by
+   * keyword overlap so that relevant content deep in long documents isn't
+   * silently dropped by fixed-N embedding limits.
+   */
+  chunkPrefilter?: boolean;
+  /**
+   * v2.7 — Exhaustive threshold-based retrieval for aggregation queries.
+   * Instead of a fixed top_k, keeps pulling results until the normalised
+   * relevance score drops below this threshold (0-1).  Set to e.g. 0.01
+   * for aggregation / "list all" queries.  Overrides `limit` when set.
+   */
+  relevanceThreshold?: number;
+  /**
+   * v2.7 — Maximum results when using relevanceThreshold.
+   * Prevents runaway result sets. Default 40.
+   */
+  thresholdMaxResults?: number;
+}
+
+/**
+ * v2.7 — A date reference extracted from document content at ingest time.
+ */
+export interface ExtractedDate {
+  /** ISO date string (YYYY-MM-DD) or "duration:<value>" */
+  date: string;
+  /** Surrounding context snippet (~150 chars) */
+  context: string;
+  /** Document id the date was extracted from */
+  documentId: string;
+}
+
+/**
+ * v2.7 — An extracted user preference from conversation content.
+ */
+export interface ExtractedPreference {
+  /** The preference category (tool, hobby, brand, etc.) */
+  category: string;
+  /** The preference value */
+  value: string;
+  /** Document id it was extracted from */
+  documentId: string;
+  /** Surrounding context snippet */
+  context: string;
 }
 
 export interface StoreOptions {

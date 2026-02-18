@@ -117,7 +117,13 @@ export {
   qmdEmbed,
   QmdUnavailableError,
   QMD_INSTALL_COMMAND,
-  QMD_INSTALL_URL
+  QMD_INSTALL_URL,
+  // v2.7 additions
+  sentenceChunk,
+  bm25RankChunks,
+  extractDates,
+  extractPreferences,
+  classifyQuestion,
 } from './lib/search.js';
 export { getVaultPath, findNearestVaultPath, resolveVaultPath } from './lib/config.js';
 export { registerCliCommands } from './cli/index.js';
@@ -299,6 +305,8 @@ export type {
   Document,
   SearchResult,
   SearchOptions,
+  ExtractedDate,
+  ExtractedPreference,
   StoreOptions,
   SyncOptions,
   SyncResult,

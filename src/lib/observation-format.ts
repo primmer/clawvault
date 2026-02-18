@@ -44,7 +44,7 @@ const SCORED_LINE_RE =
 const EMOJI_LINE_RE = /^(?:-\s*)?(🔴|🟡|🟢)\s+(\d{2}:\d{2})?\s*(.+)$/u;
 
 const DECISION_RE = /\b(decis(?:ion|ions)?|decid(?:e|ed|ing)|chose|selected|opted|went with|picked)\b/i;
-const PREFERENCE_RE = /\b(prefer(?:ence|s|red)?|likes?|dislikes?|default to|always use|never use|enjoys?|loves?|favou?rite|fan of|interested in|go-to|tend(?:s)? to use|passionate about|hobby|hobbies)\b/i;
+const PREFERENCE_RE = /\b(prefer(?:ence|s|red)?|likes?|dislikes?|default to|always use|never use|enjoys?|loves?|favou?rite|fan of|interested in|go-to|tend(?:s)? to use|passionate about|hobby|hobbies|(?:I|my|our)\s+(?:own|have|use|got|bought|drive|wear|eat|drink|cook|play|watch|read|listen)|(?:I(?:'m| am))\s+(?:a |an |into |allergic|vegetarian|vegan|gluten|lactose|trying to|learning)|usually|every (?:morning|evening|night|day|week)|routine)\b/i;
 const COMMITMENT_RE = /\b(commit(?:ment|ted)?|promised|deadline|due|scheduled|will deliver|agreed to)\b/i;
 const TODO_RE = /(?:\btodo:\s*|\bwe need to\b|\bdon't forget(?: to)?\b|\bremember to\b|\bmake sure to\b)/i;
 const COMMITMENT_TASK_RE = /\b(?:i'?ll|i will|let me|(?:i'?m\s+)?going to|plan to|should)\b/i;

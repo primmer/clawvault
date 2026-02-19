@@ -1,182 +1,115 @@
 # ClawVault — Direction
 
-## The Problem
+## What It Is
 
-AI agents forget everything between sessions. They lose context, repeat mistakes, forget preferences, can't learn from experience. Every conversation starts from zero.
+Structured memory for AI agents. Typed markdown primitives that compound over time.
 
-Current solutions are either:
-- **Vector databases** (Mem0, LangMem) — unstructured blob storage, no schema, no audit trail, no human visibility
-- **RAG-only** (lancedb, chromadb) — retrieval without structure, can't distinguish a decision from a preference from a fact
-- **Prompt stuffing** — shove everything into context, hope the model figures it out
+Every memory is a markdown file with YAML frontmatter. A task, a decision, a person, a lesson — each follows a schema defined in `templates/`. The agent reads and writes these files. The human browses them in Obsidian. No database. No vendor lock-in. Just files.
 
-None of them give you **structured, typed, auditable memory that both agents and humans can read and write**.
+## One Package
 
-## What ClawVault Is
+```bash
+npm i clawvault
+```
 
-A structured memory system built on plain markdown files.
+You get:
+- **The CLI** — `clawvault init`, `clawvault setup`, `clawvault search`, `clawvault task`
+- **The OpenClaw plugin** — registers as memory slot, auto-captures observations, auto-recalls context
+- **Templates** — malleable YAML schemas for all primitive types
 
-Every memory is a **typed primitive** — a markdown document with frontmatter that follows a schema. A `decision` has a status, date, and rationale. A `task` has an owner, priority, and blocklist. A `person` has a relationship type and contact info. This isn't a database — it's a knowledge graph you can open in any text editor.
+One install. One package. Everything works.
 
-The vault is the **shared substrate** between agent and human:
-- The agent writes observations automatically (it doesn't know it's doing it)
-- The human browses and edits in Obsidian (or any markdown editor)
-- Wiki-links create a traversable knowledge graph
-- Everything is audited in an append-only event ledger
+## Malleable Primitives
 
-## The Ecosystem (4 packages)
+Every primitive is defined by a template in `templates/`. Don't like the default task schema? Drop your own `task.md` in your vault's `templates/` directory. The agent reads YOUR schema, not ours.
 
-### `clawvault` — The Engine
+Templates are YAML schema definitions:
 
-The CLI and core library. This is the foundation everything else builds on.
+```yaml
+---
+primitive: task
+fields:
+  status:
+    type: string
+    required: true
+    default: open
+    enum: [open, in-progress, blocked, done]
+  priority:
+    type: string
+    enum: [critical, high, medium, low]
+  owner:
+    type: string
+  due:
+    type: date
+---
+```
 
-**What it does:**
-- `clawvault init` — create a new vault with typed primitive directories
-- `clawvault store/capture/remember` — write memories
-- `clawvault search/vsearch` — BM25 and semantic search (via qmd)
-- `clawvault observe` — watch session transcripts, extract observations automatically
-- `clawvault reflect` — promote stable observations into consolidated reflections
-- `clawvault graph/entities/link` — knowledge graph operations
-- `clawvault task/project/backlog` — work tracking primitives
-- `clawvault context/inject` — generate task-relevant context for prompt injection
-- `clawvault wake/sleep/checkpoint/recover` — session lifecycle and context death resilience
-- `clawvault doctor/status/compat` — health diagnostics
-- `clawvault template` — manage primitive schemas
-- `clawvault replay` — import conversations from ChatGPT, Claude, OpenClaw, OpenCode
+Add fields. Remove fields. Create entirely new primitive types. The agent adapts.
 
-**What it becomes in v3:**
-Every write goes through the primitive registry and writer policy. Every mutation is logged to the event ledger. The CLI becomes a typed, auditable, policy-enforced vault engine — not just a collection of markdown helpers.
+## The Plugin
 
-**Published as:** `clawvault` on npm (already live, v2.7.0)
+The OpenClaw plugin owns three things:
 
-### `@versatly/clawvault-plugin` — The Agent Layer
+1. **Retrieval** — hybrid BM25 + vector search via qmd. When the agent asks "what do I know about X?", it gets the right answer.
+2. **Session recap** — on wake, inject what matters: active tasks, recent decisions, key preferences, current focus. Reads from vault dynamically, not hardcoded paths.
+3. **Auto-capture** — observe conversations, classify against template schemas, write typed primitives. The agent never calls `memory_store` — it just happens.
 
-The OpenClaw memory slot plugin. This is how agents USE ClawVault without thinking about it.
+The plugin reads `templates/` on boot. Adding a new template = the plugin can create that type. No code changes needed.
 
-**What it does:**
-- **Auto-capture** (observational) — hooks into `message_received` and `agent_end` events. Extracts preferences, decisions, facts, contacts, deadlines from conversation. The agent never calls `memory_store` — it just happens.
-- **Auto-recall** — before every agent turn, searches the vault for relevant context. Strips conversational noise, extracts real search terms, returns ranked results.
-- **Hybrid search** — BM25 keyword + vector similarity + reranking. Not just "nearest embedding."
-- **Tools** — `memory_search`, `memory_get`, `memory_store` (fallback), `memory_forget`
-- **Pre-compaction hook** — extracts important context before OpenClaw compacts conversation history
+## Onboarding
 
-**What it becomes in v3:**
-- Observations go through the primitive registry (typed as `memory_event` primitives)
-- Every capture is logged to the event ledger
-- Writer policy ensures the observer can only write `memory_event` types, not forge `decision` or `task` primitives
-- Quality gates (from arscontexta research): verify observations are retrievable and non-redundant before committing
+For new users: `clawvault init` creates a vault with default templates. Done.
 
-**Published as:** `@versatly/clawvault-plugin` on npm (not yet published)
+For existing OpenClaw users: `clawvault setup --from ~/.openclaw/workspace` scans existing memory files (MEMORY.md, daily logs, SOUL.md, USER.md), extracts people, preferences, decisions, and tasks, then creates typed vault primitives. The agent bootstraps its own vault from what it already knows.
 
-### `@versatly/clawvault-obsidian` — The Human Layer
+## Obsidian as Control Plane
 
-Obsidian plugin that makes agent memory visible and editable by humans.
+Every primitive is a markdown file. Your vault IS an Obsidian vault. Tasks are Kanban boards. Decisions are searchable. The knowledge graph grows with every interaction. No custom UI needed — Obsidian's ecosystem already renders everything.
 
-**What it does:**
-- **Graph view** — visualize the vault's knowledge graph (nodes = primitives, edges = wiki-links)
-- **Workstream view** — see active tasks, projects, blockers across the vault
-- **Ops dashboard** — vault health, observation counts, ledger activity
-- **Read from control plane snapshots** — `clawvault` generates snapshots, Obsidian renders them
+Five generated Bases views out of the box:
+- All tasks
+- Blocked items
+- By project
+- By owner
+- Backlog
 
-**What it becomes:**
-- Real-time sync (watch vault changes, live-update views)
-- Edit primitives with schema-aware forms (not raw frontmatter)
-- Approve/reject agent observations (human-in-the-loop memory curation)
-- Timeline view of the event ledger
+## Multi-Agent Collaboration
 
-**Published as:** `@versatly/clawvault-obsidian` (Obsidian community plugin + npm)
+Two agents sharing a vault share a world. Agent A creates a task. Agent B picks it up. Agent A makes a decision. Agent B reads it and adjusts. No message passing. No API. The filesystem is the message bus.
 
-### `@versatly/clawvault-sdk` — The API Layer
+## What Compounds
 
-TypeScript SDK for programmatic vault access. For building custom integrations.
+- **Decisions** accumulate into institutional knowledge
+- **Lessons** prevent repeated mistakes
+- **Tasks** with transition ledgers track how work happened
+- **Projects** group related work across hundreds of sessions
+- **Wiki-links** build a knowledge graph that grows richer over time
 
-**What it does:**
-- `vault.search(query)` / `vault.vsearch(query)` — search
-- `vault.observe(sessionPath)` — run observation pipeline
-- `vault.store(type, title, content)` — write a typed primitive
-- `vault.context(task)` — generate context injection
-- `vault.status()` / `vault.doctor()` — health checks
-
-**Published as:** `@versatly/clawvault-sdk` on npm (not yet published)
+The agent that runs for a year generates compounding value. Every lesson stored makes the next task cheaper.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  HUMAN (Obsidian)                │
-│           Browse, edit, approve memories         │
-│            @versatly/clawvault-obsidian          │
-└────────────────────┬────────────────────────────┘
-                     │ reads/writes markdown
-┌────────────────────▼────────────────────────────┐
-│               VAULT (markdown files)             │
-│                                                  │
-│  Typed primitives:  task, project, decision,     │
-│  lesson, person, memory_event, workspace, run    │
-│                                                  │
-│  Knowledge graph:  wiki-links between docs       │
-│  Event ledger:     append-only audit log         │
-│  Primitive registry: type definitions + policies │
-└────────┬───────────────────────────┬────────────┘
-         │                           │
-┌────────▼──────────┐    ┌──────────▼────────────┐
-│  AGENT (Plugin)   │    │   DEVELOPER (CLI)      │
-│  Observational    │    │   Vault CRUD           │
-│  capture + recall │    │   Search, graph, tasks │
-│  @versatly/       │    │   clawvault (npm)      │
-│  clawvault-plugin │    │                        │
-└───────────────────┘    └───────────────────────┘
+        HUMAN (Obsidian)
+        Browse, edit, approve
+              │
+              ▼
+     ┌─── VAULT (markdown) ───┐
+     │  Typed primitives       │
+     │  Knowledge graph        │
+     │  Template schemas       │
+     └───┬──────────────┬──────┘
+         │              │
+    AGENT (Plugin)   CLI (Developer)
+    Auto-capture     Direct CRUD
+    Auto-recall      Search, graph
+    Session recap    Tasks, projects
 ```
-
-## What Makes This Different
-
-1. **Structured, not blob storage.** Every memory has a type, schema, and policy. A decision is a decision, not a vector in a table.
-
-2. **Observational, not explicit.** The agent doesn't manage its own memory. It just talks. The plugin watches and extracts. This is how human memory works — you don't decide to remember, you just do.
-
-3. **Human-readable and human-editable.** It's markdown files. Open them in Obsidian, VS Code, vim, whatever. No proprietary format, no database to query, no export needed.
-
-4. **Auditable.** Every write is logged to the event ledger with actor, timestamp, and idempotency key. You can see exactly what the agent wrote, when, and why.
-
-5. **Policy-enforced.** Writer policies control who can write what. The observer can create `memory_event` primitives but can't forge a `decision`. The human can override anything. The agent can read everything but only write through sanctioned paths.
-
-6. **Works with any agent platform.** The CLI is platform-agnostic. The plugin targets OpenClaw today, but the SDK works with anything. Runtime adapters normalize events from OpenClaw, Claude Code, or any future platform.
-
-## Repo Structure
-
-```
-Versatly/clawvault
-├── src/                  # Engine source (TypeScript)
-│   ├── commands/         # CLI command implementations
-│   ├── lib/              # Core libraries
-│   ├── workgraph/        # Primitive registry, writer policy, event ledger
-│   ├── runtime/          # Platform adapters (OpenClaw, Claude Code)
-│   └── observer/         # Observation pipeline
-├── bin/                  # CLI entry point + command registration
-├── packages/
-│   ├── plugin/           # @versatly/clawvault-plugin
-│   ├── sdk/              # @versatly/clawvault-sdk
-│   └── obsidian/         # @versatly/clawvault-obsidian
-├── templates/            # Primitive schemas (14 types)
-├── shared/               # Constants (registry limits, identifier rules)
-├── hooks/                # Legacy OpenClaw hook pack
-├── schemas/              # JSON schemas
-├── scripts/              # Build scripts
-├── docs/                 # Product docs
-├── tests/                # Test suite
-└── .github/              # CI
-```
-
-## npm Publishing
-
-All packages under the `@versatly` org scope:
-- `clawvault` — root package (already on npm)
-- `@versatly/clawvault-plugin`
-- `@versatly/clawvault-sdk`
-- `@versatly/clawvault-obsidian`
 
 ## Priority
 
-1. **Plugin** — the thing people install and use today
-2. **CLI stability** — wire workgraph types into existing commands
-3. **Obsidian plugin** — make agent memory visible to humans
-4. **SDK** — programmatic access for integrations
+1. Plugin perfection (the thing users interact with)
+2. Onboarding (setup command for new + existing users)
+3. Template malleability (user-defined schemas)
+4. Obsidian integration
+5. Multi-agent vault sharing

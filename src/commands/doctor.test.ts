@@ -70,6 +70,10 @@ vi.mock('../lib/vault.js', () => ({
     getQmdCollection(): string {
       return 'vault';
     }
+
+    getQmdRoot(): string {
+      return this.vaultPath;
+    }
   },
   findVault: async () => null
 }));

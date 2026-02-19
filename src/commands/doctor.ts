@@ -25,6 +25,8 @@ export interface DoctorCheck {
 
 export interface DoctorReport {
   vaultPath?: string;
+  qmdCollection?: string;
+  qmdRoot?: string;
   checks: DoctorCheck[];
   warnings: number;
   errors: number;
@@ -55,7 +57,7 @@ function getShellConfigPaths(shellPath: string | undefined): string[] {
   const home = os.homedir();
   const shellName = shellPath ? path.basename(shellPath) : 'bash';
   if (shellName === 'zsh') {
-    return [path.join(home, '.zshrc'), path.join(home, '.zprofile')];
+    return [path.join(home, '.zshenv'), path.join(home, '.zshrc'), path.join(home, '.zprofile')];
   }
   if (shellName === 'fish') {
     return [path.join(home, '.config', 'fish', 'config.fish')];
@@ -175,11 +177,13 @@ export async function doctor(options?: string | { vaultPath?: string; fix?: bool
     return { vaultPath, checks, warnings, errors };
   }
 
+  const qmdCollection = vault.getQmdCollection();
+  const qmdRoot = vault.getQmdRoot();
+
   const stats = await vault.stats();
   const documents = await vault.list();
   const handoffs = await vault.list('handoffs');
   const inbox = await vault.list('inbox');
-  const qmdCollection = vault.getQmdCollection();
 
   if (qmdCollection) {
     checks.push({ label: 'qmd collection configured', status: 'ok', detail: qmdCollection });
@@ -361,5 +365,5 @@ export async function doctor(options?: string | { vaultPath?: string; fix?: bool
     warnings++;
   }
 
-  return { vaultPath: vault.getPath(), checks, warnings, errors };
+  return { vaultPath: vault.getPath(), qmdCollection, qmdRoot, checks, warnings, errors };
 }

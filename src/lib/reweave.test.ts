@@ -12,7 +12,7 @@ import {
   stripSupersededObservations,
   reweave,
 } from './reweave.js';
-import type { ParsedObservationRecord } from './observation-format.js';
+import type { ParsedObservationRecord, ObservationType } from './observation-format.js';
 
 // ---------------------------------------------------------------------------
 // Entity extraction
@@ -64,7 +64,7 @@ describe('entitySimilarity', () => {
 // ---------------------------------------------------------------------------
 
 describe('isKnowledgeUpdate', () => {
-  const makeObs = (content: string, date: string, type = 'fact' as const): ParsedObservationRecord => ({
+  const makeObs = (content: string, date: string, type: ObservationType = 'fact'): ParsedObservationRecord => ({
     date,
     type,
     confidence: 0.9,

@@ -36,7 +36,7 @@ export function registerMaintenanceCommands(program, { chalk }) {
             : check.status === 'warn'
               ? chalk.yellow('⚠')
               : chalk.red('✗');
-          const line = `${check.label}: ${check.detail}`;
+          const line = check.detail ? `${check.label}: ${check.detail}` : check.label;
           const renderedLine = check.status === 'ok'
             ? chalk.green(line)
             : check.status === 'warn'

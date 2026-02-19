@@ -1,5 +1,52 @@
 # Changelog
 
+## [3.1.0] — 2026-02-19
+
+### Changed
+- **Hooks → Plugin model** — migrated from `openclaw.hooks` to `openclaw.extensions`. Install via `openclaw plugins install clawvault` instead of `openclaw hooks install`.
+- **Plugin manifest** — `openclaw.plugin.json` defines the plugin with id, kind, configSchema, and uiHints.
+- **Production cleanup** — removed dead dependencies (force-graph, express, ws, puppeteer), removed legacy hooks/ from npm package.
+- **Complete README rewrite** — all documentation now reflects the plugin model.
+- **Comprehensive docs/** — added getting-started, plugin, templates, cli-reference, architecture, and migration guides.
+
+### Removed
+- `hooks/` directory no longer ships in npm package (legacy handler code).
+- Dead source modules: canvas-layout, canvas-templates, canvas-default-template, webdav, tailscale command/lib.
+- Unused dependencies: `force-graph`, `express`, `ws`, `puppeteer`.
+
+### Fixed
+- Vault instance data (`.clawvault/`, checkpoint files) no longer tracked in git.
+- `.gitignore` now properly excludes all vault instance directories.
+
+---
+
+## [3.0.0] — 2026-02-19
+
+### Added
+- **Template-driven plugin architecture** — plugin reads `templates/` on boot. Adding a new template means the plugin can create that type with no code changes.
+- **`clawvault setup` engine** — auto-discovers vault, creates 5 Obsidian Bases views (all-tasks, blocked, by-project, by-owner, backlog), validates structure.
+- **Single package** — CLI, plugin, and templates ship as one `clawvault` npm package.
+- **Malleable schemas** — user templates in vault's `templates/` override built-in defaults.
+- **OpenClaw plugin** — registers as memory slot with 4 tools (memory_search, memory_store, memory_get, memory_forget) and 4 lifecycle hooks (before_agent_start, message_received, agent_end, before_compaction).
+- **Auto-recall** — injects relevant memories before each agent turn via hybrid BM25 + vector search.
+- **Auto-capture** — observes conversations and stores durable knowledge automatically.
+- **15 built-in templates** — task, decision, lesson, person, project, checkpoint, handoff, daily, daily-note, trigger, run, party, workspace, memory-event, primitive-registry.
+- **`clawvault compat`** — checks plugin manifest, extensions entry, and OpenClaw compatibility.
+- **`clawvault plugin-path`** — prints plugin entry point for manual configuration.
+- **549 tests passing** across 69 test files.
+
+### Changed
+- Package exports now include `./plugin` subpath for direct plugin imports.
+- Build produces ESM + CJS + type declarations for both main and plugin entries.
+- `openclaw.extensions` field in package.json replaces `openclaw.hooks`.
+
+### Breaking
+- Requires OpenClaw plugin model (`openclaw plugins install`) instead of hooks (`openclaw hooks install`).
+- Old `openclaw.hooks` config is ignored — must reconfigure via plugin system.
+- See [migration guide](./docs/migration-v3.md) for upgrade steps.
+
+---
+
 ## [2.6.1] — 2026-02-16
 
 ### Fixed

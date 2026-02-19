@@ -1,6 +1,6 @@
 ---
 name: clawvault
-version: "3.0.0"
+version: "3.1.0"
 description: "Structured memory for AI agents. Typed markdown primitives that compound over time. Install to give any agent persistent, searchable, human-readable memory."
 user-invocable: true
 openclaw:
@@ -9,11 +9,10 @@ openclaw:
     bins: ["clawvault", "qmd"]
     env: []
   install:
-    - id: node
-      kind: node
+    - id: plugin
+      kind: openclaw-plugin
       package: clawvault
-      bins: ["clawvault"]
-      label: "Install ClawVault (npm)"
+      label: "Install ClawVault plugin"
     - id: qmd
       kind: node
       package: "github:tobi/qmd"
@@ -29,9 +28,20 @@ ClawVault gives agents persistent, typed, searchable memory using plain markdown
 
 Every memory is a **typed primitive** — a markdown file with YAML frontmatter following a schema. The agent reads and writes these files. Humans browse them in Obsidian or any editor.
 
+## Install
+
+### As OpenClaw Plugin (recommended)
+
 ```bash
-npm i -g clawvault
-clawvault init
+openclaw plugins install clawvault
+openclaw config set plugins.clawvault.config.vaultPath ~/my-vault
+openclaw gateway restart
+```
+
+### As Standalone CLI
+
+```bash
+npm install -g clawvault
 ```
 
 ## Primitives
@@ -49,58 +59,37 @@ ClawVault ships with these default primitive types (defined in `templates/`):
 
 Templates are **malleable** — users can edit `templates/*.md` to add fields, remove fields, or create entirely new primitive types. The agent reads the schema and adapts.
 
-## For OpenClaw Agents
+## OpenClaw Plugin
 
-ClawVault includes an OpenClaw memory plugin. When loaded, it:
+When installed as a plugin, ClawVault:
 
-1. **Auto-recalls** relevant memories before each agent turn
+1. **Auto-recalls** relevant memories before each agent turn (hybrid BM25 + vector search)
 2. **Auto-captures** observations from conversations (preferences, decisions, contacts)
 3. **Injects session recap** on first turn (active tasks, recent decisions, current focus)
 4. **Provides tools**: `memory_search`, `memory_get`, `memory_store`, `memory_forget`
 
-Configuration in OpenClaw:
-```json
-{
-  "plugins": {
-    "load": { "paths": ["clawvault/plugin"] },
-    "slots": { "memory": "clawvault" },
-    "entries": {
-      "clawvault": {
-        "enabled": true,
-        "config": { "vaultPath": "~/.openclaw/vault" }
-      }
-    }
-  }
-}
-```
+### Plugin Configuration
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `vaultPath` | — | Path to vault directory (required) |
+| `collection` | `clawvault` | qmd search collection name |
+| `autoRecall` | `true` | Inject memories before each turn |
+| `autoCapture` | `true` | Auto-store from conversations |
+| `recallLimit` | `5` | Max memories per recall (1-20) |
 
 ## Setting Up Your Vault
 
-### New Agent (No Existing Memory)
+### New Agent
 
 ```bash
-clawvault init --vault ~/.openclaw/vault
+clawvault init ~/my-vault --name my-brain
+clawvault setup   # creates Obsidian Bases views
 ```
 
-This creates the vault structure with default templates and directories.
+### Existing Agent (Has Memory/Workspace Files)
 
-### Existing Agent (Has Memory\/Workspace Files)
-
-If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily logs),
-set up your vault by reading those files and creating typed primitives:
-
-1. Run `clawvault init` to create the vault structure
-2. Read `templates/*.md` in your vault to learn the primitive schemas
-3. Read your existing memory files (MEMORY.md, memory/*.md, USER.md)
-4. For each piece of durable knowledge, create the appropriate primitive:
-   - People with contact info → `people/<name>.md` (person template)
-   - Decisions made → `decisions/<slug>.md` (decision template)
-   - Lessons learned → `lessons/<slug>.md` (lesson template)
-   - Active tasks → `tasks/<slug>.md` (task template)
-   - Preferences and facts → `memories/<slug>.md` (memory-event template)
-5. Search existing vault files before creating to avoid duplicates
-6. Run `clawvault setup` to configure Obsidian views and graph colors
-If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily logs), the agent should set up its own vault by reading its existing memory and creating typed primitives.
+If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily logs), the agent should set up its own vault by reading existing memory and creating typed primitives.
 
 **Agent directive for vault setup:**
 
@@ -112,50 +101,70 @@ If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily
 > - Preferences/facts → create `memories/slug.md` with memory-event template
 >
 > Read `templates/*.md` in your vault to understand the schema for each type.
-> Use YAML frontmatter matching the template fields. Write the details in the body.
 > Deduplicate: search existing vault files before creating new ones.
-
-The agent is better at classifying and extracting structured knowledge from unstructured text than any regex parser. Let it do the work.
 
 ## CLI Commands
 
+### Vault Management
 ```bash
-# Vault management
-clawvault init                    # Create new vault
-clawvault setup                   # Configure Obsidian views, graph colors
+clawvault init [path]             # Create new vault
+clawvault setup                   # Configure Obsidian views
 clawvault status                  # Vault health
 clawvault doctor                  # Diagnostics
+clawvault compat                  # Check OpenClaw compatibility
+```
 
-# Memory operations
-clawvault search "query"          # BM25 keyword search
-clawvault vsearch "query"         # Vector/semantic search
-clawvault observe <session>       # Extract observations from a session transcript
-clawvault reflect                 # Promote stable observations to reflections
+### Memory Operations
+```bash
+clawvault store                   # Store typed memory (interactive)
+clawvault capture <note>          # Quick-capture to inbox
+clawvault remember <type> <title> # Store typed memory directly
+clawvault list [category]         # List vault documents
+clawvault get <id>                # Get document by ID
+```
 
-# Primitives
-clawvault task add "title"        # Create task
-clawvault task done <slug>        # Complete task
+### Search
+```bash
+clawvault search <query>          # BM25 keyword search
+clawvault vsearch <query>         # Semantic vector search
+clawvault context <task>          # Task-relevant context
+clawvault inject <message>        # Inject rules/decisions/preferences
+```
+
+### Observation Pipeline
+```bash
+clawvault observe                 # Extract observations from sessions
+clawvault reflect                 # Promote to weekly reflections
+clawvault reweave                 # Backward consolidation
+clawvault replay <file>           # Import conversation exports
+```
+
+### Tasks & Projects
+```bash
+clawvault task add <title>        # Create task
 clawvault task list               # List tasks
+clawvault task done <slug>        # Complete task
 clawvault project list            # List projects
+clawvault kanban                  # Kanban board view
+clawvault blocked                 # Show blocked items
+```
 
-# Knowledge graph
-clawvault graph                   # Show graph stats
-clawvault entities                # List entity index
-clawvault link                    # Auto-link vault files
-
-# Session lifecycle
-clawvault wake                    # Generate session startup context
-clawvault sleep                   # End-of-session summary
-clawvault checkpoint              # Save current state
+### Session Lifecycle
+```bash
+clawvault wake                    # Start session (recover + recap)
+clawvault sleep <summary>         # End session with handoff
+clawvault checkpoint              # Save state checkpoint
 clawvault recover                 # Recover from context death
+```
 
-# Import
-clawvault replay <file>           # Import from ChatGPT/Claude/OpenClaw exports
+### Knowledge Graph
+```bash
+clawvault graph                   # Graph summary
+clawvault entities                # List linkable entities
+clawvault link [file]             # Auto-link entity mentions
 ```
 
 ## Template Schema Format
-
-Templates in `templates/*.md` define primitive schemas:
 
 ```yaml
 ---
@@ -173,16 +182,10 @@ fields:
     type: string
   due:
     type: date
-  tags:
-    type: string[]
 ---
-
-# {{title}}
-
-{{content}}
 ```
 
-To create a custom primitive: add a new `.md` file to `templates/` with the schema. The plugin discovers it automatically.
+To create a custom primitive: add a new `.md` file to `templates/` with the schema. The plugin discovers it automatically on next boot.
 
 ## Vault Structure
 

@@ -15,3 +15,57 @@ blog/
 robots.txt
 sitemap.xml
 generate-seo-assets.*
+
+# ============================================================================
+# PRIVATE — vault instance data (NOT part of the product)
+# ============================================================================
+
+# Eval experiments (internal benchmarking)
+eval/adapters/__pycache__/
+eval/results/
+eval/data/
+eval/LongMemEval
+eval/adapters/clawvault_v*.py
+eval/run_*.py
+eval/score_*.py
+eval/experiment_*.py
+eval/generate_*.py
+eval/split_*.py
+eval/extract_*.py
+
+# Cognition (internal agent thinking — not product code)
+cognition/
+
+# Vault instance data (user-specific, not product)
+tasks/
+goals/
+people/
+preferences/
+inbox/
+handoffs/
+commitments/
+ledger/
+transcripts/
+feedback/
+state/
+logs/
+research/
+observations/
+evolution/
+decisions/
+synthesis/
+
+# Internal state files
+*.base
+.clawvault-index.json
+.clawvault/graph-index.json
+
+# Obsidian workspace config
+.obsidian/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Trash
+.trash/

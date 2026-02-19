@@ -78,3 +78,11 @@ backlog/
 projects/ephemeral-websites.md
 projects/
 eval/
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Workspace artifacts  
+packages/*/dist/
+packages/*/node_modules/

@@ -213,6 +213,61 @@ describe('active-session-observer', () => {
     }
   });
 
+  it('sorts candidates by newBytes descending and limits with maxSessions', async () => {
+    const root = makeTempDir('clawvault-active-observe-maxsessions-');
+    const vaultPath = writeVault(root);
+    const sessionsDir = path.join(root, 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+
+    // Create 3 sessions with different sizes
+    const sessions = [
+      { id: 'small-session', key: 'agent:clawdious:main:small', content: messageLine('user', 'small') },
+      { id: 'large-session', key: 'agent:clawdious:main:large', content: messageLine('user', 'x'.repeat(500)) },
+      { id: 'medium-session', key: 'agent:clawdious:main:medium', content: messageLine('user', 'x'.repeat(200)) },
+    ];
+
+    const index: Record<string, { sessionId: string; updatedAt: number }> = {};
+    for (const s of sessions) {
+      index[s.key] = { sessionId: s.id, updatedAt: Date.now() };
+      fs.writeFileSync(path.join(sessionsDir, `${s.id}.jsonl`), `${s.content}\n`);
+    }
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify(index));
+
+    const processed: string[] = [];
+    const mockObserverFactory = () => ({
+      processMessages: async (_messages: string[], options?: unknown): Promise<void> => {
+        const transcriptId = (options as { transcriptId?: string } | undefined)?.transcriptId;
+        if (transcriptId) processed.push(transcriptId);
+      },
+      flush: async () => ({ observations: '', routingSummary: '' })
+    });
+
+    try {
+      // Without maxSessions: all 3 candidates, sorted by newBytes desc
+      const allResult = await observeActiveSessions(
+        { vaultPath, sessionsDir, minNewBytes: 1, dryRun: true },
+      );
+      expect(allResult.candidates.length).toBe(3);
+      // Verify sorted descending by newBytes
+      expect(allResult.candidates[0].newBytes).toBeGreaterThanOrEqual(allResult.candidates[1].newBytes);
+      expect(allResult.candidates[1].newBytes).toBeGreaterThanOrEqual(allResult.candidates[2].newBytes);
+
+      // With maxSessions=2: only top 2
+      processed.length = 0;
+      const limitedResult = await observeActiveSessions(
+        { vaultPath, sessionsDir, minNewBytes: 1, maxSessions: 2 },
+        { createObserver: mockObserverFactory }
+      );
+      expect(limitedResult.candidateSessions).toBe(2);
+      expect(limitedResult.observedSessions).toBe(2);
+      expect(processed.length).toBe(2);
+      // The largest session should be first
+      expect(processed[0]).toBe('large-session');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reports stale observer cursors when session file has grown for over 12h', () => {
     const root = makeTempDir('clawvault-observer-staleness-');
     const vaultPath = writeVault(root);

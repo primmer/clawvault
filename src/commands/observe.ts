@@ -27,6 +27,7 @@ export interface ObserveCommandOptions {
   sessionsDir?: string;
   dryRun?: boolean;
   cron?: boolean;
+  maxSessions?: number;
 }
 
 function parsePositiveInteger(raw: string, optionName: string): number {
@@ -168,7 +169,8 @@ export async function observeCommand(options: ObserveCommandOptions): Promise<vo
       threshold: options.threshold,
       reflectThreshold: options.reflectThreshold,
       model: options.model,
-      extractTasks: options.extractTasks
+      extractTasks: options.extractTasks,
+      maxSessions: options.maxSessions
     });
     const failedSessionCount = result.failedSessionCount ?? 0;
 
@@ -280,6 +282,7 @@ export function registerObserveCommand(program: Command): void {
     .option('--min-new <bytes>', 'Override minimum new-content threshold in bytes')
     .option('--sessions-dir <path>', 'Override OpenClaw sessions directory')
     .option('--dry-run', 'Show active observation candidates without compressing')
+    .option('--max-sessions <n>', 'Limit number of sessions to observe (recommended: 10)')
     .option('--threshold <n>', 'Compression token threshold', '30000')
     .option('--reflect-threshold <n>', 'Reflection token threshold', '40000')
     .option('--model <model>', 'LLM model override')
@@ -296,6 +299,7 @@ export function registerObserveCommand(program: Command): void {
       minNew?: string;
       sessionsDir?: string;
       dryRun?: boolean;
+      maxSessions?: string;
       threshold: string;
       reflectThreshold: string;
       model?: string;
@@ -312,6 +316,7 @@ export function registerObserveCommand(program: Command): void {
         minNew: rawOptions.minNew ? parsePositiveInteger(rawOptions.minNew, 'min-new') : undefined,
         sessionsDir: rawOptions.sessionsDir,
         dryRun: rawOptions.dryRun,
+        maxSessions: rawOptions.maxSessions ? parsePositiveInteger(rawOptions.maxSessions, 'max-sessions') : undefined,
         threshold: parsePositiveInteger(rawOptions.threshold, 'threshold'),
         reflectThreshold: parsePositiveInteger(rawOptions.reflectThreshold, 'reflect-threshold'),
         model: rawOptions.model,

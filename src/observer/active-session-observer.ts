@@ -33,6 +33,7 @@ export interface ActiveObserveOptions {
   reflectThreshold?: number;
   model?: string;
   extractTasks?: boolean;
+  maxSessions?: number;
 }
 
 export interface ActiveObservationCandidate {
@@ -102,6 +103,12 @@ interface ObserverStalenessOptions {
 interface IncrementalReadResult {
   messages: string[];
   nextOffset: number;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= ONE_MIB) return `${(bytes / ONE_MIB).toFixed(1)}MB`;
+  if (bytes >= ONE_KIB) return `${Math.round(bytes / ONE_KIB)}KB`;
+  return `${bytes}B`;
 }
 
 function isFiniteNonNegative(value: unknown): value is number {
@@ -674,7 +681,15 @@ export async function observeActiveSessions(
   const now = dependencies.now ?? (() => new Date());
   const cursors = loadObserveCursorStore(vaultPath);
   const descriptors = discoverSessionDescriptors(sessionsDir, agentId);
-  const candidates = selectCandidates(descriptors, cursors, options.minNewBytes);
+  const allCandidates = selectCandidates(descriptors, cursors, options.minNewBytes);
+
+  // Sort candidates by newBytes descending so highest-value sessions are processed first
+  allCandidates.sort((a, b) => b.newBytes - a.newBytes);
+
+  // Apply maxSessions limit if provided
+  const candidates = options.maxSessions != null && options.maxSessions > 0
+    ? allCandidates.slice(0, options.maxSessions)
+    : allCandidates;
 
   if (dryRun || candidates.length === 0) {
     return {
@@ -708,7 +723,9 @@ export async function observeActiveSessions(
   const routedCounts: Record<string, number> = {};
   const failedSessions: ActiveObservationFailure[] = [];
 
-  for (const candidate of candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    console.log(`[observer] processing session ${i + 1}/${candidates.length}: ${candidate.sessionKey} (${formatBytes(candidate.newBytes)} new)`);
     try {
       const observer = observerFactory(vaultPath, observerOptions);
       const { messages, nextOffset } = await readIncrementalMessages(candidate.filePath, candidate.startOffset);

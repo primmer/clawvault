@@ -16,7 +16,6 @@ const CONFIG_FILE = '.clawvault.json';
 export interface SetupOptions {
   graphColors?: boolean;
   bases?: boolean;
-  canvas?: boolean;
   theme?: 'neural' | 'minimal' | 'none';
   force?: boolean;
   vault?: string;
@@ -1099,11 +1098,10 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   }
 
   // Determine what to set up — if no explicit flags, do everything (unless --from is the only thing)
-  const explicitFlags = options.graphColors !== undefined || options.bases !== undefined || options.canvas !== undefined;
+  const explicitFlags = options.graphColors !== undefined || options.bases !== undefined;
   const fromOnly = options.from && !explicitFlags;
   const doGraphColors = fromOnly ? false : (explicitFlags ? (options.graphColors !== false) : true);
   const doBases = fromOnly ? false : (explicitFlags ? (options.bases !== false) : true);
-  const doCanvas = fromOnly ? false : (explicitFlags ? (options.canvas !== undefined && options.canvas !== false) : false);
 
   // Graph colors
   if (doGraphColors && theme !== 'none') {
@@ -1132,15 +1130,6 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
     }
   }
 
-  // Canvas
-  if (doCanvas) {
-    try {
-      const { canvasCommand } = await import('./canvas.js');
-      await canvasCommand(target.vaultPath);
-    } catch (err) {
-      console.log(`⚠ Canvas generation failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
 
   // qmd
   if (hasQmd()) {
@@ -1163,7 +1152,6 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   console.log('\nCustomize further:');
   console.log('  clawvault setup --theme neural     # Neural neural graph colors');
   console.log('  clawvault setup --theme minimal        # Subtle category colors');
-  console.log('  clawvault setup --canvas                # Generate vault status canvas');
   console.log('  clawvault setup --no-bases --no-graph-colors  # Structure only');
   console.log('  clawvault setup --from <path>           # Import from existing memory');
   console.log('  clawvault setup --force                 # Overwrite existing configs');

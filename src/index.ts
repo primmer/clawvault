@@ -107,8 +107,6 @@ export {
   registerMigrateObservationsCommand
 } from './commands/migrate-observations.js';
 export type { MigrateObservationsOptions, MigrateObservationsResult } from './commands/migrate-observations.js';
-export { syncBdCommand, registerSyncBdCommand } from './commands/sync-bd.js';
-export type { SyncBdCommandOptions } from './commands/sync-bd.js';
 export {
   sessionRecapCommand,
   buildSessionRecap,

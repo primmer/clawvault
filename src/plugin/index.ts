@@ -126,18 +126,14 @@ function observe(vaultPath: string, content: string, meta: { actor?: string; ses
   try {
     const args = ['observe', '--content', content];
     if (meta.tags?.length) args.push('--tags', meta.tags.join(','));
-    execFile('clawvault', args, {
-      cwd: vaultPath,
-      timeout: 15_000,
-      stdio: ['ignore', 'ignore', 'ignore'],
-    });
+    execFile('clawvault', args, { cwd: vaultPath, timeout: 15_000 }, () => {});
   } catch {}
 }
 
 function qmdUpdateAsync(collection: string): void {
   try {
-    execFile('qmd', ['update', '-c', collection], { timeout: 30_000, stdio: ['ignore', 'ignore', 'ignore'] });
-    execFile('qmd', ['embed', '-c', collection], { timeout: 60_000, stdio: ['ignore', 'ignore', 'ignore'] });
+    execFile('qmd', ['update', '-c', collection], { timeout: 30_000 }, () => {});
+    execFile('qmd', ['embed', '-c', collection], { timeout: 60_000 }, () => {});
   } catch {}
 }
 

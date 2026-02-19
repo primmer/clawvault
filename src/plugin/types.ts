@@ -2,6 +2,114 @@
  * Core types for ClawVault OpenClaw plugin
  */
 
+// ============================================================================
+// Template Types
+// ============================================================================
+
+export interface TemplateFieldSchema {
+  type: string;
+  required?: boolean;
+  default?: string | number | boolean;
+  enum?: string[];
+  description?: string;
+}
+
+export interface TemplateSchema {
+  primitive: string;
+  description?: string;
+  fields: Record<string, TemplateFieldSchema>;
+  bodyTemplate?: string;
+  keywords?: string[];
+}
+
+export interface TemplateRegistry {
+  schemas: Map<string, TemplateSchema>;
+  keywordIndex: Map<string, string[]>;
+  initialized: boolean;
+}
+
+export interface ClassificationResult {
+  primitiveType: string;
+  confidence: number;
+  matchedKeywords: string[];
+}
+
+// ============================================================================
+// Observation Types
+// ============================================================================
+
+export interface Observation {
+  text: string;
+  primitiveType: string;
+  confidence: number;
+  matchedKeywords: string[];
+  category: string;
+  tags: string[];
+  extractedAt: Date;
+}
+
+export interface ObservationResult {
+  observations: Observation[];
+  skipped: number;
+  reason?: string;
+}
+
+// ============================================================================
+// Vault File Types
+// ============================================================================
+
+export interface VaultFile {
+  path: string;
+  relativePath: string;
+  primitiveType: string;
+  frontmatter: Record<string, unknown>;
+  content: string;
+  modifiedAt: Date;
+  createdAt: Date;
+}
+
+export interface WriteOptions {
+  primitiveType?: string;
+  title?: string;
+  content?: string;
+  extraFields?: Record<string, unknown>;
+  source?: string;
+  sessionId?: string;
+  directory?: string;
+  filename?: string;
+  overwrite?: boolean;
+}
+
+export interface WriteResult {
+  success: boolean;
+  path: string;
+  primitiveType: string;
+  errors: string[];
+  created: boolean;
+  updated: boolean;
+}
+
+// ============================================================================
+// Context Injection Types
+// ============================================================================
+
+export interface SessionRecap {
+  xml: string;
+  fileCount: number;
+  primitiveGroups: Record<string, number>;
+  timeRange: { oldest: Date; newest: Date } | null;
+}
+
+export interface PreferenceContext {
+  xml: string;
+  preferenceCount: number;
+  categories: string[];
+}
+
+// ============================================================================
+// Message Types
+// ============================================================================
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;

@@ -40,6 +40,8 @@ const CHECKPOINT_FILE = 'last-checkpoint.json';
 const SESSION_STATE_FILE = 'session-state.json';
 const DIRTY_DEATH_FLAG = 'dirty-death.flag';
 const CHECKPOINT_HISTORY_DIR = 'checkpoints';
+const CHECKPOINT_RETENTION_MAX_COUNT = 50;
+const CHECKPOINT_RETENTION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 let pendingCheckpoint: NodeJS.Timeout | null = null;
 let pendingData: { dir: string; data: CheckpointData } | null = null;
@@ -52,6 +54,67 @@ function ensureClawvaultDir(vaultPath: string): string {
   return dir;
 }
 
+interface CheckpointHistoryEntry {
+  filePath: string;
+  timestampMs: number;
+}
+
+function readCheckpointHistoryEntries(historyDir: string): CheckpointHistoryEntry[] {
+  const entries: CheckpointHistoryEntry[] = [];
+  const files = fs.readdirSync(historyDir).filter((entry) => entry.endsWith('.json'));
+
+  for (const fileName of files) {
+    const filePath = path.join(historyDir, fileName);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        continue;
+      }
+
+      const timestamp = typeof (parsed as { timestamp?: unknown }).timestamp === 'string'
+        ? (parsed as { timestamp: string }).timestamp
+        : '';
+      const timestampMs = Date.parse(timestamp);
+      if (Number.isNaN(timestampMs)) {
+        continue;
+      }
+
+      entries.push({ filePath, timestampMs });
+    } catch {
+      // Ignore malformed history files; best-effort retention only.
+    }
+  }
+
+  return entries.sort((left, right) => {
+    if (right.timestampMs !== left.timestampMs) {
+      return right.timestampMs - left.timestampMs;
+    }
+    return right.filePath.localeCompare(left.filePath);
+  });
+}
+
+function pruneCheckpointHistory(historyDir: string, nowMs: number): void {
+  if (!fs.existsSync(historyDir)) {
+    return;
+  }
+
+  const entries = readCheckpointHistoryEntries(historyDir);
+  if (entries.length <= CHECKPOINT_RETENTION_MAX_COUNT) {
+    return;
+  }
+
+  for (let index = CHECKPOINT_RETENTION_MAX_COUNT; index < entries.length; index += 1) {
+    const ageMs = nowMs - entries[index].timestampMs;
+    if (ageMs > CHECKPOINT_RETENTION_MAX_AGE_MS) {
+      try {
+        fs.unlinkSync(entries[index].filePath);
+      } catch {
+        // Best-effort pruning; writes should still succeed if cleanup fails.
+      }
+    }
+  }
+}
+
 function writeCheckpointToDisk(dir: string, data: CheckpointData): void {
   const checkpointPath = path.join(dir, CHECKPOINT_FILE);
   fs.writeFileSync(checkpointPath, JSON.stringify(data, null, 2));
@@ -61,6 +124,7 @@ function writeCheckpointToDisk(dir: string, data: CheckpointData): void {
   const historyFileName = `${data.timestamp.replace(/[:.]/g, '-')}.json`;
   const historyPath = path.join(historyDir, historyFileName);
   fs.writeFileSync(historyPath, JSON.stringify(data, null, 2));
+  pruneCheckpointHistory(historyDir, Date.now());
 
   const flagPath = path.join(dir, DIRTY_DEATH_FLAG);
   fs.writeFileSync(flagPath, data.timestamp);

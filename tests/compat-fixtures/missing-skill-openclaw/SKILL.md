@@ -1,3 +1,3 @@
 ---
-metadata: {"emoji":"🐘"}
+title: ClawVault
 ---

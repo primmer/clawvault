@@ -30,9 +30,6 @@ export interface CompatCommandOptions {
   baseDir?: string;
 }
 
-const REQUIRED_HOOK_EVENTS = ['gateway:startup', 'command:new', 'session:start'];
-const REQUIRED_HOOK_BIN = 'clawvault';
-
 function readOptionalFile(filePath: string): string | null {
   try {
     if (!fs.existsSync(filePath)) return null;
@@ -50,24 +47,7 @@ function findPackageRoot(): string {
     }
     dir = path.dirname(dir);
   }
-  // Unreachable in practice — we're always inside the package
   return path.dirname(fileURLToPath(import.meta.url));
-}
-
-function resolveOpenClawHooksDir(): string | null {
-  // Check standard OpenClaw hooks install paths
-  const candidates = [
-    path.join(process.env.HOME || '', '.openclaw', 'hooks', 'clawvault'),
-    path.join(process.env.OPENCLAW_HOME || '', 'hooks', 'clawvault'),
-    path.join(process.env.OPENCLAW_STATE_DIR || '', 'hooks', 'clawvault'),
-  ].filter(p => p && !p.startsWith(path.sep + 'hooks')); // filter out empty env vars
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
 }
 
 function resolveProjectFile(relativePath: string, baseDir?: string): string {
@@ -75,27 +55,9 @@ function resolveProjectFile(relativePath: string, baseDir?: string): string {
     return path.resolve(baseDir, relativePath);
   }
 
-  // Check cwd first
   const fromCwd = path.resolve(process.cwd(), relativePath);
   if (fs.existsSync(fromCwd)) {
     return fromCwd;
-  }
-
-  // Check OpenClaw hooks install path (for hooks/clawvault/* files)
-  if (relativePath.startsWith('hooks/clawvault/')) {
-    const hooksDir = resolveOpenClawHooksDir();
-    if (hooksDir) {
-      const hookRelative = relativePath.replace('hooks/clawvault/', '');
-      const fromHooks = path.resolve(hooksDir, hookRelative);
-      if (fs.existsSync(fromHooks)) {
-        return fromHooks;
-      }
-      // Also check nested structure (hooks/clawvault/hooks/clawvault/)
-      const fromNestedHooks = path.resolve(hooksDir, 'hooks', 'clawvault', hookRelative);
-      if (fs.existsSync(fromNestedHooks)) {
-        return fromNestedHooks;
-      }
-    }
   }
 
   return path.resolve(findPackageRoot(), relativePath);
@@ -108,7 +70,7 @@ function checkOpenClawCli(): CompatCheck {
       label: 'openclaw CLI available',
       status: 'warn',
       detail: 'openclaw binary not found',
-      hint: 'Install OpenClaw CLI to enable hook runtime validation.'
+      hint: 'Install OpenClaw CLI to enable plugin runtime validation.'
     };
   }
   if (typeof result.status === 'number' && result.status !== 0) {
@@ -130,174 +92,126 @@ function checkOpenClawCli(): CompatCheck {
   return { label: 'openclaw CLI available', status: 'ok' };
 }
 
-function checkPackageHookRegistration(options: CompatOptions): CompatCheck {
-  let packageRaw = readOptionalFile(resolveProjectFile('package.json', options.baseDir));
+function checkPluginManifest(options: CompatOptions): CompatCheck {
+  const manifestRaw = readOptionalFile(
+    resolveProjectFile('openclaw.plugin.json', options.baseDir)
+  );
+  if (!manifestRaw) {
+    return {
+      label: 'plugin manifest',
+      status: 'error',
+      detail: 'openclaw.plugin.json not found',
+      hint: 'Create openclaw.plugin.json with id, kind, and configSchema fields.'
+    };
+  }
 
-  // If the cwd package.json exists but doesn't contain openclaw config,
-  // fall back to the installed clawvault package.json
+  try {
+    const manifest = JSON.parse(manifestRaw) as {
+      id?: string;
+      kind?: string;
+      configSchema?: unknown;
+    };
+    const issues: string[] = [];
+    if (!manifest.id) issues.push('missing id');
+    if (!manifest.kind) issues.push('missing kind');
+    if (!manifest.configSchema) issues.push('missing configSchema');
+
+    if (issues.length > 0) {
+      return {
+        label: 'plugin manifest',
+        status: 'error',
+        detail: issues.join(', ')
+      };
+    }
+    return {
+      label: 'plugin manifest',
+      status: 'ok',
+      detail: `id=${manifest.id} kind=${manifest.kind}`
+    };
+  } catch (err: any) {
+    return {
+      label: 'plugin manifest',
+      status: 'error',
+      detail: err?.message || 'Unable to parse openclaw.plugin.json'
+    };
+  }
+}
+
+function checkPluginExtensions(options: CompatOptions): CompatCheck {
+  let packageRaw = readOptionalFile(
+    resolveProjectFile('package.json', options.baseDir)
+  );
+
+  // If cwd package.json doesn't contain openclaw config, fall back to installed package
   if (packageRaw && !options.baseDir) {
     try {
-      const parsed = JSON.parse(packageRaw) as { openclaw?: { hooks?: string[] } };
-      if (!parsed.openclaw?.hooks) {
+      const parsed = JSON.parse(packageRaw) as {
+        openclaw?: { extensions?: string[] };
+      };
+      if (!parsed.openclaw?.extensions) {
         const fallbackPath = path.resolve(findPackageRoot(), 'package.json');
         const fallbackRaw = readOptionalFile(fallbackPath);
         if (fallbackRaw) packageRaw = fallbackRaw;
       }
     } catch {
-      // If parsing fails, continue with original
+      // continue with original
     }
   }
 
   if (!packageRaw) {
     return {
-      label: 'package hook registration',
+      label: 'plugin extensions registration',
       status: 'error',
       detail: 'package.json not found'
     };
   }
 
   try {
-    const parsed = JSON.parse(packageRaw) as { openclaw?: { hooks?: string[] } };
-    const registeredHooks = parsed.openclaw?.hooks ?? [];
-    if (registeredHooks.includes('./hooks/clawvault')) {
+    const parsed = JSON.parse(packageRaw) as {
+      openclaw?: { extensions?: string[] };
+    };
+    const extensions = parsed.openclaw?.extensions ?? [];
+    if (extensions.length === 0) {
       return {
-        label: 'package hook registration',
-        status: 'ok',
-        detail: './hooks/clawvault'
+        label: 'plugin extensions registration',
+        status: 'error',
+        detail: 'Missing openclaw.extensions in package.json',
+        hint: 'Add openclaw.extensions: ["./dist/plugin/index.js"] to package.json.'
       };
     }
+
+    // Verify entry files exist
+    const baseDir = options.baseDir || findPackageRoot();
+    const missing = extensions.filter(
+      (ext) => !fs.existsSync(path.resolve(baseDir, ext))
+    );
+    if (missing.length > 0) {
+      return {
+        label: 'plugin extensions registration',
+        status: 'error',
+        detail: `Entry file(s) not found: ${missing.join(', ')}`,
+        hint: 'Run npm run build to generate dist files.'
+      };
+    }
+
     return {
-      label: 'package hook registration',
-      status: 'error',
-      detail: 'Missing ./hooks/clawvault in package openclaw.hooks'
+      label: 'plugin extensions registration',
+      status: 'ok',
+      detail: extensions.join(', ')
     };
   } catch (err: any) {
     return {
-      label: 'package hook registration',
+      label: 'plugin extensions registration',
       status: 'error',
       detail: err?.message || 'Unable to parse package.json'
     };
   }
 }
 
-function checkHookManifest(options: CompatOptions): CompatCheck {
-  const hookRaw = readOptionalFile(resolveProjectFile('hooks/clawvault/HOOK.md', options.baseDir));
-  if (!hookRaw) {
-    return {
-      label: 'hook manifest',
-      status: 'error',
-      detail: 'HOOK.md not found'
-    };
-  }
-
-  try {
-    const parsed = matter(hookRaw);
-    const openclaw = (parsed.data?.metadata as { openclaw?: { events?: string[] } } | undefined)?.openclaw;
-    const events = Array.isArray(openclaw?.events) ? openclaw?.events ?? [] : [];
-    const missingEvents = REQUIRED_HOOK_EVENTS.filter((event) => !events.includes(event));
-    if (missingEvents.length === 0) {
-      return {
-        label: 'hook manifest events',
-        status: 'ok',
-        detail: events.join(', ')
-      };
-    }
-    return {
-      label: 'hook manifest events',
-      status: 'error',
-      detail: `Missing events: ${missingEvents.join(', ')}`
-    };
-  } catch (err: any) {
-    return {
-      label: 'hook manifest events',
-      status: 'error',
-      detail: err?.message || 'Unable to parse HOOK.md frontmatter'
-    };
-  }
-}
-
-function checkHookManifestRequirements(options: CompatOptions): CompatCheck {
-  const hookRaw = readOptionalFile(resolveProjectFile('hooks/clawvault/HOOK.md', options.baseDir));
-  if (!hookRaw) {
-    return {
-      label: 'hook manifest requirements',
-      status: 'error',
-      detail: 'HOOK.md not found'
-    };
-  }
-
-  try {
-    const parsed = matter(hookRaw);
-    const requiresBins = (
-      (parsed.data?.metadata as { openclaw?: { requires?: { bins?: string[] } } } | undefined)
-        ?.openclaw
-        ?.requires
-        ?.bins
-    );
-    const bins = Array.isArray(requiresBins) ? requiresBins : [];
-    if (bins.includes(REQUIRED_HOOK_BIN)) {
-      return {
-        label: 'hook manifest requirements',
-        status: 'ok',
-        detail: `bins: ${bins.join(', ')}`
-      };
-    }
-
-    return {
-      label: 'hook manifest requirements',
-      status: 'warn',
-      detail: `Missing required hook bin "${REQUIRED_HOOK_BIN}"`,
-      hint: 'Add metadata.openclaw.requires.bins: ["clawvault"] to hooks/clawvault/HOOK.md.'
-    };
-  } catch (err: any) {
-    return {
-      label: 'hook manifest requirements',
-      status: 'error',
-      detail: err?.message || 'Unable to parse HOOK.md frontmatter'
-    };
-  }
-}
-
-function checkHookHandlerSafety(options: CompatOptions): CompatCheck {
-  const handlerRaw = readOptionalFile(resolveProjectFile('hooks/clawvault/handler.js', options.baseDir));
-  if (!handlerRaw) {
-    return {
-      label: 'hook handler script',
-      status: 'error',
-      detail: 'handler.js not found'
-    };
-  }
-
-  const usesExecFileSync = handlerRaw.includes('execFileSync');
-  const usesExecSync = /\bexecSync\b/.test(handlerRaw);
-  const enablesShell = /\bshell\s*:\s*true\b/.test(handlerRaw);
-  const delegatesAutoProfile = /['"]--profile['"]\s*,\s*['"]auto['"]/.test(handlerRaw);
-
-  const violations: string[] = [];
-  if (!usesExecFileSync || usesExecSync) {
-    violations.push('execFileSync-only execution path');
-  }
-  if (enablesShell) {
-    violations.push('shell:false execution option');
-  }
-  if (!delegatesAutoProfile) {
-    violations.push('shared context profile delegation (--profile auto)');
-  }
-
-  if (violations.length > 0) {
-    return {
-      label: 'hook handler safety',
-      status: 'warn',
-      detail: `Missing conventions: ${violations.join(', ')}`,
-      hint: 'Use execFileSync (no shell), avoid execSync, and delegate profile inference via --profile auto.'
-    };
-  }
-
-  return { label: 'hook handler safety', status: 'ok' };
-}
-
 function checkSkillMetadata(options: CompatOptions): CompatCheck {
-  const skillRaw = readOptionalFile(resolveProjectFile('SKILL.md', options.baseDir));
+  const skillRaw = readOptionalFile(
+    resolveProjectFile('SKILL.md', options.baseDir)
+  );
   if (!skillRaw) {
     return {
       label: 'skill metadata',
@@ -312,17 +226,19 @@ function checkSkillMetadata(options: CompatOptions): CompatCheck {
   try {
     const parsed = matter(skillRaw);
     const frontmatter = (parsed.data ?? {}) as Record<string, unknown>;
-    const metadata = (
-      frontmatter.metadata
-      && typeof frontmatter.metadata === 'object'
-      && !Array.isArray(frontmatter.metadata)
-    )
-      ? frontmatter.metadata as Record<string, unknown>
-      : undefined;
+    const metadata =
+      frontmatter.metadata &&
+      typeof frontmatter.metadata === 'object' &&
+      !Array.isArray(frontmatter.metadata)
+        ? (frontmatter.metadata as Record<string, unknown>)
+        : undefined;
 
     hasOpenClawMetadata = Boolean(
-      (metadata && typeof metadata.openclaw === 'object' && metadata.openclaw !== null)
-      || (typeof frontmatter.openclaw === 'object' && frontmatter.openclaw !== null)
+      (metadata &&
+        typeof metadata.openclaw === 'object' &&
+        metadata.openclaw !== null) ||
+        (typeof frontmatter.openclaw === 'object' &&
+          frontmatter.openclaw !== null)
     );
   } catch {
     parseError = 'Unable to parse SKILL.md frontmatter';
@@ -348,14 +264,14 @@ function checkSkillMetadata(options: CompatOptions): CompatCheck {
   return { label: 'skill metadata', status: 'ok' };
 }
 
-export function checkOpenClawCompatibility(options: CompatOptions = {}): CompatReport {
+export function checkOpenClawCompatibility(
+  options: CompatOptions = {}
+): CompatReport {
   const checks = [
     checkOpenClawCli(),
-    checkPackageHookRegistration(options),
-    checkHookManifest(options),
-    checkHookManifestRequirements(options),
-    checkHookHandlerSafety(options),
-    checkSkillMetadata(options)
+    checkPluginManifest(options),
+    checkPluginExtensions(options),
+    checkSkillMetadata(options),
   ];
 
   const warnings = checks.filter((check) => check.status === 'warn').length;
@@ -365,7 +281,7 @@ export function checkOpenClawCompatibility(options: CompatOptions = {}): CompatR
     generatedAt: new Date().toISOString(),
     checks,
     warnings,
-    errors
+    errors,
   };
 }
 
@@ -377,12 +293,11 @@ function formatCompatibilityReport(report: CompatReport): string {
   lines.push('');
 
   for (const check of report.checks) {
-    const prefix = check.status === 'ok'
-      ? '✓'
-      : check.status === 'warn'
-        ? '⚠'
-        : '✗';
-    lines.push(`${prefix} ${check.label}${check.detail ? ` — ${check.detail}` : ''}`);
+    const prefix =
+      check.status === 'ok' ? '✓' : check.status === 'warn' ? '⚠' : '✗';
+    lines.push(
+      `${prefix} ${check.label}${check.detail ? ` — ${check.detail}` : ''}`
+    );
     if (check.hint) {
       lines.push(`  ${check.hint}`);
     }
@@ -407,7 +322,9 @@ export function compatibilityExitCode(
   return 0;
 }
 
-export async function compatCommand(options: CompatCommandOptions = {}): Promise<CompatReport> {
+export async function compatCommand(
+  options: CompatCommandOptions = {}
+): Promise<CompatReport> {
   const report = checkOpenClawCompatibility({ baseDir: options.baseDir });
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));

@@ -1,11 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "expectedCheckLabels": [
     "openclaw CLI available",
-    "package hook registration",
-    "hook manifest events",
-    "hook manifest requirements",
-    "hook handler safety",
+    "plugin manifest",
+    "plugin extensions registration",
     "skill metadata"
   ],
   "cases": [
@@ -17,10 +15,8 @@
     "expectedErrors": 0,
     "expectedCheckStatuses": {
       "openclaw CLI available": "ok",
-      "package hook registration": "ok",
-      "hook manifest events": "ok",
-      "hook manifest requirements": "ok",
-      "hook handler safety": "ok",
+      "plugin manifest": "ok",
+      "plugin extensions registration": "ok",
       "skill metadata": "ok"
     }
   },
@@ -76,61 +72,64 @@
     }
   },
   {
-    "name": "missing-requires-bin",
-    "description": "warning for missing metadata.openclaw.requires.bins.",
-    "expectedExitCode": 1,
-    "expectedWarnings": 1,
-    "expectedErrors": 0,
-    "expectedCheckStatuses": {
-      "hook manifest requirements": "warn"
-    },
-    "expectedDetailIncludes": {
-      "hook manifest requirements": "Missing required hook bin"
-    },
-    "expectedHintIncludes": {
-      "hook manifest requirements": "requires.bins"
-    }
-  },
-  {
-    "name": "non-auto-profile",
-    "description": "warning for missing --profile auto delegation.",
-    "expectedExitCode": 1,
-    "expectedWarnings": 1,
-    "expectedErrors": 0,
-    "expectedCheckStatuses": {
-      "hook handler safety": "warn"
-    },
-    "expectedDetailIncludes": {
-      "hook handler safety": "--profile auto"
-    },
-    "expectedHintIncludes": {
-      "hook handler safety": "--profile auto"
-    }
-  },
-  {
-    "name": "missing-events",
-    "description": "error for missing required hook events.",
+    "name": "missing-manifest",
+    "description": "error when openclaw.plugin.json is missing.",
     "expectedExitCode": 1,
     "expectedWarnings": 0,
     "expectedErrors": 1,
     "expectedCheckStatuses": {
-      "hook manifest events": "error"
+      "plugin manifest": "error"
     },
     "expectedDetailIncludes": {
-      "hook manifest events": "Missing events"
+      "plugin manifest": "openclaw.plugin.json not found"
+    },
+    "expectedHintIncludes": {
+      "plugin manifest": "openclaw.plugin.json"
     }
   },
   {
-    "name": "missing-package-hook",
-    "description": "error for missing openclaw.hooks registration.",
+    "name": "missing-extensions",
+    "description": "error when openclaw.extensions is missing from package.json.",
     "expectedExitCode": 1,
     "expectedWarnings": 0,
     "expectedErrors": 1,
     "expectedCheckStatuses": {
-      "package hook registration": "error"
+      "plugin extensions registration": "error"
     },
     "expectedDetailIncludes": {
-      "package hook registration": "Missing ./hooks/clawvault"
+      "plugin extensions registration": "Missing openclaw.extensions"
+    },
+    "expectedHintIncludes": {
+      "plugin extensions registration": "openclaw.extensions"
+    }
+  },
+  {
+    "name": "missing-entry-file",
+    "description": "error when extension entry file does not exist.",
+    "expectedExitCode": 1,
+    "expectedWarnings": 0,
+    "expectedErrors": 1,
+    "expectedCheckStatuses": {
+      "plugin extensions registration": "error"
+    },
+    "expectedDetailIncludes": {
+      "plugin extensions registration": "Entry file(s) not found"
+    },
+    "expectedHintIncludes": {
+      "plugin extensions registration": "npm run build"
+    }
+  },
+  {
+    "name": "incomplete-manifest",
+    "description": "error when openclaw.plugin.json is missing required fields.",
+    "expectedExitCode": 1,
+    "expectedWarnings": 0,
+    "expectedErrors": 1,
+    "expectedCheckStatuses": {
+      "plugin manifest": "error"
+    },
+    "expectedDetailIncludes": {
+      "plugin manifest": "missing kind"
     }
   },
   {
@@ -150,38 +149,6 @@
     }
   },
   {
-    "name": "unsafe-hook-handler",
-    "description": "warning for unsafe hook execution conventions (execSync, missing shared profile delegation).",
-    "expectedExitCode": 1,
-    "expectedWarnings": 1,
-    "expectedErrors": 0,
-    "expectedCheckStatuses": {
-      "hook handler safety": "warn"
-    },
-    "expectedDetailIncludes": {
-      "hook handler safety": "execFileSync-only execution path"
-    },
-    "expectedHintIncludes": {
-      "hook handler safety": "execFileSync"
-    }
-  },
-  {
-    "name": "unsafe-shell-handler",
-    "description": "warning for shell-enabled hook execution options.",
-    "expectedExitCode": 1,
-    "expectedWarnings": 1,
-    "expectedErrors": 0,
-    "expectedCheckStatuses": {
-      "hook handler safety": "warn"
-    },
-    "expectedDetailIncludes": {
-      "hook handler safety": "shell:false execution option"
-    },
-    "expectedHintIncludes": {
-      "hook handler safety": "no shell"
-    }
-  },
-  {
     "name": "missing-skill-file",
     "description": "warning for missing SKILL.md file entirely.",
     "expectedExitCode": 1,
@@ -195,10 +162,7 @@
     },
     "expectedHintIncludes": {
       "skill metadata": "Ensure SKILL.md is present"
-    },
-    "allowMissingFiles": [
-      "SKILL.md"
-    ]
+    }
   }
   ]
 }

@@ -1,6 +1,1 @@
-{
-  "name": "clawvault-fixture",
-  "openclaw": {
-    "hooks": ["./hooks/clawvault"]
-  }
-}
+{"name":"clawvault-fixture","openclaw":{"extensions":["./dist/plugin/index.js"]}}

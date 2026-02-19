@@ -5,7 +5,6 @@ import { registerObserveCommand } from '../commands/observe.js';
 import { registerReflectCommand } from '../commands/reflect.js';
 import { registerEmbedCommand } from '../commands/embed.js';
 import { registerReweaveCommand } from '../commands/reweave.js';
-import { registerTailscaleCommands } from '../commands/tailscale.js';
 
 export function registerCliCommands(program: Command): Command {
   registerContextCommand(program);
@@ -14,6 +13,5 @@ export function registerCliCommands(program: Command): Command {
   registerReflectCommand(program);
   registerEmbedCommand(program);
   registerReweaveCommand(program);
-  registerTailscaleCommands(program);
   return program;
 }

@@ -23,12 +23,8 @@ export function buildEntityIndex(vaultPath: string): EntityIndex {
   const entries = new Map<string, string>();
   const byPath = new Map<string, EntityEntry>();
   
-  // Folders to scan for entities — all vault knowledge categories
-  const entityFolders = [
-    'people', 'projects', 'agents', 'lessons', 'decisions', 'commitments',
-    'goals', 'tasks', 'cognition', 'rules', 'research', 'patterns',
-    'feedback', 'synthesis', 'evolution', 'preferences', 'backlog',
-  ];
+  // Folders to scan for entities
+  const entityFolders = ['people', 'projects', 'agents', 'lessons', 'decisions', 'commitments'];
   
   for (const folder of entityFolders) {
     const folderPath = path.join(vaultPath, folder);

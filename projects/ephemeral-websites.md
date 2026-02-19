@@ -6,7 +6,7 @@ tags: [product, agents, clawvault, deliverables, enterprise]
 created: 2026-02-18
 ---
 
-# [[projects/ephemeral-websites|Ephemeral Websites]]
+# Ephemeral Websites
 
 Agent-generated micro-sites that replace every static deliverable in business: slide decks, spreadsheets, internal reports, dashboards, proposals, onboarding docs, client updates. Not templates — living documents connected to dynamic data sources, spun up on demand, destroyed when done.
 
@@ -18,7 +18,7 @@ Every business runs on deliverables that are:
 - **Expensive** — hours of human formatting for something read once
 - **Unsearchable** — trapped in email attachments and shared drives
 
-[[projects/ephemeral-websites|Ephemeral websites]] flip all of this:
+Ephemeral websites flip all of this:
 - **Dynamic** — pull live data from ClawVault, APIs, databases at render time
 - **Connected** — one source of truth, always current
 - **Instant** — agent generates it in seconds, not hours
@@ -27,7 +27,7 @@ Every business runs on deliverables that are:
 
 ## Core Concept
 
-An agent deployed in a business (via [[projects/helios]]/OpenClaw) can:
+An agent deployed in a business (via HELIOS/OpenClaw) can:
 1. Observe a need ("Pedro needs Q4 numbers for the board meeting")
 2. Query ClawVault for relevant data, decisions, metrics, context
 3. Generate an ephemeral website — styled, interactive, data-rich

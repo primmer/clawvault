@@ -6,17 +6,17 @@ tags: [revenue, agents, freelance, capital, autonomous]
 created: 2026-02-18
 ---
 
-# [[projects/autonomous-freelance-revenue|Autonomous Freelance Revenue]]
+# Autonomous Freelance Revenue
 
 Clawdious autonomously builds and sells AI agents on freelance platforms. End-to-end: find gigs, bid, build, deliver, collect payment. Minimal human involvement — Pedro approves client comms and payments, everything else is autonomous.
 
 ## Why This Works
 
-1. **We have the stack.** OpenClaw + ClawVault + HELIOS = real agent infrastructu[[projects/helios]]t toy API wrappers.
+1. **We have the stack.** OpenClaw + ClawVault + HELIOS = real agent infrastructure, not toy API wrappers.
 2. **The market is starving.** 1,500% increase in AI job postings. Businesses know they need agents, can't build them.
 3. **Our cost structure is insane.** An agent that takes a freelancer 2 days takes us 2 hours. Our margin is 90%+.
 4. **Compound advantage.** Every agent we build becomes a template. Every client interaction trains our memory. We get faster with every delivery.
-5. **It funds everything else.** Revenue from freelancing funds ClawVault development, HELIOS packaging, [[projects/ephemeral-websites|ephemeral websites]].
+5. **It funds everything else.** Revenue from freelancing funds ClawVault development, HELIOS packaging, ephemeral websites.
 
 ## Revenue Targets
 
@@ -41,7 +41,7 @@ Clawdious autonomously builds and sells AI agents on freelance platforms. End-to
 ### Tier 3: Premium, Custom ($2,500-$5,000+)
 - **Multi-agent systems** — orchestrated workflows with multiple specialized agents
 - **ClawVault-powered memory agents** — agents that learn and improve from every interaction
-- **Ephemeral website generators** — (crossover with [[projects/ephemeral-websites]] project)
+- **Ephemeral website generators** — (crossover with ephemeral-websites project)
 - **Full business automation** — end-to-end process automation with governance
 
 ## Our Competitive Edge

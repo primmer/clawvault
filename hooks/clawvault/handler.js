@@ -566,31 +566,6 @@ function runObserverCron(vaultPath, agentId, options = {}) {
   } else {
     console.log('[clawvault] Observer cron: complete');
   }
-
-  // Auto-link after observation (non-blocking, best-effort)
-  try {
-    const linkResult = runClawvault(['link', '--all', '-v', vaultPath], { timeoutMs: 30000 });
-    if (linkResult.success && linkResult.output) {
-      console.log(`[clawvault] Auto-link: ${linkResult.output}`);
-    }
-  } catch (e) {
-    // Non-fatal — don't block observe flow
-  }
-
-  // Re-index qmd search + embeddings after observation (critical — stale index = broken memory)
-  try {
-    const qmdBin = 'qmd';
-    execFileSync(qmdBin, ['update'], {
-      encoding: 'utf-8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe']
-    });
-    execFileSync(qmdBin, ['embed'], {
-      encoding: 'utf-8', timeout: 120000, stdio: ['ignore', 'pipe', 'pipe']
-    });
-    console.log(`[clawvault] qmd reindex: update + embed done`);
-  } catch (e) {
-    // Non-fatal
-  }
-
   return true;
 }
 

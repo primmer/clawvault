@@ -1,14 +1,16 @@
 /**
- * ClawVault OpenClaw Plugin v2.1.0
+ * ClawVault OpenClaw Plugin v2.2.0
  *
- * Memory slot provider for OpenClaw. Observational memory architecture:
- * memories are captured automatically from conversations, not stored explicitly.
+ * Memory slot provider for OpenClaw. Template-driven observational memory architecture:
+ * memories are captured automatically from conversations, classified against template
+ * schemas, and stored with proper frontmatter validation.
  *
  * Architecture:
  *   ClawVault (engine) ←→ Plugin (integration) ←→ OpenClaw (agent platform)
  *   - ClawVault = vault, observations, search index, knowledge graph
  *   - Plugin = auto-recall, auto-capture, search tools, lifecycle hooks
  *   - OpenClaw = agent runtime, sessions, tools, channels
+ *   - Templates = schema definitions for primitive types
  *
  * The plugin does NOT give the agent a "store memory" tool. Memory is
  * observational: the system watches conversations and captures automatically.
@@ -16,9 +18,47 @@
  */
 
 import { execFileSync, execFile } from 'node:child_process';
-import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { Type } from '@sinclair/typebox';
+
+// Template-driven modules
+import {
+  initializeTemplateRegistry,
+  getSchema,
+  getAllSchemas,
+  getSchemaNames,
+  classifyText,
+  type TemplateRegistry,
+} from './src/templates.js';
+
+import {
+  isObservable,
+  extractObservations,
+  processMessageForObservations,
+  detectCategory,
+  extractSearchTerms,
+  type Observation,
+} from './src/observe.js';
+
+import {
+  buildSessionRecap,
+  buildPreferenceContext,
+  buildFullContext,
+  formatMemoriesForContext,
+  formatSearchResults,
+  scanVaultFiles,
+} from './src/inject.js';
+
+import {
+  writeVaultFile,
+  writeObservation,
+  appendToLedger,
+  appendObservationToLedger,
+  batchWriteObservations,
+  ensureVaultStructure,
+  type WriteResult,
+} from './src/vault.js';
 
 // ============================================================================
 // Vault Discovery
@@ -44,21 +84,6 @@ function getVaultConfig(vaultPath: string): any {
 // ============================================================================
 // Search Engine — Hybrid BM25 + Vector + Reranking
 // ============================================================================
-
-/**
- * Extract searchable keywords from conversational input.
- * Strips filler words and conversational fluff to improve search precision.
- */
-function extractSearchTerms(input: string): string {
-  // Remove common conversational noise
-  const noise = /\b(hey|hi|hello|um|uh|like|just|so|well|you know|i mean|basically|actually|really|very|pretty|quite|how does it feel|how do you|can you|could you|would you|do you|what do you think|tell me about)\b/gi;
-  let cleaned = input.replace(noise, ' ').replace(/\s+/g, ' ').trim();
-
-  // If we stripped too much, fall back to original
-  if (cleaned.length < 5) cleaned = input.trim();
-
-  return cleaned;
-}
 
 function qmdHybridSearch(query: string, collection: string, limit: number = 10): any[] {
   const sanitized = query.replace(/['']/g, ' ').replace(/[^\w\s\-.,?!]/g, ' ').trim();
@@ -94,13 +119,9 @@ function qmdHybridSearch(query: string, collection: string, limit: number = 10):
 }
 
 // ============================================================================
-// Observation Engine
+// Observation Engine (using clawvault CLI)
 // ============================================================================
 
-/**
- * Write an observation to the vault ledger (async, non-blocking).
- * This is the primary memory capture path.
- */
 function observe(vaultPath: string, content: string, meta: { actor?: string; session?: string; tags?: string[] } = {}): void {
   try {
     const args = ['observe', '--content', content];
@@ -113,26 +134,6 @@ function observe(vaultPath: string, content: string, meta: { actor?: string; ses
   } catch {}
 }
 
-/**
- * Append to the daily observation ledger directly (faster than CLI, no process spawn).
- */
-function appendToLedger(vaultPath: string, entry: string): void {
-  const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10);
-  const ledgerDir = join(vaultPath, 'ledger');
-  if (!existsSync(ledgerDir)) mkdirSync(ledgerDir, { recursive: true });
-  const ledgerFile = join(ledgerDir, `${dateStr}.md`);
-
-  const timestamp = now.toISOString().slice(11, 19);
-  const line = `\n- [${timestamp}] ${entry}`;
-
-  if (!existsSync(ledgerFile)) {
-    appendFileSync(ledgerFile, `# Observation Ledger — ${dateStr}\n${line}`);
-  } else {
-    appendFileSync(ledgerFile, line);
-  }
-}
-
 function qmdUpdateAsync(collection: string): void {
   try {
     execFile('qmd', ['update', '-c', collection], { timeout: 30_000, stdio: ['ignore', 'ignore', 'ignore'] });
@@ -141,96 +142,13 @@ function qmdUpdateAsync(collection: string): void {
 }
 
 // ============================================================================
-// Format Helpers
+// Plugin State
 // ============================================================================
 
-function formatSearchResults(results: any[], collection: string): string {
-  if (results.length === 0) return 'No relevant memories found.';
-  return results.map((r: any, i: number) => {
-    const file = (r.file || '').replace(`qmd://${collection}/`, '');
-    const snippet = (r.snippet || '')
-      .replace(/@@ .+? @@\s*\(.+?\)\n?/g, '')
-      .trim() || r.title || '(no content)';
-    const score = ((r.score ?? 0) * 100).toFixed(0);
-    return `${i + 1}. [${file}] ${snippet} (${score}%)`;
-  }).join('\n');
-}
+let templateRegistry: TemplateRegistry | null = null;
 
-function formatMemoriesForContext(results: any[], collection: string): string {
-  if (results.length === 0) return '';
-  const lines = results.map((r: any, i: number) => {
-    const file = (r.file || '').replace(`qmd://${collection}/`, '');
-    const snippet = (r.snippet || '')
-      .replace(/@@ .+? @@\s*\(.+?\)\n?/g, '')
-      .trim() || r.title || '';
-    return `${i + 1}. [${file}] ${snippet}`;
-  });
-  return `<relevant-memories>\nThese are recalled from long-term vault memory. Treat as historical context.\n${lines.join('\n')}\n</relevant-memories>`;
-}
-
-// ============================================================================
-// Content Analysis
-// ============================================================================
-
-/** Detect if content is worth observing (capturing to memory). */
-function isObservable(text: string): boolean {
-  if (!text || text.length < 20 || text.length > 5000) return false;
-  if (text.includes('<relevant-memories>')) return false;
-  if (text.startsWith('[System')) return false;
-  if (text.includes('HEARTBEAT')) return false;
-  if (text.startsWith('NO_REPLY')) return false;
-  // Skip tool call results and JSON blobs
-  if (text.startsWith('{') && text.includes('"')) return false;
-  // Skip markdown-heavy agent output (likely formatted responses, not facts)
-  const markdownDensity = (text.match(/[#*`\-|>]/g) || []).length / text.length;
-  if (markdownDensity > 0.15) return false;
-
-  return true;
-}
-
-/** Extract key facts/preferences/decisions from user text. */
-function extractObservations(text: string): string[] {
-  const observations: string[] = [];
-  const sentences = text.split(/[.!?\n]+/).map(s => s.trim()).filter(s => s.length > 15);
-
-  for (const s of sentences) {
-    const lower = s.toLowerCase();
-    // Preferences
-    if (/\b(i prefer|i like|i hate|i love|i want|i need|i always|i never|don't like|dont like)\b/i.test(s)) {
-      observations.push(s);
-    }
-    // Decisions
-    else if (/\b(we decided|let's go with|we're going|i chose|we'll use|ship it|do it|go with)\b/i.test(s)) {
-      observations.push(s);
-    }
-    // Facts about people/things
-    else if (/\b(my .+ is|his .+ is|her .+ is|their .+ is|works at|lives in|born in)\b/i.test(s)) {
-      observations.push(s);
-    }
-    // Contact info
-    else if (/[\w.-]+@[\w.-]+\.\w+|\+\d{10,}/.test(s)) {
-      observations.push(s);
-    }
-    // Explicit memory request
-    else if (/\b(remember|don't forget|keep in mind|note that|important:)\b/i.test(s)) {
-      observations.push(s);
-    }
-    // Deadlines/dates
-    else if (/\b(by tonight|by tomorrow|deadline|due date|by end of|ship by|ready by)\b/i.test(s)) {
-      observations.push(s);
-    }
-  }
-
-  return observations;
-}
-
-function detectCategory(text: string): string {
-  const lower = text.toLowerCase();
-  if (/prefer|like|love|hate|want|always|never/i.test(lower)) return 'preference';
-  if (/decided|will use|go with|ship|chose/i.test(lower)) return 'decision';
-  if (/\+\d{10,}|@[\w.-]+\.\w+|works at|lives in/i.test(lower)) return 'entity';
-  if (/deadline|by tonight|by tomorrow|due|ship by/i.test(lower)) return 'event';
-  return 'fact';
+export function getTemplateRegistry(): TemplateRegistry | null {
+  return templateRegistry;
 }
 
 // ============================================================================
@@ -240,8 +158,8 @@ function detectCategory(text: string): string {
 const clawvaultPlugin = {
   id: 'clawvault',
   name: 'ClawVault Memory',
-  description: 'Observational memory with hybrid search. Memories are captured automatically from conversations — the agent searches but does not manage memory.',
-  version: '2.1.0',
+  description: 'Template-driven observational memory with hybrid search. Memories are captured automatically from conversations and classified against template schemas.',
+  version: '2.2.0',
   kind: 'memory' as const,
 
   register(api: any) {
@@ -251,12 +169,21 @@ const clawvaultPlugin = {
     const autoCapture = api.pluginConfig?.autoCapture !== false;
     const recallLimit = api.pluginConfig?.recallLimit || 5;
 
+    // Initialize template registry on boot
+    const templatesDir = api.pluginConfig?.templatesDir ?? join(vaultPath, '..', '..', 'templates');
+    templateRegistry = initializeTemplateRegistry(templatesDir);
+    
+    api.logger.info(`[clawvault] Template registry initialized with ${templateRegistry.schemas.size} schemas`);
+
     if (!existsSync(join(vaultPath, '.clawvault.json'))) {
       api.logger.warn(`[clawvault] Vault not found at ${vaultPath}`);
       return;
     }
 
-    api.logger.info(`[clawvault] v2.1.0 vault=${vaultPath} collection=${collection} recall=${autoRecall} capture=${autoCapture}`);
+    // Ensure vault structure exists
+    ensureVaultStructure(vaultPath);
+
+    api.logger.info(`[clawvault] v2.2.0 vault=${vaultPath} collection=${collection} recall=${autoRecall} capture=${autoCapture}`);
 
     // ========================================================================
     // Tool: memory_search — the ONLY agent-facing memory tool
@@ -341,29 +268,37 @@ const clawvaultPlugin = {
                 vectors: vectorCount,
                 autoRecall,
                 autoCapture,
-                version: '2.1.0',
+                version: '2.2.0',
+                templateSchemas: templateRegistry?.schemas.size ?? 0,
               }, null, 2) }],
             };
           }
 
-          // preferences
-          const results = qmdHybridSearch('user preference likes dislikes prefers wants', collection, 20);
-          const prefResults = results.filter((r: any) =>
-            r.file?.includes('preference') ||
-            r.snippet?.toLowerCase().match(/prefer|like|want|hate|love|always|never/)
-          );
+          // preferences — dynamic scan instead of hardcoded paths
+          const prefContext = buildPreferenceContext(vaultPath, { limit: 20 });
+          
+          if (prefContext.preferenceCount === 0) {
+            // Fallback to search-based preference retrieval
+            const results = qmdHybridSearch('user preference likes dislikes prefers wants', collection, 20);
+            const prefResults = results.filter((r: any) =>
+              r.file?.includes('preference') ||
+              r.snippet?.toLowerCase().match(/prefer|like|want|hate|love|always|never/)
+            );
 
-          if (prefResults.length === 0) {
-            return { content: [{ type: 'text', text: 'No preferences found in vault.' }] };
+            if (prefResults.length === 0) {
+              return { content: [{ type: 'text', text: 'No preferences found in vault.' }] };
+            }
+
+            const text = prefResults.map((r: any, i: number) => {
+              const file = (r.file || '').replace(`qmd://${collection}/`, '');
+              const snippet = (r.snippet || '').replace(/@@ .+? @@\s*\(.+?\)\n?/g, '').trim() || r.title;
+              return `${i + 1}. [${file}] ${snippet}`;
+            }).join('\n');
+
+            return { content: [{ type: 'text', text }] };
           }
 
-          const text = prefResults.map((r: any, i: number) => {
-            const file = (r.file || '').replace(`qmd://${collection}/`, '');
-            const snippet = (r.snippet || '').replace(/@@ .+? @@\s*\(.+?\)\n?/g, '').trim() || r.title;
-            return `${i + 1}. [${file}] ${snippet}`;
-          }).join('\n');
-
-          return { content: [{ type: 'text', text }] };
+          return { content: [{ type: 'text', text: prefContext.xml }] };
         } catch (err) {
           return {
             content: [{ type: 'text', text: `Memory get error: ${String(err)}` }],
@@ -374,8 +309,7 @@ const clawvaultPlugin = {
     });
 
     // ========================================================================
-    // Tool: memory_store — writes to vault but is NOT the primary path
-    // The agent CAN store explicitly when asked, but auto-capture is primary.
+    // Tool: memory_store — writes to vault with template-aware frontmatter
     // ========================================================================
     api.registerTool({
       name: 'memory_store',
@@ -395,14 +329,43 @@ const clawvaultPlugin = {
       }),
       async execute(_id: string, params: { text: string; category?: string; tags?: string[] }) {
         try {
+          // Classify text against template registry
+          const classification = classifyText(params.text);
           const category = params.category || detectCategory(params.text);
-          const tags = params.tags || [category];
-          observe(vaultPath, params.text, { tags });
-          appendToLedger(vaultPath, `[${category}] ${params.text}`);
+          const tags = params.tags || [category, ...classification.matchedKeywords.slice(0, 3)];
+
+          // Write using template-aware vault writer
+          const result = writeVaultFile(vaultPath, {
+            primitiveType: classification.primitiveType,
+            title: params.text.slice(0, 80),
+            content: params.text,
+            extraFields: {
+              type: category,
+              confidence: classification.confidence,
+              tags,
+            },
+            source: 'openclaw',
+          });
+
+          // Also append to ledger for quick access
+          appendToLedger(vaultPath, {
+            timestamp: new Date(),
+            category,
+            content: params.text,
+            primitiveType: classification.primitiveType,
+            tags,
+          });
+
           qmdUpdateAsync(collection);
+
           return {
-            content: [{ type: 'text', text: `Stored: "${params.text.slice(0, 100)}${params.text.length > 100 ? '...' : ''}" [${category}]` }],
-            details: { action: 'created', category },
+            content: [{ type: 'text', text: `Stored: "${params.text.slice(0, 100)}${params.text.length > 100 ? '...' : ''}" [${classification.primitiveType}/${category}]` }],
+            details: { 
+              action: result.created ? 'created' : 'updated',
+              category,
+              primitiveType: classification.primitiveType,
+              path: result.path,
+            },
           };
         } catch (err) {
           return {
@@ -480,7 +443,7 @@ const clawvaultPlugin = {
 
     // ========================================================================
     // Hook: Auto-Recall (before_agent_start)
-    // Inject relevant memories before every agent turn.
+    // Inject relevant memories and session recap before every agent turn.
     // ========================================================================
     if (autoRecall) {
       api.on('before_agent_start', async (event: any) => {
@@ -488,18 +451,34 @@ const clawvaultPlugin = {
         if (event.prompt.includes('HEARTBEAT') || event.prompt.startsWith('[System')) return;
 
         try {
-          // Extract meaningful search terms from conversational input
+          const contextParts: string[] = [];
+
+          // Build dynamic session recap
+          const recap = buildSessionRecap(vaultPath, {
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            limit: 10,
+            includeContent: true,
+          });
+          if (recap.xml) {
+            contextParts.push(recap.xml);
+          }
+
+          // Extract meaningful search terms and search
           const searchTerms = extractSearchTerms(event.prompt);
           const results = qmdHybridSearch(searchTerms, collection, recallLimit);
-          if (results.length === 0) return;
+          
+          if (results.length > 0) {
+            const topScore = results[0]?.score ?? 0;
+            if (topScore >= 0.25) {
+              contextParts.push(formatMemoriesForContext(results, collection));
+              api.logger.info(`[clawvault] auto-recall: ${results.length} memories (top: ${(topScore * 100).toFixed(0)}%, query: "${searchTerms.slice(0, 60)}")`);
+            }
+          }
 
-          const topScore = results[0]?.score ?? 0;
-          if (topScore < 0.25) return;
-
-          api.logger.info(`[clawvault] auto-recall: ${results.length} memories (top: ${(topScore * 100).toFixed(0)}%, query: "${searchTerms.slice(0, 60)}")`);
+          if (contextParts.length === 0) return;
 
           return {
-            prependContext: formatMemoriesForContext(results, collection),
+            prependContext: contextParts.join('\n\n'),
           };
         } catch (err) {
           api.logger.warn(`[clawvault] auto-recall failed: ${String(err)}`);
@@ -509,23 +488,30 @@ const clawvaultPlugin = {
 
     // ========================================================================
     // Hook: Auto-Capture (message_received)
-    // Observe incoming user messages for important content.
-    // This is the PRIMARY memory capture path.
+    // Observe incoming user messages with template-based classification.
     // ========================================================================
     if (autoCapture) {
       api.on('message_received', async (event: any) => {
         if (!event.content || !isObservable(event.content)) return;
 
         try {
-          const observations = extractObservations(event.content);
-          if (observations.length === 0) return;
+          const result = processMessageForObservations(event.content, {
+            from: event.from,
+            sessionId: event.sessionId,
+          });
 
-          for (const obs of observations.slice(0, 5)) {
-            const category = detectCategory(obs);
-            appendToLedger(vaultPath, `[${category}] (${event.from || 'user'}) ${obs}`);
-          }
+          if (result.observations.length === 0) return;
 
-          api.logger.info(`[clawvault] auto-captured ${observations.length} observations from incoming message`);
+          // Write observations to vault
+          const writeResult = batchWriteObservations(vaultPath, result.observations, {
+            source: 'openclaw',
+            sessionId: event.sessionId,
+            actor: event.from || 'user',
+            writeLedger: true,
+            writeFiles: false, // Only write to ledger for speed
+          });
+
+          api.logger.info(`[clawvault] auto-captured ${writeResult.successful} observations from incoming message`);
         } catch (err) {
           api.logger.warn(`[clawvault] message capture failed: ${String(err)}`);
         }
@@ -539,14 +525,18 @@ const clawvaultPlugin = {
           let captured = 0;
           for (const msg of event.messages) {
             if (!msg || typeof msg !== 'object') continue;
+            
             // Capture user messages (primary)
             if (msg.role === 'user') {
               const content = typeof msg.content === 'string' ? msg.content :
                 Array.isArray(msg.content) ? msg.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join(' ') : '';
+              
               if (isObservable(content)) {
-                const observations = extractObservations(content);
-                for (const obs of observations) {
-                  observe(vaultPath, obs, { tags: [detectCategory(obs)] });
+                const result = processMessageForObservations(content);
+                
+                for (const obs of result.observations) {
+                  // Use CLI observe for background processing
+                  observe(vaultPath, obs.text, { tags: obs.tags });
                   captured++;
                 }
               }
@@ -597,16 +587,37 @@ const clawvaultPlugin = {
     api.registerCli(
       ({ program }: any) => {
         const cmd = program.command('vault').description('ClawVault memory commands');
+        
         cmd.command('status').action(() => {
           const config = getVaultConfig(vaultPath);
-          console.log(JSON.stringify({ vault: vaultPath, version: '2.1.0', ...config }, null, 2));
+          console.log(JSON.stringify({ 
+            vault: vaultPath, 
+            version: '2.2.0',
+            templateSchemas: templateRegistry?.schemas.size ?? 0,
+            ...config 
+          }, null, 2));
         });
+        
         cmd.command('search <query>')
           .option('-n, --limit <n>', 'Max results', '10')
           .action((query: string, opts: any) => {
             const results = qmdHybridSearch(query, collection, parseInt(opts.limit));
             console.log(formatSearchResults(results, collection));
           });
+        
+        cmd.command('templates').action(() => {
+          const schemas = getAllSchemas();
+          console.log('Registered template schemas:');
+          for (const schema of schemas) {
+            console.log(`  - ${schema.primitive}: ${schema.description || '(no description)'}`);
+            console.log(`    Fields: ${Object.keys(schema.fields).join(', ')}`);
+          }
+        });
+        
+        cmd.command('classify <text>').action((text: string) => {
+          const result = classifyText(text);
+          console.log(JSON.stringify(result, null, 2));
+        });
       },
       { commands: ['vault'] },
     );
@@ -634,7 +645,7 @@ const clawvaultPlugin = {
             vectorCount = p.vectors ?? p.vector_count ?? 0;
           } catch {}
           return {
-            text: `🧠 ClawVault v2.1.0\nVault: ${vaultPath}\nDocs: ${docCount} | Vectors: ${vectorCount}\nRecall: ${autoRecall ? '✅' : '❌'} | Capture: ${autoCapture ? '✅' : '❌'}`,
+            text: `🧠 ClawVault v2.2.0\nVault: ${vaultPath}\nDocs: ${docCount} | Vectors: ${vectorCount}\nRecall: ${autoRecall ? '✅' : '❌'} | Capture: ${autoCapture ? '✅' : '❌'}\nTemplates: ${templateRegistry?.schemas.size ?? 0} schemas`,
           };
         }
 
@@ -644,12 +655,56 @@ const clawvaultPlugin = {
           return { text: formatSearchResults(results, collection) };
         }
 
-        return { text: 'Usage: /vault [status|search <query>]' };
+        if (args === 'templates') {
+          const names = getSchemaNames();
+          return { text: `Template schemas: ${names.join(', ')}` };
+        }
+
+        if (args === 'recap') {
+          const recap = buildSessionRecap(vaultPath, { limit: 10, includeContent: true });
+          return { text: recap.xml || 'No recent activity found.' };
+        }
+
+        return { text: 'Usage: /vault [status|search <query>|templates|recap]' };
       },
     });
 
-    console.log(`[clawvault] v2.1.0 registered — vault=${vaultPath}`);
+    console.log(`[clawvault] v2.2.0 registered — vault=${vaultPath} templates=${templateRegistry?.schemas.size ?? 0}`);
   },
 };
 
 export default clawvaultPlugin;
+
+// Re-export modules for external use
+export {
+  initializeTemplateRegistry,
+  getSchema,
+  getAllSchemas,
+  getSchemaNames,
+  classifyText,
+} from './src/templates.js';
+
+export {
+  isObservable,
+  extractObservations,
+  processMessageForObservations,
+  detectCategory,
+  extractSearchTerms,
+} from './src/observe.js';
+
+export {
+  buildSessionRecap,
+  buildPreferenceContext,
+  buildFullContext,
+  formatMemoriesForContext,
+  formatSearchResults,
+  scanVaultFiles,
+} from './src/inject.js';
+
+export {
+  writeVaultFile,
+  writeObservation,
+  appendToLedger,
+  batchWriteObservations,
+  ensureVaultStructure,
+} from './src/vault.js';

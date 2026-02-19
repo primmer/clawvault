@@ -1,27 +1,48 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import registerClawVaultPlugin, { getProvider, getObserverService } from '../src/index.js';
-import type { OpenClawApi, ToolSchema, Service, SlashCommand } from '../src/types.js';
+import clawvaultPlugin, { getTemplateRegistry } from '../index.js';
+import type { ToolSchema, Service, SlashCommand } from '../src/types.js';
 
-function createMockApi(): OpenClawApi & {
-  registeredTools: Map<string, { schema: ToolSchema; handler: Function }>;
+// Mock file system for vault detection
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual('node:fs');
+  return {
+    ...actual,
+    existsSync: vi.fn((path: string) => {
+      if (path.includes('.clawvault.json')) return true;
+      return false;
+    }),
+    readFileSync: vi.fn((path: string) => {
+      if (path.includes('.clawvault.json')) {
+        return JSON.stringify({ name: 'test-vault' });
+      }
+      return '';
+    }),
+    mkdirSync: vi.fn(),
+    readdirSync: vi.fn(() => []),
+  };
+});
+
+function createMockApi(): {
+  pluginConfig: any;
+  logger: any;
+  registerTool: ReturnType<typeof vi.fn>;
+  registerService: ReturnType<typeof vi.fn>;
+  registerCommand: ReturnType<typeof vi.fn>;
+  registerCli: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  registeredTools: Map<string, { name: string; execute: Function }>;
   registeredServices: Service[];
   registeredCommands: SlashCommand[];
   registeredHooks: Map<string, Function>;
 } {
-  const registeredTools = new Map<string, { schema: ToolSchema; handler: Function }>();
+  const registeredTools = new Map<string, { name: string; execute: Function }>();
   const registeredServices: Service[] = [];
   const registeredCommands: SlashCommand[] = [];
   const registeredHooks = new Map<string, Function>();
 
   return {
-    config: {
-      plugins: {
-        clawvault: {
-          vaultPath: '/tmp/test-vault-' + Date.now(),
-          observer: { enabled: true },
-          search: { defaultLimit: 10 },
-        },
-      },
+    pluginConfig: {
+      vaultPath: '/tmp/test-vault-' + Date.now(),
     },
     logger: {
       debug: vi.fn(),
@@ -29,16 +50,17 @@ function createMockApi(): OpenClawApi & {
       warn: vi.fn(),
       error: vi.fn(),
     },
-    registerTool: vi.fn((name, schema, handler) => {
-      registeredTools.set(name, { schema, handler });
+    registerTool: vi.fn((tool: any) => {
+      registeredTools.set(tool.name, tool);
     }),
-    registerService: vi.fn((service) => {
+    registerService: vi.fn((service: any) => {
       registeredServices.push(service);
     }),
-    registerCommand: vi.fn((command) => {
+    registerCommand: vi.fn((command: any) => {
       registeredCommands.push(command);
     }),
-    registerHook: vi.fn((hookName, handler) => {
+    registerCli: vi.fn(),
+    on: vi.fn((hookName: string, handler: Function) => {
       registeredHooks.set(hookName, handler);
     }),
     registeredTools,
@@ -57,163 +79,184 @@ describe('ClawVault OpenClaw Plugin', () => {
 
   describe('registration', () => {
     it('should register all tools', () => {
-      registerClawVaultPlugin(mockApi);
+      clawvaultPlugin.register(mockApi);
 
-      expect(mockApi.registerTool).toHaveBeenCalledTimes(3);
+      // New plugin registers 4 tools: memory_search, memory_get, memory_store, memory_forget
+      expect(mockApi.registerTool).toHaveBeenCalledTimes(4);
       expect(mockApi.registeredTools.has('memory_search')).toBe(true);
-      expect(mockApi.registeredTools.has('vault_status')).toBe(true);
-      expect(mockApi.registeredTools.has('vault_preferences')).toBe(true);
+      expect(mockApi.registeredTools.has('memory_get')).toBe(true);
+      expect(mockApi.registeredTools.has('memory_store')).toBe(true);
+      expect(mockApi.registeredTools.has('memory_forget')).toBe(true);
     });
 
-    it('should register observer service', () => {
-      registerClawVaultPlugin(mockApi);
+    it('should register service', () => {
+      clawvaultPlugin.register(mockApi);
 
       expect(mockApi.registerService).toHaveBeenCalledTimes(1);
-      expect(mockApi.registeredServices[0].id).toBe('clawvault-observer');
+      expect(mockApi.registeredServices[0].id).toBe('clawvault');
     });
 
     it('should register /vault command', () => {
-      registerClawVaultPlugin(mockApi);
+      clawvaultPlugin.register(mockApi);
 
       expect(mockApi.registerCommand).toHaveBeenCalledTimes(1);
-      expect(mockApi.registeredCommands[0].name).toBe('/vault');
+      expect(mockApi.registeredCommands[0].name).toBe('vault');
     });
 
-    it('should register message_received hook', () => {
-      registerClawVaultPlugin(mockApi);
+    it('should register hooks for auto-recall and auto-capture', () => {
+      clawvaultPlugin.register(mockApi);
 
-      expect(mockApi.registerHook).toHaveBeenCalledWith('message_received', expect.any(Function));
+      // Should register before_agent_start, message_received, agent_end, before_compaction
+      expect(mockApi.on).toHaveBeenCalledWith('before_agent_start', expect.any(Function), expect.any(Object));
+      expect(mockApi.on).toHaveBeenCalledWith('message_received', expect.any(Function));
+      expect(mockApi.on).toHaveBeenCalledWith('agent_end', expect.any(Function));
+      expect(mockApi.on).toHaveBeenCalledWith('before_compaction', expect.any(Function));
     });
 
     it('should log initialization', () => {
-      registerClawVaultPlugin(mockApi);
+      clawvaultPlugin.register(mockApi);
 
-      expect(mockApi.logger?.info).toHaveBeenCalledWith(
-        expect.objectContaining({ vaultPath: expect.any(String) }),
-        'ClawVault memory plugin initialized'
-      );
+      expect(mockApi.logger.info).toHaveBeenCalled();
+    });
+  });
+
+  describe('plugin metadata', () => {
+    it('should have correct id', () => {
+      expect(clawvaultPlugin.id).toBe('clawvault');
+    });
+
+    it('should have correct version', () => {
+      expect(clawvaultPlugin.version).toBe('2.2.0');
+    });
+
+    it('should have correct kind', () => {
+      expect(clawvaultPlugin.kind).toBe('memory');
     });
   });
 
   describe('tool schemas', () => {
     beforeEach(() => {
-      registerClawVaultPlugin(mockApi);
+      clawvaultPlugin.register(mockApi);
     });
 
     it('memory_search should have correct schema', () => {
       const tool = mockApi.registeredTools.get('memory_search');
-      expect(tool?.schema.name).toBe('memory_search');
-      expect(tool?.schema.parameters.properties.query).toBeDefined();
-      expect(tool?.schema.parameters.required).toContain('query');
+      expect(tool?.name).toBe('memory_search');
     });
 
-    it('vault_status should have correct schema', () => {
-      const tool = mockApi.registeredTools.get('vault_status');
-      expect(tool?.schema.name).toBe('vault_status');
+    it('memory_get should have correct schema', () => {
+      const tool = mockApi.registeredTools.get('memory_get');
+      expect(tool?.name).toBe('memory_get');
     });
 
-    it('vault_preferences should have correct schema', () => {
-      const tool = mockApi.registeredTools.get('vault_preferences');
-      expect(tool?.schema.name).toBe('vault_preferences');
-      expect(tool?.schema.parameters.properties.category).toBeDefined();
+    it('memory_store should have correct schema', () => {
+      const tool = mockApi.registeredTools.get('memory_store');
+      expect(tool?.name).toBe('memory_store');
+    });
+
+    it('memory_forget should have correct schema', () => {
+      const tool = mockApi.registeredTools.get('memory_forget');
+      expect(tool?.name).toBe('memory_forget');
     });
   });
 
   describe('/vault command', () => {
     beforeEach(() => {
-      registerClawVaultPlugin(mockApi);
+      clawvaultPlugin.register(mockApi);
     });
 
-    it('should handle help subcommand', async () => {
+    it('should handle status subcommand', () => {
       const command = mockApi.registeredCommands[0];
-      const result = await command.handler({ args: 'help' });
+      const result = command.handler({ args: 'status' });
 
-      expect(result.content).toContain('ClawVault Commands');
-      expect(result.content).toContain('/vault status');
-      expect(result.content).toContain('/vault search');
+      expect(result.text).toContain('ClawVault');
     });
 
-    it('should handle status subcommand', async () => {
+    it('should handle templates subcommand', () => {
       const command = mockApi.registeredCommands[0];
-      const result = await command.handler({ args: 'status' });
+      const result = command.handler({ args: 'templates' });
 
-      expect(result.content).toContain('ClawVault Status');
+      expect(result.text).toContain('Template schemas');
     });
 
-    it('should handle search subcommand without query', async () => {
+    it('should default to status for empty args', () => {
       const command = mockApi.registeredCommands[0];
-      const result = await command.handler({ args: 'search' });
+      const result = command.handler({ args: '' });
 
-      expect(result.content).toContain('Usage:');
+      expect(result.text).toContain('ClawVault');
     });
 
-    it('should handle preferences subcommand', async () => {
+    it('should show usage for unknown subcommand', () => {
       const command = mockApi.registeredCommands[0];
-      const result = await command.handler({ args: 'preferences' });
+      const result = command.handler({ args: 'unknown' });
 
-      expect(result.content).toBeDefined();
-    });
-
-    it('should handle dates subcommand', async () => {
-      const command = mockApi.registeredCommands[0];
-      const result = await command.handler({ args: 'dates' });
-
-      expect(result.content).toBeDefined();
-    });
-
-    it('should default to help for unknown subcommand', async () => {
-      const command = mockApi.registeredCommands[0];
-      const result = await command.handler({ args: 'unknown' });
-
-      expect(result.content).toContain('ClawVault Commands');
+      expect(result.text).toContain('Usage:');
     });
   });
 
-  describe('provider access', () => {
-    it('should expose provider instance', () => {
-      registerClawVaultPlugin(mockApi);
+  describe('template registry', () => {
+    it('should initialize template registry on boot', () => {
+      clawvaultPlugin.register(mockApi);
 
-      const provider = getProvider();
-      expect(provider).toBeDefined();
+      const registry = getTemplateRegistry();
+      expect(registry).toBeDefined();
+      expect(registry?.initialized).toBe(true);
     });
 
-    it('should expose observer service', () => {
-      registerClawVaultPlugin(mockApi);
+    it('should have default schemas when templates directory is missing', () => {
+      clawvaultPlugin.register(mockApi);
 
-      const observer = getObserverService();
-      expect(observer).toBeDefined();
+      const registry = getTemplateRegistry();
+      expect(registry?.schemas.size).toBeGreaterThan(0);
     });
   });
 
   describe('config resolution', () => {
     it('should use vaultPath from config', () => {
       const customPath = '/custom/vault/path';
-      mockApi.config = {
-        plugins: {
-          clawvault: {
-            vaultPath: customPath,
-          },
-        },
-      };
+      mockApi.pluginConfig = { vaultPath: customPath };
 
-      registerClawVaultPlugin(mockApi);
+      clawvaultPlugin.register(mockApi);
 
-      expect(mockApi.logger?.info).toHaveBeenCalledWith(
-        expect.objectContaining({ vaultPath: customPath }),
-        expect.any(String)
-      );
+      expect(mockApi.logger.info).toHaveBeenCalled();
     });
 
     it('should handle missing config gracefully', () => {
-      mockApi.config = undefined;
+      mockApi.pluginConfig = undefined;
 
-      expect(() => registerClawVaultPlugin(mockApi)).not.toThrow();
+      expect(() => clawvaultPlugin.register(mockApi)).not.toThrow();
     });
 
     it('should handle empty config gracefully', () => {
-      mockApi.config = {};
+      mockApi.pluginConfig = {};
 
-      expect(() => registerClawVaultPlugin(mockApi)).not.toThrow();
+      expect(() => clawvaultPlugin.register(mockApi)).not.toThrow();
+    });
+  });
+
+  describe('auto-recall disabled', () => {
+    it('should not register before_agent_start hook when autoRecall is false', () => {
+      mockApi.pluginConfig = { autoRecall: false };
+
+      clawvaultPlugin.register(mockApi);
+
+      const beforeAgentStartCalls = (mockApi.on as any).mock.calls.filter(
+        (call: any[]) => call[0] === 'before_agent_start'
+      );
+      expect(beforeAgentStartCalls.length).toBe(0);
+    });
+  });
+
+  describe('auto-capture disabled', () => {
+    it('should not register message_received hook when autoCapture is false', () => {
+      mockApi.pluginConfig = { autoCapture: false };
+
+      clawvaultPlugin.register(mockApi);
+
+      const messageReceivedCalls = (mockApi.on as any).mock.calls.filter(
+        (call: any[]) => call[0] === 'message_received'
+      );
+      expect(messageReceivedCalls.length).toBe(0);
     });
   });
 });

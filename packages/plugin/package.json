@@ -1,6 +1,6 @@
 {
   "name": "@versatly/clawvault-plugin",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "ClawVault memory provider plugin for OpenClaw",
   "type": "module",
   "main": "index.ts",
@@ -44,7 +44,7 @@
   "license": "MIT",
   "dependencies": {
     "@sinclair/typebox": "^0.34.48",
-    "clawvault": "workspace:*"
+    "clawvault": "*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -46,6 +46,8 @@ async function loadHandler() {
 afterEach(() => {
   vi.clearAllMocks();
   delete process.env.CLAWVAULT_PATH;
+  delete process.env.OPENCLAW_MEMORY_PATH;
+  delete process.env.OPENCLAW_VAULT_PATH;
   delete process.env.OPENCLAW_STATE_DIR;
   delete process.env.OPENCLAW_HOME;
   delete process.env.OPENCLAW_AGENT_ID;
@@ -94,6 +96,28 @@ describe('clawvault hook handler', () => {
       event: 'command:new',
       sessionKey: 'agent:clawdious:main',
       context: { commandSource: 'cli' }
+    });
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'clawvault',
+      expect.arrayContaining(['checkpoint', '--working-on']),
+      expect.objectContaining({ shell: false })
+    );
+
+    fs.rmSync(vaultPath, { recursive: true, force: true });
+  });
+
+  it('supports slash-prefixed command actions for /new', async () => {
+    const vaultPath = makeVaultFixture();
+    process.env.CLAWVAULT_PATH = vaultPath;
+    execFileSyncMock.mockReturnValue('');
+
+    const handler = await loadHandler();
+    await handler({
+      type: 'command',
+      action: '/new',
+      sessionKey: 'agent:clawdious:main',
+      context: { commandSource: 'slash' }
     });
 
     expect(execFileSyncMock).toHaveBeenCalledWith(
@@ -239,6 +263,58 @@ describe('clawvault hook handler', () => {
     );
 
     fs.rmSync(vaultPath, { recursive: true, force: true });
+  });
+
+  it('supports compaction action separator variants', async () => {
+    const vaultPath = makeVaultFixture();
+    process.env.CLAWVAULT_PATH = vaultPath;
+    execFileSyncMock.mockReturnValue('');
+
+    const handler = await loadHandler();
+    await handler({
+      type: 'compaction',
+      action: 'memory_flush',
+      sessionKey: 'agent:clawdious:main'
+    });
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'clawvault',
+      expect.arrayContaining(['observe', '--cron', '--min-new', '1']),
+      expect.objectContaining({ shell: false })
+    );
+
+    fs.rmSync(vaultPath, { recursive: true, force: true });
+  });
+
+  it('discovers canonical ~/memory vault when env and cwd do not provide one', async () => {
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-home-'));
+    const vaultPath = path.join(fakeHome, 'memory');
+    fs.mkdirSync(vaultPath, { recursive: true });
+    fs.writeFileSync(path.join(vaultPath, '.clawvault.json'), JSON.stringify({ name: 'home' }), 'utf-8');
+    const originalHome = process.env.HOME;
+    process.env.HOME = fakeHome;
+    try {
+      execFileSyncMock.mockReturnValue('');
+
+      const handler = await loadHandler();
+      await handler({
+        eventName: 'compaction:memoryFlush',
+        sessionKey: 'agent:main:main'
+      });
+
+      expect(execFileSyncMock).toHaveBeenCalledWith(
+        'clawvault',
+        expect.arrayContaining(['observe', '--cron', '-v', vaultPath]),
+        expect.objectContaining({ shell: false })
+      );
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
   });
 
   it('runs weekly reflection on cron.weekly at Sunday midnight', async () => {

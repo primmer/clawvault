@@ -70,6 +70,30 @@ describe('checkOpenClawCompatibility', () => {
     }
   });
 
+  it('uses installed package metadata by default when cwd package is unrelated', async () => {
+    spawnSyncMock.mockReturnValue({ error: undefined, status: 0 });
+    const cwdFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-compat-cwd-'));
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(cwdFixture);
+    try {
+      fs.writeFileSync(
+        path.join(cwdFixture, 'package.json'),
+        JSON.stringify({
+          name: 'unrelated-app',
+          version: '0.0.1'
+        }),
+        'utf-8'
+      );
+      const { checkOpenClawCompatibility } = await loadCompatModule();
+      const report = checkOpenClawCompatibility();
+      const packageCheck = report.checks.find((check) => check.label === 'package hook registration');
+      expect(packageCheck?.status).toBe('ok');
+      expect(packageCheck?.detail).toContain('./hooks/clawvault');
+    } finally {
+      cwdSpy.mockRestore();
+      fs.rmSync(cwdFixture, { recursive: true, force: true });
+    }
+  });
+
   it('flags missing openclaw binary as warning', async () => {
     spawnSyncMock.mockReturnValue({ error: new Error('missing') });
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-compat-'));

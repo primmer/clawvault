@@ -21,7 +21,7 @@ const MAX_CONTEXT_PROMPT_LENGTH = 500;
 const MAX_CONTEXT_SNIPPET_LENGTH = 220;
 const MAX_RECAP_RESULTS = 6;
 const MAX_RECAP_SNIPPET_LENGTH = 220;
-const EVENT_NAME_SEPARATOR_RE = /[.:/]/g;
+const EVENT_NAME_SEPARATOR_RE = /[._:\/-]+/g;
 const OBSERVE_CURSOR_FILE = 'observe-cursors.json';
 const ONE_KIB = 1024;
 const ONE_MIB = ONE_KIB * ONE_KIB;
@@ -387,16 +387,28 @@ function normalizeEventToken(value) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '')
-    .replace(EVENT_NAME_SEPARATOR_RE, ':');
+    .replace(EVENT_NAME_SEPARATOR_RE, ':')
+    .replace(/^:+|:+$/g, '');
+}
+
+function collapseEventToken(value) {
+  return normalizeEventToken(value).replace(/:/g, '');
 }
 
 function eventMatches(event, type, action) {
-  const normalizedExpected = `${normalizeEventToken(type)}:${normalizeEventToken(action)}`;
+  const normalizedExpected = [normalizeEventToken(type), normalizeEventToken(action)]
+    .filter(Boolean)
+    .join(':');
+  const collapsedExpected = collapseEventToken(normalizedExpected);
   const normalizedType = normalizeEventToken(event?.type);
   const normalizedAction = normalizeEventToken(event?.action);
 
   if (normalizedType && normalizedAction) {
-    if (`${normalizedType}:${normalizedAction}` === normalizedExpected) {
+    const normalizedEventPair = `${normalizedType}:${normalizedAction}`;
+    if (
+      normalizedEventPair === normalizedExpected
+      || collapseEventToken(normalizedEventPair) === collapsedExpected
+    ) {
       return true;
     }
   }
@@ -412,7 +424,10 @@ function eventMatches(event, type, action) {
   for (const alias of aliases) {
     const normalizedAlias = normalizeEventToken(alias);
     if (!normalizedAlias) continue;
-    if (normalizedAlias === normalizedExpected) {
+    if (
+      normalizedAlias === normalizedExpected
+      || collapseEventToken(normalizedAlias) === collapsedExpected
+    ) {
       return true;
     }
   }
@@ -423,6 +438,7 @@ function eventMatches(event, type, action) {
 function eventIncludesToken(event, token) {
   const normalizedToken = normalizeEventToken(token);
   if (!normalizedToken) return false;
+  const collapsedToken = collapseEventToken(normalizedToken);
 
   const values = [
     event?.type,
@@ -437,7 +453,12 @@ function eventIncludesToken(event, token) {
   return values
     .map((value) => normalizeEventToken(value))
     .filter(Boolean)
-    .some((value) => value.includes(normalizedToken));
+    .some((value) => {
+      if (value.includes(normalizedToken)) {
+        return true;
+      }
+      return collapseEventToken(value).includes(collapsedToken);
+    });
 }
 
 // Validate vault path - must be absolute and exist
@@ -471,6 +492,14 @@ function findVaultPath() {
   if (process.env.CLAWVAULT_PATH) {
     return validateVaultPath(process.env.CLAWVAULT_PATH);
   }
+  const configuredCandidates = [
+    process.env.OPENCLAW_MEMORY_PATH,
+    process.env.OPENCLAW_VAULT_PATH
+  ];
+  for (const candidate of configuredCandidates) {
+    const validated = validateVaultPath(candidate);
+    if (validated) return validated;
+  }
 
   // Walk up from cwd
   let dir = process.cwd();
@@ -486,6 +515,19 @@ function findVaultPath() {
     if (memoryValidated) return memoryValidated;
     
     dir = path.dirname(dir);
+  }
+
+  // Canonical local-first defaults for OpenClaw users.
+  const homeDir = normalizeAbsoluteEnvPath(process.env.HOME) || os.homedir();
+  const homeCandidates = [
+    path.join(homeDir, 'memory'),
+    path.join(homeDir, 'Memory'),
+    path.join(homeDir, 'vault'),
+    path.join(homeDir, 'Vault')
+  ];
+  for (const candidate of homeCandidates) {
+    const validated = validateVaultPath(candidate);
+    if (validated) return validated;
   }
   
   return null;

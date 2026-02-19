@@ -8,12 +8,14 @@
  */
 
 import { Type } from '@sinclair/typebox';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 // OpenClaw plugin API type — we use `any` to avoid depending on openclaw package
 // The actual API shape matches OpenClawPluginApi from openclaw/plugin-sdk
 type OpenClawPluginApi = any;
 
-// ClawVault imports — bundled at build time
+// ClawVault imports — now direct imports from sibling modules
 import { ClawVaultMemoryProvider } from './provider/index.js';
 import type { SearchOptions } from './types.js';
 
@@ -38,11 +40,9 @@ function resolveVaultPath(cfg: any, api: any): string {
   if (cfg?.vaultPath) return cfg.vaultPath;
   if (process.env.CLAWVAULT_PATH) return process.env.CLAWVAULT_PATH;
   // Try common locations
-  const fs = require('fs');
-  const path = require('path');
   const home = process.env.HOME ?? process.env.USERPROFILE ?? '.';
   for (const candidate of [`${home}/clawvault`, `${home}/.clawvault`]) {
-    if (fs.existsSync(path.join(candidate, '.clawvault.json'))) return candidate;
+    if (existsSync(join(candidate, '.clawvault.json'))) return candidate;
   }
   return api?.resolvePath?.('clawvault') ?? `${home}/.clawvault`;
 }
@@ -194,3 +194,31 @@ const clawvaultPlugin = {
 };
 
 export default clawvaultPlugin;
+
+// Re-export types and utilities for consumers
+export type {
+  Message,
+  SearchResult,
+  SearchOptions,
+  Preference,
+  DateIndex,
+  IngestResult,
+  VaultStatus,
+  QueryType,
+  PluginConfig,
+} from './types.js';
+
+export { ClawVaultMemoryProvider, createMemoryProvider } from './provider/index.js';
+export type { MemoryProvider, MemoryProviderOptions } from './provider/index.js';
+
+export { ObserverService, createObserverService } from './services/observer.js';
+export type { ObserverServiceOptions } from './services/observer.js';
+
+export { memorySearchSchema, createMemorySearchHandler } from './tools/memory-search.js';
+export type { MemorySearchInput, MemorySearchOutput } from './tools/memory-search.js';
+
+export { vaultStatusSchema, createVaultStatusHandler } from './tools/vault-status.js';
+export type { VaultStatusInput, VaultStatusOutput } from './tools/vault-status.js';
+
+export { vaultPreferencesSchema, createVaultPreferencesHandler } from './tools/vault-preferences.js';
+export type { VaultPreferencesInput, VaultPreferencesOutput } from './tools/vault-preferences.js';

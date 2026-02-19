@@ -1,30 +1,59 @@
 node_modules/
 dist/
-.compat-reports/
 *.log
 .DS_Store
 
-# Internal/agent files — never commit
-AGENT-*.md
-COMPARISON-*.md
-COMPAT-*.md
-OBSERVER-SPEC.md
-
-# SEO/marketing — belongs on website, not CLI repo
-blog/
-robots.txt
-sitemap.xml
-generate-seo-assets.*
+# ============================================================================
+# BUILD
+# ============================================================================
+*.tsbuildinfo
+packages/*/dist/
+packages/*/node_modules/
 
 # ============================================================================
-# PRIVATE — vault instance data (NOT part of the product)
+# VAULT INSTANCE DATA — not part of the product
 # ============================================================================
 
-# Eval experiments (internal benchmarking)
-eval/adapters/__pycache__/
+# Runtime state
+.clawvault/
+.clawvault.json
+.clawvault-index.json
+*.base
+.obsidian/
+.trash/
+
+# Vault content directories (created by `clawvault setup`)
+agents/
+backlog/
+commitments/
+decisions/
+goals/
+handoffs/
+inbox/
+lessons/
+people/
+preferences/
+projects/
+research/
+rules/
+tasks/
+transcripts/
+feedback/
+ledger/
+logs/
+observations/
+evolution/
+synthesis/
+state/
+cognition/
+
+# ============================================================================
+# EVAL — internal benchmarking (large datasets)
+# ============================================================================
+eval/LongMemEval/
 eval/results/
 eval/data/
-eval/LongMemEval
+eval/adapters/__pycache__/
 eval/adapters/clawvault_v*.py
 eval/run_*.py
 eval/score_*.py
@@ -33,56 +62,21 @@ eval/generate_*.py
 eval/split_*.py
 eval/extract_*.py
 
-# Cognition (internal agent thinking — not product code)
-cognition/
+# ============================================================================
+# INTERNAL — agent/dev files, not product
+# ============================================================================
+AGENT-*.md
+COMPARISON-*.md
+COMPAT-*.md
+OBSERVER-SPEC.md
+.compat-reports/
 
-# Vault instance data (user-specific, not product)
-tasks/
-goals/
-people/
-preferences/
-inbox/
-handoffs/
-commitments/
-ledger/
-transcripts/
-feedback/
-state/
-logs/
-research/
-observations/
-evolution/
-decisions/
-synthesis/
+# SEO/marketing — belongs on website
+blog/
+robots.txt
+sitemap.xml
+generate-seo-assets.*
 
-# Internal state files
-*.base
-.clawvault-index.json
-.clawvault/graph-index.json
-
-# Obsidian workspace config
-.obsidian/
-
-# Python cache
+# Python
 __pycache__/
 *.pyc
-
-# Trash
-.trash/
-
-# Project instances (private strategy)
-projects/autonomous-freelance-revenue.md
-projects/helios.md
-backlog/
-.clawvault.json
-projects/ephemeral-websites.md
-projects/
-eval/
-
-# Build artifacts
-dist/
-*.tsbuildinfo
-
-# Workspace artifacts  
-packages/*/dist/
-packages/*/node_modules/

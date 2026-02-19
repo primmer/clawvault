@@ -1,158 +1,209 @@
-# ClawVault 🐘
+# ClawVault
 
-Structured memory system for AI agents and operators: typed markdown memory, graph-aware context, task/project primitives, Obsidian views, and OpenClaw hook integration.
+Structured memory for AI agents. Typed markdown primitives that compound over time.
 
 [![npm](https://img.shields.io/npm/v/clawvault)](https://www.npmjs.com/package/clawvault)
 
-> Local-first. Markdown-first. Built to survive long-running autonomous work.
+Every memory is a markdown file with YAML frontmatter — a task, a decision, a person, a lesson — each following a schema defined in `templates/`. The agent reads and writes these files. The human browses them in Obsidian. No database. No vendor lock-in. Just files.
 
 ## Requirements
 
 - Node.js 18+
-- `qmd` installed and available on `PATH`
-
-ClawVault currently relies on `qmd` for core vault/query flows. Install it before first use.
+- [`qmd`](https://github.com/qmd-project/qmd) installed and on `PATH` (hybrid BM25 + vector search)
 
 ## Install
 
+### As an OpenClaw Plugin (recommended)
+
+```bash
+openclaw plugins install clawvault
+```
+
+This installs ClawVault as a memory plugin. It replaces OpenClaw's built-in memory with:
+
+- **Auto-recall** — injects relevant memories before each agent turn
+- **Auto-capture** — observes conversations and stores durable knowledge automatically
+- **Session recap** — on wake, provides context from active tasks, recent decisions, and preferences
+- **4 tools** — `memory_search`, `memory_store`, `memory_get`, `memory_forget`
+
+After install, configure the vault path:
+
+```bash
+openclaw config set plugins.clawvault.config.vaultPath ~/my-vault
+```
+
+### As a Standalone CLI
+
 ```bash
 npm install -g clawvault
 ```
 
-## 5-Minute Setup
+## Quick Start
 
 ```bash
-# 1) Create or initialize a vault
-clawvault init ~/memory --name my-brain
+# Initialize a new vault
+clawvault init ~/my-vault --name my-brain
 
-# 2) Optional vault bootstrap for Obsidian
-clawvault setup --theme neural --canvas
+# Set up Obsidian Bases views (tasks, projects, backlog)
+clawvault setup
 
-# 3) Verify OpenClaw compatibility in this environment
-clawvault compat
+# Check vault health
+clawvault doctor
+
+# Search your vault
+clawvault search "deployment decision"
 ```
 
-## OpenClaw Setup (Canonical)
+## How It Works
 
-If you want hook-based lifecycle integration, use this sequence:
+### Typed Primitives
 
-```bash
-# Install CLI
-npm install -g clawvault
+Every piece of memory has a type defined by a template:
 
-# Install and enable hook pack
-openclaw hooks install clawvault
-openclaw hooks enable clawvault
-
-# Verify
-openclaw hooks list --verbose
-openclaw hooks info clawvault
-openclaw hooks check
-clawvault compat
+```yaml
+---
+primitive: task
+fields:
+  status:
+    type: string
+    required: true
+    default: open
+    enum: [open, in-progress, blocked, done]
+  priority:
+    type: string
+    enum: [critical, high, medium, low]
+  owner:
+    type: string
+  due:
+    type: date
+---
 ```
 
-Important:
+Default templates: `task`, `decision`, `lesson`, `person`, `project`, `checkpoint`, `handoff`, `daily`, `trigger`, `run`, `party`, `workspace`.
 
-- `clawhub install clawvault` installs skill guidance, but does not replace hook-pack installation.
-- After enabling hooks, restart the OpenClaw gateway process so hook registration reloads.
+### Malleable Schemas
 
-## Minimal AGENTS.md Additions
+Don't like the defaults? Drop your own template in your vault's `templates/` directory. Add fields, remove fields, create entirely new types. The plugin reads YOUR schemas, not ours.
 
-Append these to your existing memory workflow. Do not replace your full prompt setup:
+### Hybrid Search
 
-```markdown
-## ClawVault
-- Run `clawvault wake` at session start.
-- Run `clawvault checkpoint` during heavy work.
-- Run `clawvault sleep "summary" --next "next steps"` before ending.
-- Use `clawvault context "<task>"` or `clawvault inject "<message>"` before complex decisions.
+ClawVault uses `qmd` for search — BM25 keyword matching combined with vector similarity and reranking. Entirely local. No API keys needed.
+
+### Obsidian Integration
+
+Your vault IS an Obsidian vault. Tasks become Kanban boards. Decisions are searchable. Wiki-links build a knowledge graph. Five generated Bases views out of the box:
+
+- All tasks
+- Blocked items  
+- By project
+- By owner
+- Backlog
+
+## CLI Commands
+
+### Core
+
+| Command | Description |
+|---------|-------------|
+| `init [path]` | Initialize a new vault |
+| `setup` | Auto-discover and configure a vault, create Obsidian views |
+| `store` | Store a new typed memory document |
+| `capture <note>` | Quick-capture a note to inbox |
+| `doctor` | Diagnose vault health |
+
+### Search & Context
+
+| Command | Description |
+|---------|-------------|
+| `search <query>` | BM25 keyword search via qmd |
+| `vsearch <query>` | Semantic vector search via qmd |
+| `context <task>` | Generate task-relevant context |
+| `inject <message>` | Inject relevant rules and decisions |
+
+### Session Lifecycle
+
+| Command | Description |
+|---------|-------------|
+| `wake` | Start a session (recover + recap) |
+| `sleep <summary>` | End a session with a handoff |
+| `checkpoint` | Save state for context-death resilience |
+| `recover` | Check for and recover from context death |
+
+### Observation Pipeline
+
+| Command | Description |
+|---------|-------------|
+| `observe` | Process sessions into observational memory |
+| `reflect` | Promote observations to weekly reflections |
+| `reweave` | Backward consolidation — mark superseded observations |
+
+### Tasks & Projects
+
+| Command | Description |
+|---------|-------------|
+| `task` | Task management (create, list, update, transition) |
+| `project` | Project management |
+| `kanban` | Kanban board view |
+| `status` | Vault health and statistics |
+
+### Utilities
+
+| Command | Description |
+|---------|-------------|
+| `template` | Manage document templates |
+| `graph` | Show typed memory graph summary |
+| `entities` | List all linkable entities |
+| `link [file]` | Auto-link entity mentions |
+| `compat` | Check OpenClaw compatibility |
+| `embed` | Run qmd embedding for pending documents |
+
+## Architecture
+
+```
+     HUMAN (Obsidian)
+     Browse, edit, approve
+           │
+           ▼
+  ┌─── VAULT (markdown) ───┐
+  │  Typed primitives       │
+  │  Knowledge graph        │
+  │  Template schemas       │
+  └───┬──────────────┬──────┘
+      │              │
+ AGENT (Plugin)   CLI (Developer)
+ Auto-capture     Direct CRUD
+ Auto-recall      Search, graph
+ Session recap    Tasks, projects
 ```
 
-## Real CLI Surface (Current)
+## OpenClaw Plugin Details
 
-Core:
+The plugin hooks into the OpenClaw lifecycle:
 
-- `init`, `setup`, `store`, `capture`
-- `remember`, `list`, `get`, `stats`, `reindex`, `sync`
+- **`before_agent_start`** — auto-recall: searches vault for context relevant to the current conversation and injects it
+- **`message_received`** — auto-capture: observes incoming messages for durable information worth storing  
+- **`agent_end`** — captures any final observations from the agent's response
+- **`before_compaction`** — preserves important context before conversation compaction
 
-Context + memory:
+Configuration in `openclaw.plugin.json`:
 
-- `search`, `vsearch`, `context`, `inject`
-- `observe`, `reflect`, `session-recap`
-- `graph`, `entities`, `link`, `embed`
+| Option | Default | Description |
+|--------|---------|-------------|
+| `vaultPath` | — | Path to vault directory |
+| `collection` | `clawvault` | qmd search collection name |
+| `autoRecall` | `true` | Inject memories before each turn |
+| `autoCapture` | `true` | Auto-store from conversations |
+| `recallLimit` | `5` | Max memories per recall |
 
-Resilience:
+## What Compounds
 
-- `wake`, `sleep`, `handoff`, `recap`
-- `checkpoint`, `recover`, `status`, `clean-exit`, `repair-session`
-- `compat`, `doctor`
+- **Decisions** accumulate into institutional knowledge
+- **Lessons** prevent repeated mistakes  
+- **Tasks** with transition ledgers track how work happened
+- **Projects** group related work across hundreds of sessions
+- **Wiki-links** build a knowledge graph that grows richer over time
 
-Execution primitives:
-
-- `task ...`, `backlog ...`, `blocked`, `project ...`, `kanban ...`
-- `canvas` (generates default `dashboard.canvas`)
-
-Networking:
-
-- `tailscale-status`, `tailscale-sync`, `tailscale-serve`, `tailscale-discover`
-
-## Quick Usage
-
-```bash
-# Store and retrieve memory
-clawvault remember decision "Use PostgreSQL" --content "Chosen for JSONB and reliability"
-clawvault search "postgresql"
-clawvault vsearch "what did we decide about storage"
-
-# Session lifecycle
-clawvault wake
-clawvault checkpoint --working-on "auth rollout" --focus "token refresh edge cases"
-clawvault sleep "finished auth rollout plan" --next "implement migration"
-
-# Work management
-clawvault task add "Ship v2 onboarding" --owner agent --project core --priority high
-clawvault blocked
-clawvault project list --status active
-clawvault kanban sync
-
-# Obsidian projection
-clawvault canvas
-```
-
-## Obsidian Integration
-
-- Setup can generate:
-  - graph theme/snippet config (`--theme neural|minimal|none`)
-  - Bases views (`all-tasks.base`, `blocked.base`, `by-project.base`, `by-owner.base`, `backlog.base`)
-  - default canvas (`dashboard.canvas`) via `--canvas` or `clawvault canvas`
-- Kanban round-trip:
-  - export: `clawvault kanban sync`
-  - import lane changes back to task metadata: `clawvault kanban import`
-
-## Tailscale + WebDAV
-
-ClawVault can serve vault content for sync over Tailscale and exposes WebDAV under `/webdav` for mobile-oriented workflows.
-
-```bash
-clawvault tailscale-status
-clawvault tailscale-serve --vault ~/memory
-clawvault tailscale-discover
-```
-
-## Troubleshooting
-
-- Hook not found after enable:
-  - run `openclaw hooks install clawvault` first
-  - then `openclaw hooks enable clawvault`
-  - restart gateway
-  - verify with `openclaw hooks list --verbose`
-- `qmd` errors:
-  - ensure `qmd --version` works from same shell
-  - rerun `clawvault setup` after qmd install
-- OpenClaw integration drift:
-  - run `clawvault compat`
-- Session transcript corruption:
-  - run `clawvault repair-session --dry-run` then `clawvault repair-session`
+The agent that runs for a year generates compounding value. Every lesson stored makes the next task cheaper.
 
 ## License
 

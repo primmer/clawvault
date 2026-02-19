@@ -1,7 +1,7 @@
 {
   "name": "clawvault",
-  "version": "3.0.0-beta.5",
-  "description": "Structured memory system for AI agents — typed storage, knowledge graph, context profiles, canvas dashboards, neural graph themes, and Obsidian-native task views. An elephant never forgets. 🐘",
+  "version": "3.1.0",
+  "description": "Structured memory for AI agents. Typed markdown primitives, hybrid search, auto-capture, and Obsidian-native views. OpenClaw plugin + standalone CLI.",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -25,7 +25,6 @@
     "dist",
     "bin",
     "templates",
-    "hooks",
     "openclaw.plugin.json"
   ],
   "openclaw": {
@@ -48,13 +47,13 @@
     "knowledge-graph",
     "obsidian",
     "markdown",
-    "task-management",
-    "context-death",
     "openclaw",
+    "openclaw-plugin",
     "llm",
     "agent-memory",
-    "canvas-dashboard",
-    "semantic-search"
+    "semantic-search",
+    "hybrid-search",
+    "bm25"
   ],
   "author": "Versatly",
   "license": "MIT",
@@ -74,12 +73,9 @@
     "chalk": "^5.3.0",
     "chokidar": "^5.0.0",
     "commander": "^12.0.0",
-    "express": "^5.2.1",
-    "force-graph": "^1.51.1",
     "glob": "^10.3.10",
     "gray-matter": "^4.0.3",
-    "natural": "^6.10.4",
-    "ws": "^8.19.0"
+    "natural": "^6.10.4"
   },
   "peerDependencies": {
     "qmd": "*"
@@ -92,7 +88,6 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "ajv": "^8.17.1",
-    "puppeteer": "^24.37.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0"

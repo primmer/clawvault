@@ -11,7 +11,7 @@ import {
   createVault,
   Observer,
   type SearchResult as ClawSearchResult,
-} from 'clawvault';
+} from '../../index.js';
 
 import type {
   Message,

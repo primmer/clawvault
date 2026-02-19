@@ -1,45 +1,14 @@
 {
-  "name": "clawvault",
-  "version": "3.1.0",
-  "description": "Structured memory for AI agents. Typed markdown primitives, hybrid search, auto-capture, and Obsidian-native views. OpenClaw plugin + standalone CLI.",
+  "name": "@versatly/clawvault-monorepo",
+  "version": "3.2.0",
+  "private": true,
+  "description": "ClawVault monorepo — structured memory for AI agents",
   "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./plugin": {
-      "types": "./dist/plugin/index.d.ts",
-      "import": "./dist/plugin/index.js",
-      "require": "./dist/plugin/index.cjs"
-    }
-  },
-  "bin": {
-    "clawvault": "bin/clawvault.js"
-  },
-  "files": [
-    "dist",
-    "bin",
-    "templates",
-    "openclaw.plugin.json"
-  ],
-  "openclaw": {
-    "extensions": [
-      "./dist/plugin/index.js"
-    ]
-  },
   "scripts": {
-    "build": "tsup src/commands/archive.ts src/commands/backlog.ts src/commands/blocked.ts src/commands/checkpoint.ts src/commands/compat.ts src/commands/context.ts src/commands/doctor.ts src/commands/embed.ts src/commands/entities.ts src/commands/graph.ts src/commands/inject.ts src/commands/kanban.ts src/commands/link.ts src/commands/migrate-observations.ts src/commands/observe.ts src/commands/project.ts src/commands/rebuild.ts src/commands/recover.ts src/commands/reflect.ts src/commands/repair-session.ts src/commands/replay.ts src/commands/session-recap.ts src/commands/setup.ts src/commands/shell-init.ts src/commands/sleep.ts src/commands/status.ts src/commands/task.ts src/commands/template.ts src/commands/wake.ts src/cli/index.ts src/index.ts src/lib/auto-linker.ts src/lib/config.ts src/lib/entity-index.ts src/lib/project-utils.ts src/lib/session-repair.ts src/lib/session-utils.ts src/lib/task-utils.ts src/lib/template-engine.ts src/plugin/index.ts src/plugin/types.ts src/plugin/vault.ts src/plugin/observe.ts src/plugin/inject.ts src/plugin/templates.ts --format esm,cjs --dts --clean",
-    "dev": "tsup src/index.ts src/commands/*.ts src/lib/*.ts --format esm --dts --watch",
-    "lint": "eslint src",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "ci": "npm run typecheck && npm test && npm run build",
-    "prepublishOnly": "npm run build"
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "ci": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "ai-agent",
@@ -51,9 +20,7 @@
     "openclaw-plugin",
     "llm",
     "agent-memory",
-    "semantic-search",
-    "hybrid-search",
-    "bm25"
+    "semantic-search"
   ],
   "author": "Versatly",
   "license": "MIT",
@@ -62,35 +29,15 @@
     "url": "git+https://github.com/Versatly/clawvault.git"
   },
   "homepage": "https://clawvault.dev",
-  "bugs": {
-    "url": "https://github.com/Versatly/clawvault/issues"
-  },
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {
-    "@sinclair/typebox": "^0.34.48",
-    "chalk": "^5.3.0",
-    "chokidar": "^5.0.0",
-    "commander": "^12.0.0",
-    "glob": "^10.3.10",
-    "gray-matter": "^4.0.3",
-    "natural": "^6.10.4"
-  },
-  "peerDependencies": {
-    "qmd": "*"
-  },
-  "peerDependenciesMeta": {
-    "qmd": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^22.0.0",
     "ajv": "^8.17.1",
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
   },
   "workspaces": [
     "packages/*"

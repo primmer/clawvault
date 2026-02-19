@@ -1,0 +1,31 @@
+.clawvault-view {
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.clawvault-view h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.clawvault-lane {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--background-primary-alt);
+}
+
+.clawvault-list-html ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.clawvault-list-html li {
+  margin-bottom: 6px;
+}
+
+.clawvault-empty {
+  opacity: 0.75;
+  font-style: italic;
+}

@@ -1,0 +1,10 @@
+{
+  "id": "clawvault-control-plane",
+  "name": "ClawVault Control Plane",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Live operations views for ClawVault Workgraph (graph, workstreams, ops rail, setup wizard).",
+  "author": "Versatly",
+  "authorUrl": "https://clawvault.dev",
+  "isDesktopOnly": true
+}

@@ -2,8 +2,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import matter from 'gray-matter';
 import { DEFAULT_CATEGORIES } from '../types.js';
 import { hasQmd, withQmdIndexArgs } from '../lib/search.js';
+import {
+  loadTemplateDefinition,
+  renderDocumentFromTemplate,
+  type PrimitiveTemplateDefinition,
+} from '../lib/primitive-templates.js';
 
 const CONFIG_FILE = '.clawvault.json';
 
@@ -15,6 +21,54 @@ export interface SetupOptions {
   force?: boolean;
   vault?: string;
   qmdIndexName?: string;
+  from?: string;
+}
+
+export interface ExtractedPerson {
+  name: string;
+  email?: string;
+  role?: string;
+  context?: string;
+}
+
+export interface ExtractedPreference {
+  subject: string;
+  preference: string;
+  context?: string;
+}
+
+export interface ExtractedDecision {
+  title: string;
+  decision: string;
+  context?: string;
+}
+
+export interface ExtractedTask {
+  title: string;
+  description?: string;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+}
+
+export interface ExtractionResult {
+  people: ExtractedPerson[];
+  preferences: ExtractedPreference[];
+  decisions: ExtractedDecision[];
+  tasks: ExtractedTask[];
+}
+
+export interface ImportSummary {
+  created: {
+    people: string[];
+    preferences: string[];
+    decisions: string[];
+    tasks: string[];
+  };
+  skipped: {
+    people: string[];
+    preferences: string[];
+    decisions: string[];
+    tasks: string[];
+  };
 }
 
 function resolveVaultTarget(vaultOverride?: string): { vaultPath: string; source: string; existed: boolean } {
@@ -318,6 +372,694 @@ function getQmdConfig(vaultPath: string): { collection: string; root: string } {
   return { collection: path.basename(vaultPath), root: vaultPath };
 }
 
+/**
+ * Slugify a string for use as filename
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+}
+
+/**
+ * Scan a directory for markdown files
+ */
+function scanMarkdownFiles(dirPath: string): string[] {
+  const files: string[] = [];
+  const resolvedPath = path.resolve(dirPath);
+  
+  if (!fs.existsSync(resolvedPath)) {
+    return files;
+  }
+
+  const stat = fs.statSync(resolvedPath);
+  if (stat.isFile() && resolvedPath.endsWith('.md')) {
+    return [resolvedPath];
+  }
+
+  if (!stat.isDirectory()) {
+    return files;
+  }
+
+  const entries = fs.readdirSync(resolvedPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(resolvedPath, entry.name);
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(fullPath);
+    } else if (entry.isDirectory()) {
+      files.push(...scanMarkdownFiles(fullPath));
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Extract people mentioned in text using heuristics
+ * Looks for patterns like:
+ * - Names with email: "John Smith <john@example.com>"
+ * - Names with roles: "John Smith (CTO)", "John Smith, CEO"
+ * - Capitalized names after certain keywords: "met with John Smith", "contact John Smith"
+ */
+export function extractPeople(content: string): ExtractedPerson[] {
+  const people: ExtractedPerson[] = [];
+  const seenNames = new Set<string>();
+
+  // Pattern: Name <email>
+  const emailPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*<([^>]+@[^>]+)>/g;
+  let match;
+  while ((match = emailPattern.exec(content)) !== null) {
+    const name = match[1].trim();
+    const email = match[2].trim();
+    if (!seenNames.has(name.toLowerCase())) {
+      seenNames.add(name.toLowerCase());
+      people.push({ name, email });
+    }
+  }
+
+  // Pattern: Name (Role) or Name, Role
+  const rolePatterns = [
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*\(([^)]+)\)/g,
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+),\s*(CEO|CTO|CFO|COO|VP|Director|Manager|Engineer|Designer|Lead|Head of [A-Za-z]+)/gi,
+  ];
+  for (const pattern of rolePatterns) {
+    while ((match = pattern.exec(content)) !== null) {
+      const name = match[1].trim();
+      const role = match[2].trim();
+      if (!seenNames.has(name.toLowerCase())) {
+        seenNames.add(name.toLowerCase());
+        people.push({ name, role });
+      }
+    }
+  }
+
+  // Pattern: Contact/met/spoke with/emailed Name
+  // Note: Character classes [A-Z] are case-sensitive even with /i flag, so we use [A-Za-z]
+  const contextPatterns = [
+    /(?:contact|met with|spoke with|emailed|called|messaged|talked to|meeting with)\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)+)/g,
+    /([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)+)\s+(?:said|mentioned|suggested|recommended|asked|told me)/g,
+  ];
+  for (const pattern of contextPatterns) {
+    while ((match = pattern.exec(content)) !== null) {
+      const name = match[1].trim();
+      if (!seenNames.has(name.toLowerCase()) && name.split(' ').length >= 2) {
+        seenNames.add(name.toLowerCase());
+        const lineStart = content.lastIndexOf('\n', match.index) + 1;
+        const lineEnd = content.indexOf('\n', match.index + match[0].length);
+        const context = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim();
+        people.push({ name, context: context.slice(0, 200) });
+      }
+    }
+  }
+
+  return people;
+}
+
+/**
+ * Extract preferences from text using heuristics
+ * Looks for patterns like:
+ * - "prefers X", "prefer X", "I prefer X"
+ * - "likes X", "like X", "I like X"
+ * - "always use X", "never use X"
+ * - "favorite X is Y"
+ */
+export function extractPreferences(content: string): ExtractedPreference[] {
+  const preferences: ExtractedPreference[] = [];
+  const seenPrefs = new Set<string>();
+
+  const patterns = [
+    // "prefers X" / "prefer X" / "I prefer X"
+    /(?:I\s+)?prefer(?:s)?\s+(?:to\s+)?([^.,\n]+)/gi,
+    // "likes X" / "like X"
+    /(?:I\s+)?like(?:s)?\s+(?:to\s+)?([^.,\n]+)/gi,
+    // "always use X"
+    /always\s+(?:use|uses?)\s+([^.,\n]+)/gi,
+    // "never use X"
+    /never\s+(?:use|uses?)\s+([^.,\n]+)/gi,
+    // "favorite X is Y"
+    /(?:my\s+)?favorite\s+(\w+)\s+is\s+([^.,\n]+)/gi,
+    // "prefer X over Y"
+    /prefer(?:s)?\s+([^.,\n]+)\s+over\s+([^.,\n]+)/gi,
+    // "use X instead of Y"
+    /use(?:s)?\s+([^.,\n]+)\s+instead\s+of\s+([^.,\n]+)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      const fullMatch = match[0].trim();
+      const key = fullMatch.toLowerCase();
+      if (!seenPrefs.has(key) && fullMatch.length > 5 && fullMatch.length < 200) {
+        seenPrefs.add(key);
+        const lineStart = content.lastIndexOf('\n', match.index) + 1;
+        const lineEnd = content.indexOf('\n', match.index + match[0].length);
+        const context = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim();
+        
+        // Extract subject and preference from the match
+        let subject = 'general';
+        let preference = fullMatch;
+        
+        if (match[2]) {
+          // Pattern like "favorite X is Y" or "prefer X over Y"
+          subject = match[1].trim();
+          preference = match[2].trim();
+        } else if (match[1]) {
+          preference = match[1].trim();
+        }
+        
+        preferences.push({ subject, preference, context: context.slice(0, 200) });
+      }
+    }
+  }
+
+  return preferences;
+}
+
+/**
+ * Extract decisions from text using heuristics
+ * Looks for patterns like:
+ * - "decided to X"
+ * - "decision: X"
+ * - "we chose X"
+ * - "going with X"
+ */
+export function extractDecisions(content: string): ExtractedDecision[] {
+  const decisions: ExtractedDecision[] = [];
+  const seenDecisions = new Set<string>();
+
+  const patterns = [
+    // "decided to X"
+    /(?:I\s+|we\s+)?decided\s+(?:to\s+)?([^.,\n]+)/gi,
+    // "decision: X" or "Decision - X"
+    /decision[:\s-]+([^.,\n]+)/gi,
+    // "we chose X" / "chose to X"
+    /(?:we\s+)?chose\s+(?:to\s+)?([^.,\n]+)/gi,
+    // "going with X"
+    /going\s+with\s+([^.,\n]+)/gi,
+    // "settled on X"
+    /settled\s+on\s+([^.,\n]+)/gi,
+    // "will use X" / "using X going forward"
+    /(?:will\s+use|using)\s+([^.,\n]+)\s+(?:going\s+forward|from\s+now\s+on)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      const decision = match[1].trim();
+      const key = decision.toLowerCase();
+      if (!seenDecisions.has(key) && decision.length > 5 && decision.length < 200) {
+        seenDecisions.add(key);
+        const lineStart = content.lastIndexOf('\n', match.index) + 1;
+        const lineEnd = content.indexOf('\n', match.index + match[0].length);
+        const context = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim();
+        
+        // Generate a title from the decision
+        const title = decision.length > 50 
+          ? decision.slice(0, 50).trim() + '...'
+          : decision;
+        
+        decisions.push({ title, decision, context: context.slice(0, 200) });
+      }
+    }
+  }
+
+  return decisions;
+}
+
+/**
+ * Extract tasks/todos from text using heuristics
+ * Looks for patterns like:
+ * - "- [ ] task" (markdown checkbox)
+ * - "TODO: task"
+ * - "need to X"
+ * - "should X"
+ */
+export function extractTasks(content: string): ExtractedTask[] {
+  const tasks: ExtractedTask[] = [];
+  const seenTasks = new Set<string>();
+
+  const patterns = [
+    // Markdown checkbox "- [ ] task"
+    /^[\s]*[-*]\s*\[\s*\]\s*(.+)$/gm,
+    // "TODO: task" or "TODO - task"
+    /TODO[:\s-]+(.+)/gi,
+    // "FIXME: task"
+    /FIXME[:\s-]+(.+)/gi,
+    // "need to X"
+    /(?:I\s+|we\s+)?need\s+to\s+([^.,\n]+)/gi,
+    // "should X" (but not "should have" which is past)
+    /(?:I\s+|we\s+)?should\s+(?!have)([^.,\n]+)/gi,
+    // "must X"
+    /(?:I\s+|we\s+)?must\s+([^.,\n]+)/gi,
+    // "remember to X"
+    /remember\s+to\s+([^.,\n]+)/gi,
+    // "don't forget to X"
+    /don'?t\s+forget\s+to\s+([^.,\n]+)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      const taskText = match[1].trim();
+      const key = taskText.toLowerCase();
+      if (!seenTasks.has(key) && taskText.length > 3 && taskText.length < 200) {
+        seenTasks.add(key);
+        
+        // Determine priority based on keywords
+        let priority: 'critical' | 'high' | 'medium' | 'low' = 'medium';
+        const lowerTask = taskText.toLowerCase();
+        if (lowerTask.includes('urgent') || lowerTask.includes('asap') || lowerTask.includes('critical')) {
+          priority = 'critical';
+        } else if (lowerTask.includes('important') || lowerTask.includes('high priority')) {
+          priority = 'high';
+        } else if (lowerTask.includes('low priority') || lowerTask.includes('eventually') || lowerTask.includes('someday')) {
+          priority = 'low';
+        }
+        
+        tasks.push({ title: taskText, priority });
+      }
+    }
+  }
+
+  return tasks;
+}
+
+/**
+ * Extract all structured data from markdown content
+ */
+export function extractFromContent(content: string): ExtractionResult {
+  return {
+    people: extractPeople(content),
+    preferences: extractPreferences(content),
+    decisions: extractDecisions(content),
+    tasks: extractTasks(content),
+  };
+}
+
+/**
+ * Scan a source directory and extract all structured data
+ */
+export function scanAndExtract(sourcePath: string): ExtractionResult {
+  const files = scanMarkdownFiles(sourcePath);
+  const combined: ExtractionResult = {
+    people: [],
+    preferences: [],
+    decisions: [],
+    tasks: [],
+  };
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(file, 'utf-8');
+      const extracted = extractFromContent(content);
+      combined.people.push(...extracted.people);
+      combined.preferences.push(...extracted.preferences);
+      combined.decisions.push(...extracted.decisions);
+      combined.tasks.push(...extracted.tasks);
+    } catch {
+      // Skip files that can't be read
+    }
+  }
+
+  // Deduplicate by name/title
+  const seenPeople = new Set<string>();
+  combined.people = combined.people.filter(p => {
+    const key = p.name.toLowerCase();
+    if (seenPeople.has(key)) return false;
+    seenPeople.add(key);
+    return true;
+  });
+
+  const seenPrefs = new Set<string>();
+  combined.preferences = combined.preferences.filter(p => {
+    const key = `${p.subject}:${p.preference}`.toLowerCase();
+    if (seenPrefs.has(key)) return false;
+    seenPrefs.add(key);
+    return true;
+  });
+
+  const seenDecisions = new Set<string>();
+  combined.decisions = combined.decisions.filter(d => {
+    const key = d.decision.toLowerCase();
+    if (seenDecisions.has(key)) return false;
+    seenDecisions.add(key);
+    return true;
+  });
+
+  const seenTasks = new Set<string>();
+  combined.tasks = combined.tasks.filter(t => {
+    const key = t.title.toLowerCase();
+    if (seenTasks.has(key)) return false;
+    seenTasks.add(key);
+    return true;
+  });
+
+  return combined;
+}
+
+/**
+ * Check if a similar file already exists in the vault
+ */
+function fileExistsWithSimilarName(dir: string, slug: string): boolean {
+  if (!fs.existsSync(dir)) return false;
+  const files = fs.readdirSync(dir);
+  const targetSlug = slug.toLowerCase();
+  return files.some(f => {
+    const fileSlug = path.basename(f, '.md').toLowerCase();
+    return fileSlug === targetSlug || fileSlug.includes(targetSlug) || targetSlug.includes(fileSlug);
+  });
+}
+
+/**
+ * Write a person primitive to the vault
+ */
+function writePerson(vaultPath: string, person: ExtractedPerson, force: boolean): string | null {
+  const peopleDir = path.join(vaultPath, 'people');
+  fs.mkdirSync(peopleDir, { recursive: true });
+  
+  const slug = slugify(person.name);
+  if (!slug) return null;
+  
+  const filePath = path.join(peopleDir, `${slug}.md`);
+  
+  if (!force && (fs.existsSync(filePath) || fileExistsWithSimilarName(peopleDir, slug))) {
+    return null;
+  }
+
+  const template = loadTemplateDefinition('person');
+  const now = new Date();
+  const date = now.toISOString().split('T')[0];
+
+  let content: string;
+  if (template) {
+    const rendered = renderDocumentFromTemplate(template, {
+      title: person.name,
+      now,
+      overrides: {
+        relationship: person.role ? 'colleague' : 'contact',
+      },
+    });
+    // Replace placeholder content with actual data
+    let body = rendered.content;
+    if (person.context) {
+      body = body.replace(/## Context\n-\s*/, `## Context\n- ${person.context}\n`);
+    }
+    if (person.email || person.role) {
+      const details: string[] = [];
+      if (person.email) details.push(`- Contact: ${person.email}`);
+      if (person.role) details.push(`- Role: ${person.role}`);
+      body = body.replace(/## Details\n- Contact:\n- Role:\n- Timezone:/, `## Details\n${details.join('\n')}\n- Timezone:`);
+    }
+    content = matter.stringify(body, rendered.frontmatter);
+  } else {
+    // Fallback if template not found
+    const frontmatter = {
+      title: person.name,
+      date,
+      type: 'person',
+      relationship: person.role ? 'colleague' : 'contact',
+    };
+    let body = `# ${person.name}\n\n## Context\n`;
+    if (person.context) body += `- ${person.context}\n`;
+    else body += '- \n';
+    body += '\n## Details\n';
+    if (person.email) body += `- Contact: ${person.email}\n`;
+    else body += '- Contact:\n';
+    if (person.role) body += `- Role: ${person.role}\n`;
+    else body += '- Role:\n';
+    body += '- Timezone:\n';
+    body += `\n## History\n- ${date}: Added from memory import\n`;
+    content = matter.stringify(body, frontmatter);
+  }
+
+  fs.writeFileSync(filePath, content);
+  return slug;
+}
+
+/**
+ * Write a preference to the vault as a memory in preferences/
+ */
+function writePreference(vaultPath: string, pref: ExtractedPreference, force: boolean): string | null {
+  const prefsDir = path.join(vaultPath, 'preferences');
+  fs.mkdirSync(prefsDir, { recursive: true });
+  
+  const slug = slugify(`${pref.subject}-${pref.preference}`.slice(0, 60));
+  if (!slug) return null;
+  
+  const filePath = path.join(prefsDir, `${slug}.md`);
+  
+  if (!force && (fs.existsSync(filePath) || fileExistsWithSimilarName(prefsDir, slug))) {
+    return null;
+  }
+
+  const now = new Date();
+  const date = now.toISOString().split('T')[0];
+  
+  const frontmatter = {
+    title: `${pref.subject}: ${pref.preference}`.slice(0, 100),
+    date,
+    type: 'preference',
+    category: pref.subject,
+  };
+  
+  let body = `# ${frontmatter.title}\n\n`;
+  body += `## Preference\n- ${pref.preference}\n`;
+  if (pref.context) {
+    body += `\n## Context\n- ${pref.context}\n`;
+  }
+  body += `\n## Source\n- Imported from memory on ${date}\n`;
+  
+  const content = matter.stringify(body, frontmatter);
+  fs.writeFileSync(filePath, content);
+  return slug;
+}
+
+/**
+ * Write a decision to the vault
+ */
+function writeDecision(vaultPath: string, decision: ExtractedDecision, force: boolean): string | null {
+  const decisionsDir = path.join(vaultPath, 'decisions');
+  fs.mkdirSync(decisionsDir, { recursive: true });
+  
+  const slug = slugify(decision.title);
+  if (!slug) return null;
+  
+  const filePath = path.join(decisionsDir, `${slug}.md`);
+  
+  if (!force && (fs.existsSync(filePath) || fileExistsWithSimilarName(decisionsDir, slug))) {
+    return null;
+  }
+
+  const template = loadTemplateDefinition('decision');
+  const now = new Date();
+  const date = now.toISOString().split('T')[0];
+
+  let content: string;
+  if (template) {
+    const rendered = renderDocumentFromTemplate(template, {
+      title: decision.title,
+      now,
+      overrides: {
+        status: 'decided',
+      },
+    });
+    let body = rendered.content;
+    if (decision.context) {
+      body = body.replace(/## Context\n-\s*/, `## Context\n- ${decision.context}\n`);
+    }
+    body = body.replace(/## Decision\n-\s*/, `## Decision\n- ${decision.decision}\n`);
+    body = body.replace(/## Consequences\n-\s*/, `## Consequences\n- Imported from memory on ${date}\n`);
+    content = matter.stringify(body, rendered.frontmatter);
+  } else {
+    const frontmatter = {
+      title: decision.title,
+      date,
+      type: 'decision',
+      status: 'decided',
+    };
+    let body = `# Decision: ${decision.title}\n\n`;
+    body += `## Context\n`;
+    if (decision.context) body += `- ${decision.context}\n`;
+    else body += '- \n';
+    body += `\n## Decision\n- ${decision.decision}\n`;
+    body += `\n## Consequences\n- Imported from memory on ${date}\n`;
+    content = matter.stringify(body, frontmatter);
+  }
+
+  fs.writeFileSync(filePath, content);
+  return slug;
+}
+
+/**
+ * Write a task to the vault
+ */
+function writeTask(vaultPath: string, task: ExtractedTask, force: boolean): string | null {
+  const tasksDir = path.join(vaultPath, 'tasks');
+  fs.mkdirSync(tasksDir, { recursive: true });
+  
+  const slug = slugify(task.title);
+  if (!slug) return null;
+  
+  const filePath = path.join(tasksDir, `${slug}.md`);
+  
+  if (!force && (fs.existsSync(filePath) || fileExistsWithSimilarName(tasksDir, slug))) {
+    return null;
+  }
+
+  const template = loadTemplateDefinition('task');
+  const now = new Date();
+  const datetime = now.toISOString();
+
+  let content: string;
+  if (template) {
+    const rendered = renderDocumentFromTemplate(template, {
+      title: task.title,
+      now,
+      overrides: {
+        status: 'open',
+        priority: task.priority || 'medium',
+        source: 'memory-import',
+        description: task.description,
+      },
+      frontmatter: { pruneEmpty: true },
+    });
+    content = rendered.markdown;
+  } else {
+    const frontmatter: Record<string, unknown> = {
+      status: 'open',
+      source: 'memory-import',
+      created: datetime,
+      updated: datetime,
+      priority: task.priority || 'medium',
+    };
+    if (task.description) frontmatter.description = task.description;
+    const body = `# ${task.title}\n\n`;
+    content = matter.stringify(body, frontmatter);
+  }
+
+  fs.writeFileSync(filePath, content);
+  return slug;
+}
+
+/**
+ * Import extracted data into the vault
+ */
+export function importToVault(vaultPath: string, extracted: ExtractionResult, force: boolean): ImportSummary {
+  const summary: ImportSummary = {
+    created: { people: [], preferences: [], decisions: [], tasks: [] },
+    skipped: { people: [], preferences: [], decisions: [], tasks: [] },
+  };
+
+  for (const person of extracted.people) {
+    const slug = writePerson(vaultPath, person, force);
+    if (slug) {
+      summary.created.people.push(person.name);
+    } else {
+      summary.skipped.people.push(person.name);
+    }
+  }
+
+  for (const pref of extracted.preferences) {
+    const slug = writePreference(vaultPath, pref, force);
+    if (slug) {
+      summary.created.preferences.push(`${pref.subject}: ${pref.preference}`.slice(0, 50));
+    } else {
+      summary.skipped.preferences.push(`${pref.subject}: ${pref.preference}`.slice(0, 50));
+    }
+  }
+
+  for (const decision of extracted.decisions) {
+    const slug = writeDecision(vaultPath, decision, force);
+    if (slug) {
+      summary.created.decisions.push(decision.title);
+    } else {
+      summary.skipped.decisions.push(decision.title);
+    }
+  }
+
+  for (const task of extracted.tasks) {
+    const slug = writeTask(vaultPath, task, force);
+    if (slug) {
+      summary.created.tasks.push(task.title);
+    } else {
+      summary.skipped.tasks.push(task.title);
+    }
+  }
+
+  return summary;
+}
+
+/**
+ * Print import summary to console
+ */
+function printImportSummary(summary: ImportSummary): void {
+  const totalCreated = 
+    summary.created.people.length + 
+    summary.created.preferences.length + 
+    summary.created.decisions.length + 
+    summary.created.tasks.length;
+  
+  const totalSkipped = 
+    summary.skipped.people.length + 
+    summary.skipped.preferences.length + 
+    summary.skipped.decisions.length + 
+    summary.skipped.tasks.length;
+
+  console.log('\n📥 Memory Import Summary');
+  console.log('─'.repeat(40));
+
+  if (summary.created.people.length > 0) {
+    console.log(`✓ People (${summary.created.people.length}):`);
+    for (const name of summary.created.people.slice(0, 5)) {
+      console.log(`    - ${name}`);
+    }
+    if (summary.created.people.length > 5) {
+      console.log(`    ... and ${summary.created.people.length - 5} more`);
+    }
+  }
+
+  if (summary.created.preferences.length > 0) {
+    console.log(`✓ Preferences (${summary.created.preferences.length}):`);
+    for (const pref of summary.created.preferences.slice(0, 5)) {
+      console.log(`    - ${pref}`);
+    }
+    if (summary.created.preferences.length > 5) {
+      console.log(`    ... and ${summary.created.preferences.length - 5} more`);
+    }
+  }
+
+  if (summary.created.decisions.length > 0) {
+    console.log(`✓ Decisions (${summary.created.decisions.length}):`);
+    for (const dec of summary.created.decisions.slice(0, 5)) {
+      console.log(`    - ${dec}`);
+    }
+    if (summary.created.decisions.length > 5) {
+      console.log(`    ... and ${summary.created.decisions.length - 5} more`);
+    }
+  }
+
+  if (summary.created.tasks.length > 0) {
+    console.log(`✓ Tasks (${summary.created.tasks.length}):`);
+    for (const task of summary.created.tasks.slice(0, 5)) {
+      console.log(`    - ${task}`);
+    }
+    if (summary.created.tasks.length > 5) {
+      console.log(`    ... and ${summary.created.tasks.length - 5} more`);
+    }
+  }
+
+  if (totalSkipped > 0) {
+    console.log(`\n⊘ Skipped ${totalSkipped} items (already exist or similar)`);
+  }
+
+  console.log('─'.repeat(40));
+  console.log(`Total: ${totalCreated} created, ${totalSkipped} skipped`);
+}
+
 export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   const target = resolveVaultTarget(options.vault);
   if (target.existed && !fs.statSync(target.vaultPath).isDirectory()) {
@@ -332,11 +1074,36 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   const force = options.force ?? false;
   const theme = options.theme ?? 'neural';
 
-  // Determine what to set up — if no explicit flags, do everything
+  // Handle --from option: import from existing agent memory
+  if (options.from) {
+    const sourcePath = path.resolve(options.from);
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(`Source path does not exist: ${sourcePath}`);
+    }
+    console.log(`\n📂 Scanning source: ${sourcePath}`);
+    const extracted = scanAndExtract(sourcePath);
+    
+    const totalFound = 
+      extracted.people.length + 
+      extracted.preferences.length + 
+      extracted.decisions.length + 
+      extracted.tasks.length;
+    
+    if (totalFound === 0) {
+      console.log('⊘ No structured data found in source files.');
+    } else {
+      console.log(`Found: ${extracted.people.length} people, ${extracted.preferences.length} preferences, ${extracted.decisions.length} decisions, ${extracted.tasks.length} tasks`);
+      const summary = importToVault(target.vaultPath, extracted, force);
+      printImportSummary(summary);
+    }
+  }
+
+  // Determine what to set up — if no explicit flags, do everything (unless --from is the only thing)
   const explicitFlags = options.graphColors !== undefined || options.bases !== undefined || options.canvas !== undefined;
-  const doGraphColors = explicitFlags ? (options.graphColors !== false) : true;
-  const doBases = explicitFlags ? (options.bases !== false) : true;
-  const doCanvas = explicitFlags ? (options.canvas !== undefined && options.canvas !== false) : false;
+  const fromOnly = options.from && !explicitFlags;
+  const doGraphColors = fromOnly ? false : (explicitFlags ? (options.graphColors !== false) : true);
+  const doBases = fromOnly ? false : (explicitFlags ? (options.bases !== false) : true);
+  const doCanvas = fromOnly ? false : (explicitFlags ? (options.canvas !== undefined && options.canvas !== false) : false);
 
   // Graph colors
   if (doGraphColors && theme !== 'none') {
@@ -398,5 +1165,6 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   console.log('  clawvault setup --theme minimal        # Subtle category colors');
   console.log('  clawvault setup --canvas                # Generate vault status canvas');
   console.log('  clawvault setup --no-bases --no-graph-colors  # Structure only');
+  console.log('  clawvault setup --from <path>           # Import from existing memory');
   console.log('  clawvault setup --force                 # Overwrite existing configs');
 }

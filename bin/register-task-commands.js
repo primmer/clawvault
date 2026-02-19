@@ -1,6 +1,6 @@
 /**
  * Task tracking command registrations for ClawVault
- * Registers task, backlog, blocked, and canvas commands
+ * Registers task, backlog, and blocked commands
  */
 
 function parseCsvList(value) {
@@ -328,21 +328,4 @@ export function registerTaskCommands(
     });
 
   // === CANVAS ===
-  program
-    .command('canvas')
-    .description('Generate an Obsidian canvas dashboard file')
-    .option('-v, --vault <path>', 'Vault path (default: find nearest)')
-    .option('--output <path>', 'Output file path (default: dashboard.canvas)')
-    .action(async (options) => {
-      try {
-        const vaultPath = resolveVaultPath(options.vault);
-        const { canvasCommand } = await import('../dist/commands/canvas.js');
-        await canvasCommand(vaultPath, {
-          output: options.output
-        });
-      } catch (err) {
-        console.error(chalk.red(`Error: ${err.message}`));
-        process.exit(1);
-      }
-    });
 }

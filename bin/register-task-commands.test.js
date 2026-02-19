@@ -50,20 +50,4 @@ describe('register-task-commands', () => {
     ]));
   });
 
-  it('adds simplified canvas flags', () => {
-    const program = new Command();
-    registerTaskCommands(program, {
-      chalk: chalkStub,
-      resolveVaultPath: stubResolveVaultPath
-    });
-
-    const canvasCommand = program.commands.find((command) => command.name() === 'canvas');
-    expect(canvasCommand).toBeDefined();
-
-    const optionFlags = canvasCommand?.options.map((option) => option.flags) ?? [];
-    expect(optionFlags).toEqual(expect.arrayContaining([
-      '-v, --vault <path>',
-      '--output <path>'
-    ]));
-  });
 });

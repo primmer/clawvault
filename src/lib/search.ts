@@ -106,6 +106,9 @@ function parseQmdOutput(raw: string): QmdResult[] {
   const trimmed = stripQmdNoise(raw).trim();
   if (!trimmed) return [];
 
+  // Handle "No results found." and similar non-JSON messages
+  if (trimmed.startsWith('No results') || trimmed.startsWith('No matches')) return [];
+
   const direct = tryParseJson(trimmed);
   const extracted = direct ? null : extractJsonPayload(trimmed);
   const parsed = direct ?? (extracted ? tryParseJson(extracted) : null);

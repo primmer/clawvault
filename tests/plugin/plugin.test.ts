@@ -126,7 +126,7 @@ describe('ClawVault OpenClaw Plugin', () => {
     });
 
     it('should have correct version', () => {
-      expect(clawvaultPlugin.version).toBe('2.2.0');
+      expect(clawvaultPlugin.version).toBe('3.0.0');
     });
 
     it('should have correct kind', () => {

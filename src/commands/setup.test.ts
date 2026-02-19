@@ -404,21 +404,21 @@ describe('setup --from integration', () => {
     vi.clearAllMocks();
   });
 
-  it('imports from source directory during setup', async () => {
+  it('prints agent directive for source directory during setup', async () => {
     fs.writeFileSync(path.join(sourceDir, 'MEMORY.md'), `
 # Agent Memory
 
 Met with Alice Johnson <alice@company.com> (Product Manager).
 I prefer using TypeScript for all projects.
-We decided to use React for the frontend.
-- [ ] Set up CI/CD pipeline
     `);
 
+    const consoleSpy = vi.spyOn(console, 'log');
     await setupCommand({ from: sourceDir });
 
-    expect(fs.existsSync(path.join(vaultPath, 'people', 'alice-johnson.md'))).toBe(true);
-    expect(fs.existsSync(path.join(vaultPath, 'decisions'))).toBe(true);
-    expect(fs.existsSync(path.join(vaultPath, 'tasks'))).toBe(true);
+    const output = consoleSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(output).toContain('markdown files');
+    expect(output).toContain('directive');
+    consoleSpy.mockRestore();
   });
 
   it('throws error for non-existent source path', async () => {

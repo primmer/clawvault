@@ -221,4 +221,24 @@ export function registerCoreCommands(
         process.exit(1);
       }
     });
+  // === PLUGIN-PATH ===
+  program
+    .command('plugin-path')
+    .description('Print the OpenClaw plugin path for configuration')
+    .action(() => {
+      const pluginDir = path.dirname(path.dirname(new URL(import.meta.url).pathname));
+      const pluginPath = path.join(pluginDir, 'dist', 'plugin', 'index.js');
+      if (fs.existsSync(pluginPath)) {
+        console.log(pluginPath);
+      } else {
+        // Dev mode — use source
+        const srcPath = path.join(pluginDir, 'src', 'plugin', 'index.ts');
+        if (fs.existsSync(srcPath)) {
+          console.log(srcPath);
+        } else {
+          console.error('Plugin not found. Run: npm run build');
+          process.exit(1);
+        }
+      }
+    });
 }

@@ -2,7 +2,7 @@
   "name": "clawdious-vault",
   "version": "1.0.0",
   "created": "2026-02-19T02:12:17.755Z",
-  "lastUpdated": "2026-02-19T09:00:16.998Z",
+  "lastUpdated": "2026-02-19T18:06:55.806Z",
   "categories": [
     "rules",
     "preferences",
@@ -22,7 +22,7 @@
     "tasks",
     "backlog"
   ],
-  "documentCount": 105,
+  "documentCount": 112,
   "qmdCollection": "clawvault",
   "qmdRoot": "/Users/clawdious/clawvault"
 }

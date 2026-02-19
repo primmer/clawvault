@@ -7,7 +7,7 @@ import {
   type ParsedObservationRecord,
   type ObservationType
 } from '../lib/observation-format.js';
-import { requestLlmCompletion, resolveLlmProvider } from '../lib/llm-provider.js';
+import { resolveClaudeOAuthToken } from '../lib/claude-credentials.js';
 
 export interface CompressorOptions {
   provider?: CompressionProvider;
@@ -30,12 +30,13 @@ type ResolvedCompressionBackend = {
   model: string;
   apiKey?: string;
   baseUrl?: string;
+  isOAuth?: boolean;
 };
 
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const OLLAMA_BASE_URL = 'http://localhost:11434/v1';
 const DEFAULT_PROVIDER_MODELS: Record<CompressionProvider, string> = {
-  anthropic: 'claude-3-5-haiku-latest',
+  anthropic: 'claude-haiku-4-5',
   openai: 'gpt-4o-mini',
   gemini: 'gemini-2.0-flash',
   'openai-compatible': 'gpt-4o-mini',
@@ -75,7 +76,7 @@ export class Compressor {
     }
 
     const prompt = this.buildPrompt(cleanedMessages, existingObservations);
-    const backend = this.resolveProvider();
+    const backend = await this.resolveProvider();
 
     if (backend) {
       try {
@@ -99,7 +100,7 @@ export class Compressor {
     return this.mergeObservations(existingObservations, fallback);
   }
 
-  private resolveProvider(): ResolvedCompressionBackend | null {
+  private async resolveProvider(): Promise<ResolvedCompressionBackend | null> {
     if (process.env.CLAWVAULT_NO_LLM) return null;
 
     if (this.provider) {
@@ -107,10 +108,10 @@ export class Compressor {
       if (configured) {
         return configured;
       }
-      return this.resolveProviderFromEnv(false);
+      return await this.resolveProviderFromEnv(false);
     }
 
-    return this.resolveProviderFromEnv(true);
+    return await this.resolveProviderFromEnv(true);
   }
 
   private resolveConfiguredProvider(provider: CompressionProvider): ResolvedCompressionBackend | null {
@@ -161,14 +162,29 @@ export class Compressor {
     };
   }
 
-  private resolveProviderFromEnv(allowConfiguredModel: boolean): ResolvedCompressionBackend | null {
+  private async resolveProviderFromEnv(allowConfiguredModel: boolean): Promise<ResolvedCompressionBackend | null> {
+    const anthropicModel = allowConfiguredModel
+      ? this.resolveModel('anthropic')
+      : DEFAULT_PROVIDER_MODELS.anthropic;
+
+    // 1. Explicit OAuth token env var
+    const oauthEnvToken = this.readEnvValue('ANTHROPIC_OAUTH_TOKEN');
+    if (oauthEnvToken) {
+      return { provider: 'anthropic', model: anthropicModel, apiKey: oauthEnvToken, isOAuth: true };
+    }
+
+    // 2. Static API key
     const anthropicApiKey = this.readEnvValue('ANTHROPIC_API_KEY');
     if (anthropicApiKey) {
-      return {
-        provider: 'anthropic',
-        model: allowConfiguredModel ? this.resolveModel('anthropic') : DEFAULT_PROVIDER_MODELS.anthropic,
-        apiKey: anthropicApiKey
-      };
+      return { provider: 'anthropic', model: anthropicModel, apiKey: anthropicApiKey };
+    }
+
+    // 3. Auto-read from Claude Code keychain / credentials file (opt-in: set CLAWVAULT_CLAUDE_AUTH=1)
+    if (this.readEnvValue('CLAWVAULT_CLAUDE_AUTH')) {
+      const oauthToken = await resolveClaudeOAuthToken();
+      if (oauthToken) {
+        return { provider: 'anthropic', model: anthropicModel, apiKey: oauthToken, isOAuth: true };
+      }
     }
 
     const openAiApiKey = this.readEnvValue('OPENAI_API_KEY');
@@ -349,19 +365,42 @@ export class Compressor {
       return '';
     }
 
+    const isOAuth = backend.isOAuth || backend.apiKey.includes('sk-ant-oat');
+
+    const headers: Record<string, string> = isOAuth
+      ? {
+          'content-type': 'application/json',
+          'authorization': `Bearer ${backend.apiKey}`,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
+          'x-app': 'cli',
+          'user-agent': 'claude-cli/1.0.0 (external, cli)'
+        }
+      : {
+          'content-type': 'application/json',
+          'x-api-key': backend.apiKey,
+          'anthropic-version': '2023-06-01'
+        };
+
+    const body = isOAuth
+      ? {
+          model: backend.model,
+          temperature: 0.1,
+          max_tokens: 1400,
+          system: [{ type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." }],
+          messages: [{ role: 'user', content: prompt }]
+        }
+      : {
+          model: backend.model,
+          temperature: 0.1,
+          max_tokens: 1400,
+          messages: [{ role: 'user', content: prompt }]
+        };
+
     const response = await this.fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': backend.apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: backend.model,
-        temperature: 0.1,
-        max_tokens: 1400,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      headers,
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {

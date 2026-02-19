@@ -110,6 +110,7 @@ Production deploys require gate checks.
       );
 
       process.env.ANTHROPIC_API_KEY = '';
+      process.env.ANTHROPIC_OAUTH_TOKEN = '';
       process.env.GEMINI_API_KEY = '';
       process.env.OPENAI_API_KEY = 'test-openai-key';
 
@@ -149,6 +150,8 @@ Production deploys require gate checks.
       expect(result.matches[0].llmScore).toBeCloseTo(0.91, 2);
       expect(result.matches[0].reasons.some((reason) => reason.source === 'llm_intent')).toBe(true);
     } finally {
+      delete process.env.ANTHROPIC_OAUTH_TOKEN;
+      delete process.env.CLAWVAULT_CLAUDE_AUTH;
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }
   });

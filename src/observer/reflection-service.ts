@@ -268,7 +268,7 @@ async function maybeGenerateLlmReflection(
   weekKey: string,
   sections: ReflectionSections
 ): Promise<string | null> {
-  const provider = resolveLlmProvider();
+  const provider = await resolveLlmProvider();
   if (!provider) {
     return null;
   }

@@ -711,7 +711,7 @@ export async function runPromptInjection(
 
   let llmProvider: LlmProvider | null = null;
   if (useLlm) {
-    llmProvider = resolveLlmProvider();
+    llmProvider = await resolveLlmProvider();
     if (llmProvider) {
       try {
         matches = await addLlmIntentMatches({

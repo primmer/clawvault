@@ -2,21 +2,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Compressor } from './compressor.js';
 
 const originalAnthropic = process.env.ANTHROPIC_API_KEY;
+const originalOauthToken = process.env.ANTHROPIC_OAUTH_TOKEN;
+const originalClaudeAuth = process.env.CLAWVAULT_CLAUDE_AUTH;
 const originalOpenAI = process.env.OPENAI_API_KEY;
 const originalGemini = process.env.GEMINI_API_KEY;
 const originalNoLlm = process.env.CLAWVAULT_NO_LLM;
 
 afterEach(() => {
-  process.env.ANTHROPIC_API_KEY = originalAnthropic;
-  process.env.OPENAI_API_KEY = originalOpenAI;
-  process.env.GEMINI_API_KEY = originalGemini;
-  process.env.CLAWVAULT_NO_LLM = originalNoLlm;
+  if (originalAnthropic !== undefined) { process.env.ANTHROPIC_API_KEY = originalAnthropic; } else { delete process.env.ANTHROPIC_API_KEY; }
+  if (originalOauthToken !== undefined) { process.env.ANTHROPIC_OAUTH_TOKEN = originalOauthToken; } else { delete process.env.ANTHROPIC_OAUTH_TOKEN; }
+  if (originalClaudeAuth !== undefined) { process.env.CLAWVAULT_CLAUDE_AUTH = originalClaudeAuth; } else { delete process.env.CLAWVAULT_CLAUDE_AUTH; }
+  if (originalOpenAI !== undefined) { process.env.OPENAI_API_KEY = originalOpenAI; } else { delete process.env.OPENAI_API_KEY; }
+  if (originalGemini !== undefined) { process.env.GEMINI_API_KEY = originalGemini; } else { delete process.env.GEMINI_API_KEY; }
+  if (originalNoLlm !== undefined) { process.env.CLAWVAULT_NO_LLM = originalNoLlm; } else { delete process.env.CLAWVAULT_NO_LLM; }
 });
 
 describe('Compressor', () => {
   it('deduplicates by normalized content during merges', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.GEMINI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.GEMINI_API_KEY = '';
     process.env.OPENAI_API_KEY = 'test-key';
 
     const fetchImpl: typeof fetch = async () => {
@@ -53,7 +57,7 @@ describe('Compressor', () => {
 
   it('marks explicit decision markers as critical', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
 
     const compressor = new Compressor({
@@ -77,7 +81,7 @@ describe('Compressor', () => {
 
   it('treats preferences and routine deadlines as notable, dated deadlines as critical', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
 
     const compressor = new Compressor({
@@ -99,7 +103,7 @@ describe('Compressor', () => {
 
   it('detects explicit TODO variants as todo observations', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
 
     const compressor = new Compressor({
@@ -125,7 +129,7 @@ describe('Compressor', () => {
 
   it('detects commitment phrasing as task observations', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
 
     const compressor = new Compressor({
@@ -153,7 +157,7 @@ describe('Compressor', () => {
 
   it('deduplicates repeated TODO observations during merges', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.GEMINI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.GEMINI_API_KEY = '';
     process.env.OPENAI_API_KEY = 'test-key';
 
     const fetchImpl: typeof fetch = async () => {
@@ -188,7 +192,7 @@ describe('Compressor', () => {
 
   it('uses openai-compatible provider with custom baseUrl', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
     process.env.CLAWVAULT_NO_LLM = '';
 
@@ -233,7 +237,7 @@ describe('Compressor', () => {
 
   it('maps ollama shorthand to local openai-compatible endpoint', async () => {
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
     process.env.CLAWVAULT_NO_LLM = '';
 

@@ -15,13 +15,17 @@ function withFixedNow(isoTimestamp: string): () => Date {
 }
 
 const originalAnthropic = process.env.ANTHROPIC_API_KEY;
+const originalOauthToken = process.env.ANTHROPIC_OAUTH_TOKEN;
+const originalClaudeAuth = process.env.CLAWVAULT_CLAUDE_AUTH;
 const originalOpenAI = process.env.OPENAI_API_KEY;
 const originalGemini = process.env.GEMINI_API_KEY;
 
 afterEach(() => {
-  process.env.ANTHROPIC_API_KEY = originalAnthropic;
-  process.env.OPENAI_API_KEY = originalOpenAI;
-  process.env.GEMINI_API_KEY = originalGemini;
+  if (originalAnthropic !== undefined) { process.env.ANTHROPIC_API_KEY = originalAnthropic; } else { delete process.env.ANTHROPIC_API_KEY; }
+  if (originalOauthToken !== undefined) { process.env.ANTHROPIC_OAUTH_TOKEN = originalOauthToken; } else { delete process.env.ANTHROPIC_OAUTH_TOKEN; }
+  if (originalClaudeAuth !== undefined) { process.env.CLAWVAULT_CLAUDE_AUTH = originalClaudeAuth; } else { delete process.env.CLAWVAULT_CLAUDE_AUTH; }
+  if (originalOpenAI !== undefined) { process.env.OPENAI_API_KEY = originalOpenAI; } else { delete process.env.OPENAI_API_KEY; }
+  if (originalGemini !== undefined) { process.env.GEMINI_API_KEY = originalGemini; } else { delete process.env.GEMINI_API_KEY; }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -93,7 +97,7 @@ describe('Observer', () => {
   it('produces scored observation format with fallback compression', async () => {
     const vaultPath = makeTempVault();
     process.env.ANTHROPIC_API_KEY = '';
-    process.env.OPENAI_API_KEY = '';
+    process.env.ANTHROPIC_OAUTH_TOKEN = '';    process.env.OPENAI_API_KEY = '';
     process.env.GEMINI_API_KEY = '';
     const now = withFixedNow('2026-02-11T14:10:00.000Z');
 

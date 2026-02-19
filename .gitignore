@@ -69,3 +69,8 @@ __pycache__/
 
 # Trash
 .trash/
+
+# Project instances (private strategy)
+projects/autonomous-freelance-revenue.md
+projects/helios.md
+backlog/

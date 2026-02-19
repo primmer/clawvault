@@ -1,0 +1,1 @@
+A Paymaster has access to several resources

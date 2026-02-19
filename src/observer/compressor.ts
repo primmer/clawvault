@@ -70,7 +70,9 @@ export class Compressor {
   }
 
   async compress(messages: string[], existingObservations: string): Promise<string> {
-    const cleanedMessages = messages.map((message) => message.trim()).filter(Boolean);
+    const cleanedMessages = this.filterToolNoise(
+      messages.map((message) => message.trim()).filter(Boolean)
+    );
     if (cleanedMessages.length === 0) {
       return existingObservations.trim();
     }
@@ -98,6 +100,57 @@ export class Compressor {
 
     const fallback = this.fallbackCompression(cleanedMessages);
     return this.mergeObservations(existingObservations, fallback);
+  }
+
+  /**
+   * Pre-filter messages to remove raw tool result noise before LLM processing.
+   * Removes messages that are purely tool outputs, JSON error responses, or stack traces.
+   * Keeps messages that mention tool results in the context of a decision or lesson.
+   */
+  private filterToolNoise(messages: string[]): string[] {
+    return messages.filter((msg) => {
+      if (!msg) return false;
+
+      // Detect pure tool result lines
+      if (/^toolresult\s*:/i.test(msg)) return false;
+
+      // Detect JSON error payloads
+      if (/^\s*\{/.test(msg)) {
+        try {
+          const parsed = JSON.parse(msg);
+          if (
+            parsed &&
+            typeof parsed === 'object' &&
+            ('error' in parsed ||
+              (parsed.status === 'error') ||
+              ('stderr' in parsed && !('decision' in parsed)))
+          ) {
+            return false;
+          }
+        } catch {
+          // Not valid JSON, check other patterns
+        }
+      }
+
+      // Detect stack traces
+      if (/^\s*(Error|TypeError|ReferenceError|SyntaxError|RangeError):/m.test(msg) &&
+          /\n\s+at\s+/m.test(msg)) {
+        return false;
+      }
+
+      // Detect raw CLI error output
+      if (/^(ENOENT|EACCES|EPERM|ECONNREFUSED|ETIMEDOUT)\b/.test(msg)) return false;
+      if (/^(npm ERR!|npm warn|gyp ERR!)\s/i.test(msg)) return false;
+      if (/^(fatal|error)\s*:\s*.{0,120}$/i.test(msg) && msg.length < 150) return false;
+
+      // Detect bare exit code messages
+      if (/^Command (exited|failed) with (code|status) \d+\.?$/i.test(msg)) return false;
+
+      // Detect retry noise
+      if (/^(Retrying|Retry attempt|Attempt \d+ of \d+)/i.test(msg)) return false;
+
+      return true;
+    });
   }
 
   private async resolveProvider(): Promise<ResolvedCompressionBackend | null> {
@@ -252,6 +305,15 @@ export class Compressor {
     return [
       'You are an observer that compresses raw AI session messages into durable, human-meaningful observations.',
       '',
+      '⚠️ CRITICAL — NOISE REJECTION (read this FIRST):',
+      '- NEVER observe: raw tool results, toolresult: outputs, JSON error payloads, CLI errors, command failures,',
+      '  stack traces, retry attempts, debug logs, exit codes, npm errors, or tool output parsing issues.',
+      '  These are TRANSIENT NOISE, not memories. Only observe errors that represent a BLOCKER or unresolved problem.',
+      '- NEVER observe: "acknowledged the conversation", "said okay", routine confirmations, or status checks.',
+      '- MERGE related events into single observations. If 5 images were generated, say "Generated 5 images for X" not 5 separate lines.',
+      '- MERGE retry sequences: "Tried X, failed, tried Y, succeeded" → "Resolved X using Y (after initial failure)"',
+      '- Prefer OUTCOMES over PROCESSES: "Deployed v1.2 to Railway" not "Started deploy... build finished... deploy succeeded"',
+      '',
       'Rules:',
       '- Output markdown only.',
       '- Group observations by date heading: ## YYYY-MM-DD',
@@ -279,14 +341,6 @@ export class Compressor {
       '- Emit [task] for commitments/action intent: "I\'ll", "I will", "let me", "going to", "plan to", "should".',
       '- Emit [commitment-unresolved] for unresolved commitments/questions: "need to figure out", "TBD", "to be determined".',
       '- Deadline language ("by Friday", "before the demo", "deadline is") should increase importance and usually map to [task] unless unresolved.',
-      '',
-      'QUALITY FILTERS (important):',
-      '- DO NOT observe: CLI errors, command failures, tool output parsing issues, retry attempts, debug logs.',
-      '  These are transient noise, not memories. Only observe errors if they represent a BLOCKER or an unresolved problem.',
-      '- DO NOT observe: "acknowledged the conversation", "said okay", routine confirmations.',
-      '- MERGE related events into single observations. If 5 images were generated, say "Generated 5 images for X" not 5 separate lines.',
-      '- MERGE retry sequences: "Tried X, failed, tried Y, succeeded" → "Resolved X using Y (after initial failure)"',
-      '- Prefer OUTCOMES over PROCESSES: "Deployed v1.2 to Railway" not "Started deploy... build finished... deploy succeeded"',
       '',
       'AGENT ATTRIBUTION:',
       '- If the transcript shows multiple speakers/agents, prefix observations with who did it: "Pedro asked...", "Clawdious deployed...", "Zeca generated..."',

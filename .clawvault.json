@@ -1,0 +1,28 @@
+{
+  "name": "clawdious-vault",
+  "version": "1.0.0",
+  "created": "2026-02-19T02:12:17.755Z",
+  "lastUpdated": "2026-02-19T17:58:52.977Z",
+  "categories": [
+    "rules",
+    "preferences",
+    "decisions",
+    "patterns",
+    "people",
+    "projects",
+    "goals",
+    "transcripts",
+    "inbox",
+    "templates",
+    "lessons",
+    "agents",
+    "commitments",
+    "handoffs",
+    "research",
+    "tasks",
+    "backlog"
+  ],
+  "documentCount": 110,
+  "qmdCollection": "clawvault",
+  "qmdRoot": "/Users/clawdious/clawvault"
+}

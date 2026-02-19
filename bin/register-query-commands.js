@@ -292,6 +292,29 @@ export function registerQueryCommands(
       }
     });
 
+  // === REWEAVE ===
+  program
+    .command('reweave')
+    .description('Backward memory consolidation — detect and mark superseded observations')
+    .option('--since <date>', 'Only check observations since this date (YYYY-MM-DD)')
+    .option('--dry-run', 'Show what would be superseded without writing')
+    .option('--threshold <n>', 'Entity similarity threshold (0-1, default 0.3)', '0.3')
+    .option('-v, --vault <path>', 'Vault path')
+    .action(async (options) => {
+      try {
+        const { reweaveCommand } = await import('../dist/commands/reweave.js');
+        await reweaveCommand({
+          vaultPath: resolveVaultPath(options.vault),
+          since: options.since,
+          dryRun: options.dryRun,
+          threshold: parseFloat(options.threshold),
+        });
+      } catch (err) {
+        console.error(chalk.red(`Error: ${err.message}`));
+        process.exit(1);
+      }
+    });
+
   // === SESSION-RECAP ===
   program
     .command('session-recap <sessionKey>')

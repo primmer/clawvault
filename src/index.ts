@@ -72,6 +72,18 @@ export type { InjectFormat, InjectCommandOptions } from './commands/inject.js';
 export { observeCommand, registerObserveCommand } from './commands/observe.js';
 export type { ObserveCommandOptions } from './commands/observe.js';
 export { reflectCommand, registerReflectCommand } from './commands/reflect.js';
+export { reweaveCommand, registerReweaveCommand } from './commands/reweave.js';
+export {
+  reweave,
+  isSuperseded,
+  getSupersessionInfo,
+  extractEntities,
+  entitySimilarity,
+  isKnowledgeUpdate,
+  filterSuperseded,
+  stripSupersededObservations,
+} from './lib/reweave.js';
+export type { SupersessionRecord, ReweaveResult, ReweaveOptions } from './lib/reweave.js';
 export type { ReflectCommandOptions } from './commands/reflect.js';
 export { archiveCommand, registerArchiveCommand } from './commands/archive.js';
 export type { ArchiveCommandOptions } from './commands/archive.js';

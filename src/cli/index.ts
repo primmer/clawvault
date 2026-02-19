@@ -4,6 +4,7 @@ import { registerInjectCommand } from '../commands/inject.js';
 import { registerObserveCommand } from '../commands/observe.js';
 import { registerReflectCommand } from '../commands/reflect.js';
 import { registerEmbedCommand } from '../commands/embed.js';
+import { registerReweaveCommand } from '../commands/reweave.js';
 import { registerTailscaleCommands } from '../commands/tailscale.js';
 
 export function registerCliCommands(program: Command): Command {
@@ -12,6 +13,7 @@ export function registerCliCommands(program: Command): Command {
   registerObserveCommand(program);
   registerReflectCommand(program);
   registerEmbedCommand(program);
+  registerReweaveCommand(program);
   registerTailscaleCommands(program);
   return program;
 }

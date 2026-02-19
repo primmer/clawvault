@@ -13,6 +13,7 @@ import { execFileSync, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Document, SearchResult, SearchOptions, ExtractedDate, ExtractedPreference } from '../types.js';
+import { isSuperseded } from './reweave.js';
 
 export const QMD_INSTALL_URL = 'https://github.com/tobi/qmd';
 export const QMD_INSTALL_COMMAND = 'bun install -g github:tobi/qmd';
@@ -820,7 +821,7 @@ export class SearchEngine {
       results.push({
         document: fullContent ? doc : { ...doc, content: '' },
         score: finalScore,
-        snippet: this.cleanSnippet(qr.snippet),
+        snippet: this.stripSupersededFromSnippet(this.cleanSnippet(qr.snippet)),
         matchedTerms: [] // qmd doesn't provide this
       });
     }
@@ -871,6 +872,18 @@ export class SearchEngine {
     
     // Return as-is if not a qmd:// URI
     return uri;
+  }
+
+  /**
+   * v2.8 — Filter superseded observation lines from snippet text.
+   * Ensures search results prefer the latest version of knowledge.
+   */
+  private stripSupersededFromSnippet(snippet: string): string {
+    if (!snippet) return snippet;
+    return snippet
+      .split('\n')
+      .filter(line => !isSuperseded(line))
+      .join('\n');
   }
 
   /**

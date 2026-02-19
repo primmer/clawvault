@@ -26,8 +26,8 @@ export function registerMaintenanceCommands(program, { chalk }) {
 
         console.log(chalk.cyan('\n🩺 ClawVault Health Check\n'));
         console.log(chalk.dim(`Vault: ${report.vaultPath}`));
-        console.log(chalk.dim(`qmd collection: ${report.qmdCollection}`));
-        console.log(chalk.dim(`qmd root: ${report.qmdRoot}`));
+        if (report.qmdCollection) console.log(chalk.dim(`qmd collection: ${report.qmdCollection}`));
+        if (report.qmdRoot) console.log(chalk.dim(`qmd root: ${report.qmdRoot}`));
         console.log();
 
         for (const check of report.checks) {

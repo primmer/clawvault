@@ -236,56 +236,6 @@ export type { ReflectOptions, ReflectResult } from './observer/reflection-servic
 export { archiveObservations } from './observer/archive.js';
 export type { ArchiveObservationsOptions, ArchiveObservationsResult } from './observer/archive.js';
 
-// Tailscale networking exports
-export {
-  hasTailscale,
-  getTailscaleVersion,
-  getTailscaleStatus,
-  findPeer,
-  getOnlinePeers,
-  resolvePeerIP,
-  generateVaultManifest,
-  compareManifests,
-  serveVault,
-  fetchRemoteManifest,
-  fetchRemoteFile,
-  pushFileToRemote,
-  syncWithPeer,
-  configureTailscaleServe,
-  stopTailscaleServe,
-  checkPeerClawVault,
-  discoverClawVaultPeers,
-  DEFAULT_SERVE_PORT,
-  CLAWVAULT_SERVE_PATH
-} from './lib/tailscale.js';
-export type {
-  TailscaleStatus,
-  TailscalePeer,
-  TailscaleServeConfig,
-  TailscaleSyncOptions,
-  TailscaleSyncResult,
-  VaultManifest,
-  VaultFileEntry,
-  ServeInstance
-} from './lib/tailscale.js';
-export {
-  tailscaleStatusCommand,
-  tailscaleSyncCommand,
-  tailscaleServeCommand,
-  tailscaleDiscoverCommand,
-  registerTailscaleCommands,
-  registerTailscaleStatusCommand,
-  registerTailscaleSyncCommand,
-  registerTailscaleServeCommand,
-  registerTailscaleDiscoverCommand
-} from './commands/tailscale.js';
-export type {
-  TailscaleStatusCommandOptions,
-  TailscaleSyncCommandOptions,
-  TailscaleServeCommandOptions,
-  TailscaleDiscoverCommandOptions
-} from './commands/tailscale.js';
-
 export {
   renderTemplate,
   buildTemplateVariables

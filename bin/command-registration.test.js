@@ -83,8 +83,7 @@ describe('CLI command registration modules', () => {
       'sync',
       'reindex',
       'remember',
-      'shell-init',
-      'dashboard'
+      'shell-init'
     ]));
   });
 

@@ -131,7 +131,23 @@ function checkOpenClawCli(): CompatCheck {
 }
 
 function checkPackageHookRegistration(options: CompatOptions): CompatCheck {
-  const packageRaw = readOptionalFile(resolveProjectFile('package.json', options.baseDir));
+  let packageRaw = readOptionalFile(resolveProjectFile('package.json', options.baseDir));
+
+  // If the cwd package.json exists but doesn't contain openclaw config,
+  // fall back to the installed clawvault package.json
+  if (packageRaw && !options.baseDir) {
+    try {
+      const parsed = JSON.parse(packageRaw) as { openclaw?: { hooks?: string[] } };
+      if (!parsed.openclaw?.hooks) {
+        const fallbackPath = path.resolve(findPackageRoot(), 'package.json');
+        const fallbackRaw = readOptionalFile(fallbackPath);
+        if (fallbackRaw) packageRaw = fallbackRaw;
+      }
+    } catch {
+      // If parsing fails, continue with original
+    }
+  }
+
   if (!packageRaw) {
     return {
       label: 'package hook registration',

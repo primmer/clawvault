@@ -292,7 +292,17 @@ describe('clawvault hook handler', () => {
     fs.mkdirSync(vaultPath, { recursive: true });
     fs.writeFileSync(path.join(vaultPath, '.clawvault.json'), JSON.stringify({ name: 'home' }), 'utf-8');
     const originalHome = process.env.HOME;
+    const originalClawvaultPath = process.env.CLAWVAULT_PATH;
+    const originalOpenclawMemory = process.env.OPENCLAW_MEMORY_PATH;
+    const originalOpenclawVault = process.env.OPENCLAW_VAULT_PATH;
     process.env.HOME = fakeHome;
+    delete process.env.CLAWVAULT_PATH;
+    delete process.env.OPENCLAW_MEMORY_PATH;
+    delete process.env.OPENCLAW_VAULT_PATH;
+    // Mock cwd to a temp dir without a vault so walk-up doesn't find one
+    const fakeCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-cwd-'));
+    const originalCwd = process.cwd;
+    process.cwd = () => fakeCwd;
     try {
       execFileSyncMock.mockReturnValue('');
 
@@ -313,7 +323,12 @@ describe('clawvault hook handler', () => {
       } else {
         process.env.HOME = originalHome;
       }
+      if (originalClawvaultPath !== undefined) process.env.CLAWVAULT_PATH = originalClawvaultPath;
+      if (originalOpenclawMemory !== undefined) process.env.OPENCLAW_MEMORY_PATH = originalOpenclawMemory;
+      if (originalOpenclawVault !== undefined) process.env.OPENCLAW_VAULT_PATH = originalOpenclawVault;
+      process.cwd = originalCwd;
       fs.rmSync(fakeHome, { recursive: true, force: true });
+      fs.rmSync(fakeCwd, { recursive: true, force: true });
     }
   });
 

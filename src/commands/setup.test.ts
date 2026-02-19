@@ -384,44 +384,6 @@ describe('importToVault', () => {
   });
 });
 
-describe('setup --from integration', () => {
-  let baseDir: string;
-  let vaultPath: string;
-  let sourceDir: string;
-
-  beforeEach(() => {
-    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-setup-from-'));
-    vaultPath = path.join(baseDir, 'vault');
-    sourceDir = path.join(baseDir, 'source');
-    fs.mkdirSync(sourceDir, { recursive: true });
-    process.env.CLAWVAULT_PATH = vaultPath;
-    hasQmdMock.mockReturnValue(false);
-  });
-
-  afterEach(() => {
-    delete process.env.CLAWVAULT_PATH;
-    fs.rmSync(baseDir, { recursive: true, force: true });
-    vi.clearAllMocks();
-  });
-
-  it('prints agent directive for source directory during setup', async () => {
-    fs.writeFileSync(path.join(sourceDir, 'MEMORY.md'), `
-# Agent Memory
-
-Met with Alice Johnson <alice@company.com> (Product Manager).
-I prefer using TypeScript for all projects.
-    `);
-
-    const consoleSpy = vi.spyOn(console, 'log');
-    await setupCommand({ from: sourceDir });
-
-    const output = consoleSpy.mock.calls.map(c => c.join(' ')).join('\n');
-    expect(output).toContain('markdown files');
-    expect(output).toContain('directive');
-    consoleSpy.mockRestore();
-  });
-
-  it('throws error for non-existent source path', async () => {
-    await expect(setupCommand({ from: '/nonexistent/path' })).rejects.toThrow('Source path does not exist');
-  });
-});
+// Note: vault setup from existing memory is agent-led, not CLI-driven.
+// The agent reads SKILL.md, understands primitives, and creates vault files itself.
+// No --from flag needed — the agent IS the extraction engine.

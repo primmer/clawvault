@@ -20,7 +20,6 @@ export interface SetupOptions {
   force?: boolean;
   vault?: string;
   qmdIndexName?: string;
-  from?: string;
 }
 
 export interface ExtractedPerson {
@@ -1073,34 +1072,10 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   const force = options.force ?? false;
   const theme = options.theme ?? 'neural';
 
-  // Handle --from option: print agent directive for intelligent vault setup
-  if (options.from) {
-    const sourcePath = path.resolve(options.from);
-    if (!fs.existsSync(sourcePath)) {
-      throw new Error(`Source path does not exist: ${sourcePath}`);
-    }
-    const files = scanMarkdownFiles(sourcePath);
-    console.log(`\n📂 Found ${files.length} markdown files in ${sourcePath}`);
-    console.log('\nVault setup from existing memory is best done by your agent.');
-    console.log('Give your agent this directive:\n');
-    console.log('---');
-    console.log(`Read the markdown files in ${sourcePath}.`);
-    console.log(`Read the template schemas in ${target.vaultPath}/templates/ to understand primitive types.`);
-    console.log('For each piece of durable knowledge:');
-    console.log('  - People with contact info → create people/<name>.md using person template');
-    console.log('  - Decisions made → create decisions/<slug>.md using decision template');
-    console.log('  - Lessons learned → create lessons/<slug>.md using lesson template');
-    console.log('  - Active tasks → create tasks/<slug>.md using task template');
-    console.log('  - Preferences/facts → create memories/<slug>.md using memory-event template');
-    console.log('Deduplicate: search existing vault files before creating new ones.');
-    console.log('---');
-  }
-
-  // Determine what to set up — if no explicit flags, do everything (unless --from is the only thing)
+  // Determine what to set up
   const explicitFlags = options.graphColors !== undefined || options.bases !== undefined;
-  const fromOnly = options.from && !explicitFlags;
-  const doGraphColors = fromOnly ? false : (explicitFlags ? (options.graphColors !== false) : true);
-  const doBases = fromOnly ? false : (explicitFlags ? (options.bases !== false) : true);
+  const doGraphColors = explicitFlags ? (options.graphColors !== false) : true;
+  const doBases = explicitFlags ? (options.bases !== false) : true;
 
   // Graph colors
   if (doGraphColors && theme !== 'none') {
@@ -1152,6 +1127,5 @@ export async function setupCommand(options: SetupOptions = {}): Promise<void> {
   console.log('  clawvault setup --theme neural     # Neural neural graph colors');
   console.log('  clawvault setup --theme minimal        # Subtle category colors');
   console.log('  clawvault setup --no-bases --no-graph-colors  # Structure only');
-  console.log('  clawvault setup --from <path>           # Import from existing memory');
   console.log('  clawvault setup --force                 # Overwrite existing configs');
 }

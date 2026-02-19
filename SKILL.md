@@ -84,8 +84,22 @@ clawvault init --vault ~/.openclaw/vault
 
 This creates the vault structure with default templates and directories.
 
-### Existing Agent (Has Memory/Workspace Files)
+### Existing Agent (Has Memory\/Workspace Files)
 
+If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily logs),
+set up your vault by reading those files and creating typed primitives:
+
+1. Run `clawvault init` to create the vault structure
+2. Read `templates/*.md` in your vault to learn the primitive schemas
+3. Read your existing memory files (MEMORY.md, memory/*.md, USER.md)
+4. For each piece of durable knowledge, create the appropriate primitive:
+   - People with contact info → `people/<name>.md` (person template)
+   - Decisions made → `decisions/<slug>.md` (decision template)
+   - Lessons learned → `lessons/<slug>.md` (lesson template)
+   - Active tasks → `tasks/<slug>.md` (task template)
+   - Preferences and facts → `memories/<slug>.md` (memory-event template)
+5. Search existing vault files before creating to avoid duplicates
+6. Run `clawvault setup` to configure Obsidian views and graph colors
 If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily logs), the agent should set up its own vault by reading its existing memory and creating typed primitives.
 
 **Agent directive for vault setup:**

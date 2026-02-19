@@ -129,7 +129,6 @@ export function registerCoreCommands(
     .option('--bases', 'Generate Obsidian Bases views for task management')
     .option('--no-bases', 'Skip Bases file generation')
     .option('--theme <style>', 'Graph color theme (neural, minimal, none) (default: neural)', 'neural')
-    .option('--from <path>', 'Import from existing agent memory directory (MEMORY.md, memory/*.md, etc)')
     .option('--force', 'Overwrite existing configuration files')
     .option('-v, --vault <path>', 'Vault path')
     .action(async (options) => {
@@ -139,7 +138,6 @@ export function registerCoreCommands(
           graphColors: options.graphColors,
           bases: options.bases,
           theme: options.theme,
-          from: options.from,
           force: options.force,
           vault: options.vault
         });

@@ -1,5 +1,5 @@
 /**
- * Vault operation command registrations (browse/sync/reindex/remember/shell-init/dashboard).
+ * Vault operation command registrations (browse/sync/reindex/remember/shell-init).
  */
 
 import { validatePathWithinBase } from './command-runtime.js';
@@ -269,32 +269,4 @@ export function registerVaultOperationsCommands(
       }
     });
 
-  // === DASHBOARD ===
-  program
-    .command('dashboard')
-    .description('Run the local vault graph dashboard server')
-    .option('-p, --port <port>', 'Dashboard port (default: 3377)', '3377')
-    .option('-v, --vault <path>', 'Vault path')
-    .action(async (options) => {
-      try {
-        const parsedPort = Number.parseInt(options.port, 10);
-        if (Number.isNaN(parsedPort)) {
-          console.error(chalk.red(`Error: Invalid port: ${options.port}`));
-          process.exit(1);
-        }
-
-        const vaultPath = options.vault
-          ? path.resolve(options.vault)
-          : resolveVaultPath(undefined);
-
-        const { startDashboard } = await import('../dashboard/server.js');
-        await startDashboard({
-          port: parsedPort,
-          vaultPath
-        });
-      } catch (err) {
-        console.error(chalk.red(`Error: ${err.message}`));
-        process.exit(1);
-      }
-    });
 }

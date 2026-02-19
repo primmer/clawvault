@@ -262,21 +262,4 @@ export function registerMaintenanceCommands(program, { chalk }) {
     });
 
   // === SYNC-BD ===
-  program
-    .command('sync-bd')
-    .description('Sync active Beads tasks into views/now.md (optional)')
-    .option('--dry-run', 'Show sync output without writing')
-    .option('-v, --vault <path>', 'Vault path')
-    .action(async (options) => {
-      try {
-        const { syncBdCommand } = await import('../dist/commands/sync-bd.js');
-        await syncBdCommand({
-          vaultPath: options.vault,
-          dryRun: options.dryRun
-        });
-      } catch (err) {
-        console.error(chalk.red(`Error: ${err.message}`));
-        process.exit(1);
-      }
-    });
 }

@@ -130,7 +130,6 @@ describe('CLI command registration modules', () => {
       'archive',
       'migrate-observations',
       'replay',
-      'sync-bd',
       'checkpoint',
       'recover',
       'status',

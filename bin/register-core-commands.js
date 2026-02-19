@@ -19,7 +19,6 @@ export function registerCoreCommands(
     .option('--no-tasks', 'Skip tasks/ and backlog/ directories')
     .option('--no-graph', 'Skip initial graph build')
     .option('--categories <list>', 'Comma-separated list of custom categories to create')
-    .option('--canvas', 'Generate a vault status canvas dashboard on init')
     .option('--theme <style>', 'Graph color theme to apply (neural, minimal, none) (default: none)', 'none')
     .option('--minimal', 'Create minimal vault (memory categories only, no tasks/bases/graph)')
     .action(async (vaultPath, options) => {
@@ -98,28 +97,11 @@ export function registerCoreCommands(
             await setupCommand({
               graphColors: true,
               bases: false,
-              canvas: false,
               theme: options.theme,
               vault: resolvedPath
             });
           } catch {
             console.log(chalk.yellow(`⚠ Could not apply ${options.theme} theme`));
-          }
-        }
-
-        // Generate canvas if requested
-        if (options.canvas) {
-          try {
-            const { setupCommand } = await import('../dist/commands/setup.js');
-            await setupCommand({
-              graphColors: false,
-              bases: false,
-              canvas: true,
-              theme: 'none',
-              vault: resolvedPath
-            });
-          } catch {
-            console.log(chalk.yellow(`⚠ Could not generate canvas`));
           }
         }
 
@@ -146,8 +128,6 @@ export function registerCoreCommands(
     .option('--no-graph-colors', 'Skip graph color configuration')
     .option('--bases', 'Generate Obsidian Bases views for task management')
     .option('--no-bases', 'Skip Bases file generation')
-    .option('--canvas', 'Generate vault status canvas dashboard')
-    .option('--no-canvas', 'Skip canvas generation')
     .option('--theme <style>', 'Graph color theme (neural, minimal, none) (default: neural)', 'neural')
     .option('--force', 'Overwrite existing configuration files')
     .option('-v, --vault <path>', 'Vault path')
@@ -157,7 +137,6 @@ export function registerCoreCommands(
         await setupCommand({
           graphColors: options.graphColors,
           bases: options.bases,
-          canvas: options.canvas,
           theme: options.theme,
           force: options.force,
           vault: options.vault

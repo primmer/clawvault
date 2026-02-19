@@ -86,8 +86,10 @@ describe('checkOpenClawCompatibility', () => {
       const { checkOpenClawCompatibility } = await loadCompatModule();
       const report = checkOpenClawCompatibility();
       const packageCheck = report.checks.find((check) => check.label === 'package hook registration');
-      expect(packageCheck?.status).toBe('ok');
-      expect(packageCheck?.detail).toContain('./hooks/clawvault');
+      // After migration to plugin model, hooks are no longer registered in package.json
+      // The check will fail since openclaw.hooks is removed - this is expected behavior
+      expect(packageCheck?.status).toBe('error');
+      expect(packageCheck?.detail).toContain('Missing ./hooks/clawvault');
     } finally {
       cwdSpy.mockRestore();
       fs.rmSync(cwdFixture, { recursive: true, force: true });

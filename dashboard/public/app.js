@@ -62,6 +62,7 @@ if (typeof window.ForceGraph !== 'function') {
 const graph = window
   .ForceGraph()(graphElement)
   .backgroundColor('#070a10')
+  .autoPauseRedraw(false)
   .nodeId('id')
   .linkSource('source')
   .linkTarget('target')
@@ -379,7 +380,6 @@ function syncHighlights() {
     }
     state.highlightedNodeIds = nextHighlightedNodeIds;
     state.highlightedEdgeKeys = nextHighlightedEdgeKeys;
-    graph.refresh();
     return;
   }
 
@@ -400,7 +400,6 @@ function syncHighlights() {
   }
   state.highlightedNodeIds = nextHighlightedNodeIds;
   state.highlightedEdgeKeys = nextHighlightedEdgeKeys;
-  graph.refresh();
 }
 
 function selectNode(node) {
@@ -716,7 +715,6 @@ function setTvMode(enabled, { updateQuery, useFullscreen }) {
   tvModeButtonElement.setAttribute('aria-pressed', enabled ? 'true' : 'false');
   tvModeButtonElement.textContent = enabled ? 'Exit TV Mode' : 'TV Mode';
   resizeGraphToContainer();
-  graph.refresh();
 
   if (updateQuery) {
     const url = new URL(window.location.href);

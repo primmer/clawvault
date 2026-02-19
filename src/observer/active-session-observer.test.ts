@@ -276,7 +276,9 @@ describe('active-session-observer', () => {
 
     const sessionsDir = path.join(stateRoot, 'agents', 'clawdious', 'sessions');
     fs.mkdirSync(sessionsDir, { recursive: true });
-    fs.writeFileSync(path.join(sessionsDir, 'stale-session.jsonl'), 'x'.repeat(120), 'utf-8');
+    // Stale session: 51,210 bytes total, cursor recorded 10 → 51,200 bytes of new content
+    // which meets the 50KB small-session processing threshold, so it should be flagged.
+    fs.writeFileSync(path.join(sessionsDir, 'stale-session.jsonl'), 'x'.repeat(51210), 'utf-8');
     fs.writeFileSync(path.join(sessionsDir, 'fresh-session.jsonl'), 'x'.repeat(80), 'utf-8');
 
     const nowMs = Date.UTC(2026, 1, 15, 12, 0, 0);

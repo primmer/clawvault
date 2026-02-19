@@ -279,7 +279,13 @@ export function getObserverStaleness(
       continue;
     }
 
-    if (cursor.lastFileSize >= sessionStat.size) {
+    const newBytes = sessionStat.size - cursor.lastFileSize;
+    if (newBytes <= 0) {
+      continue;
+    }
+
+    const processThreshold = getScaledObservationThresholdBytes(sessionStat.size);
+    if (newBytes < processThreshold) {
       continue;
     }
 
@@ -441,6 +447,23 @@ function normalizeRole(role: unknown): string {
   return role.trim().toLowerCase();
 }
 
+function summarizeContentArray(content: unknown[]): string {
+  const parts: string[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== 'object') continue;
+    const b = block as Record<string, unknown>;
+    if (b.type === 'text' && typeof b.text === 'string') {
+      const text = normalizeWhitespace(b.text);
+      if (text) parts.push(text);
+    } else if (b.type === 'toolCall') {
+      const toolName = typeof b.name === 'string' ? b.name : 'tool';
+      parts.push(`[tool: ${toolName}]`);
+    }
+    // thinking, image, and all other block types are dropped
+  }
+  return parts.join(' ');
+}
+
 function parseOpenClawJsonLine(line: string): string {
   if (!line.trim()) {
     return '';
@@ -461,7 +484,25 @@ function parseOpenClawJsonLine(line: string): string {
 
   if ('role' in entry && 'content' in entry) {
     const role = normalizeRole(entry.role);
-    const content = extractContentText(entry.content);
+
+    // Drop system messages entirely — they are prompts/metadata, not observations
+    if (role === 'system') return '';
+
+    // toolResult role = raw tool output (JSON blobs, search results, stdout)
+    // Summarize to one line instead of passing the entire blob to the LLM
+    if (role === 'toolresult') {
+      const output = extractContentText(entry.content);
+      const preview = output.slice(0, 80) || 'ok';
+      return `[tool_result → ${preview}]`;
+    }
+
+    const raw = entry.content;
+    let content: string;
+    if (Array.isArray(raw)) {
+      content = summarizeContentArray(raw);
+    } else {
+      content = extractContentText(raw);
+    }
     if (!content) return '';
     return role ? `${role}: ${content}` : content;
   }
@@ -469,7 +510,22 @@ function parseOpenClawJsonLine(line: string): string {
   if (entry.type === 'message' && entry.message && typeof entry.message === 'object') {
     const message = entry.message as Record<string, unknown>;
     const role = normalizeRole(message.role);
-    const content = extractContentText(message.content);
+
+    if (role === 'system') return '';
+
+    if (role === 'toolresult') {
+      const output = extractContentText(message.content);
+      const preview = output.slice(0, 80) || 'ok';
+      return `[tool_result → ${preview}]`;
+    }
+
+    const raw = message.content;
+    let content: string;
+    if (Array.isArray(raw)) {
+      content = summarizeContentArray(raw);
+    } else {
+      content = extractContentText(raw);
+    }
     if (!content) return '';
     return role ? `${role}: ${content}` : content;
   }

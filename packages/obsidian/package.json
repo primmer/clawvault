@@ -1,0 +1,12 @@
+{
+  "name": "@versatly/clawvault-obsidian",
+  "version": "0.1.0",
+  "description": "Obsidian plugin for browsing and editing ClawVault agent memory",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Versatly/clawvault",
+    "directory": "packages/obsidian"
+  },
+  "license": "MIT"
+}

@@ -1,5 +1,5 @@
 {
-  "name": "@clawvault/openclaw-plugin",
+  "name": "@versatly/clawvault-plugin",
   "version": "2.1.0",
   "description": "ClawVault memory provider plugin for OpenClaw",
   "type": "module",
@@ -54,5 +54,10 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Versatly/clawvault",
+    "directory": "packages/plugin"
   }
 }

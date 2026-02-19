@@ -1,5 +1,5 @@
 {
-  "name": "@clawvault/sdk",
+  "name": "@versatly/clawvault-sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for ClawVault \u2014 structured agent memory with hybrid search, observation, and context management",
   "type": "module",

@@ -50,7 +50,8 @@ function pushMessage(
   if (!text) {
     return;
   }
-  const role = typeof record.role === 'string' ? record.role.trim().toLowerCase() : undefined;
+  const rawRole = typeof record.role === 'string' ? record.role : typeof record.sender === 'string' ? record.sender : undefined;
+  const role = rawRole ? rawRole.trim().toLowerCase() : undefined;
   destination.push({
     source: 'claude',
     conversationId,
@@ -73,8 +74,9 @@ export function normalizeClaudeExport(input: unknown): NormalizedReplayMessage[]
           ? record.uuid
           : undefined;
 
-      if (Array.isArray(record.messages)) {
-        for (const message of record.messages) {
+      const recordMessages = Array.isArray(record.messages) ? record.messages : Array.isArray(record.chat_messages) ? record.chat_messages : undefined;
+      if (recordMessages) {
+        for (const message of recordMessages) {
           if (!message || typeof message !== 'object') continue;
           pushMessage(messages, conversationId, message as Record<string, unknown>);
         }
@@ -93,6 +95,9 @@ export function normalizeClaudeExport(input: unknown): NormalizedReplayMessage[]
     }
     if (Array.isArray(root.messages)) {
       return normalizeClaudeExport([{ id: root.id, messages: root.messages }]);
+    }
+    if (Array.isArray(root.chat_messages)) {
+      return normalizeClaudeExport([{ id: root.id, chat_messages: root.chat_messages }]);
     }
   }
 

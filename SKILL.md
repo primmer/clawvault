@@ -1,378 +1,196 @@
 ---
 name: clawvault
-version: "2.5.13"
-description: "Agent memory system with memory graph, context profiles, checkpoint/recover, structured storage, semantic search, and observational memory. Use when: storing/searching memories, preventing context death, graph-aware context retrieval, repairing broken sessions. Don't use when: general file I/O."
-author: Versatly
-source: https://github.com/Versatly/clawvault
-repository: https://github.com/Versatly/clawvault
-homepage: https://clawvault.dev
+version: "3.0.0"
+description: "Structured memory for AI agents. Typed markdown primitives that compound over time. Install to give any agent persistent, searchable, human-readable memory."
 user-invocable: true
-openclaw: {"emoji":"🐘","requires":{"bins":["clawvault","qmd"],"env":[]},"install":[{"id":"node","kind":"node","package":"clawvault","bins":["clawvault"],"label":"Install ClawVault CLI (npm)"},{"id":"qmd","kind":"node","package":"github:tobi/qmd","bins":["qmd"],"label":"Install qmd backend (required for query/context workflows)"}],"homepage":"https://clawvault.dev"}
-metadata: {"openclaw":{"emoji":"🐘","requires":{"bins":["clawvault","qmd"],"env":[]},"install":[{"id":"node","kind":"node","package":"clawvault","bins":["clawvault"],"label":"Install ClawVault CLI (npm)"},{"id":"qmd","kind":"node","package":"github:tobi/qmd","bins":["qmd"],"label":"Install qmd backend (required for query/context workflows)"}],"homepage":"https://clawvault.dev"}}
+openclaw:
+  emoji: "🧠"
+  requires:
+    bins: ["clawvault", "qmd"]
+    env: []
+  install:
+    - id: node
+      kind: node
+      package: clawvault
+      bins: ["clawvault"]
+      label: "Install ClawVault (npm)"
+    - id: qmd
+      kind: node
+      package: "github:tobi/qmd"
+      bins: ["qmd"]
+      label: "Install qmd search engine"
 ---
 
-# ClawVault 🐘
+# ClawVault — Structured Memory for Agents
 
-An elephant never forgets. Structured memory for OpenClaw agents.
+## What It Is
 
-> **Built for [OpenClaw](https://openclaw.ai)**. Canonical install: npm CLI + hook install + hook enable.
+ClawVault gives agents persistent, typed, searchable memory using plain markdown files.
 
-## Security & Transparency
-
-**What this skill does:**
-- Reads/writes markdown files in your vault directory (`CLAWVAULT_PATH` or auto-discovered)
-- `repair-session` reads and modifies OpenClaw session transcripts (`~/.openclaw/agents/`) — creates backups before writing
-- Provides an OpenClaw **hook pack** (`hooks/clawvault/handler.js`) with lifecycle events (`gateway:startup`, `gateway:heartbeat`, `command:new`, `session:start`, `compaction:memoryFlush`, `cron.weekly`). Hook is opt-in and must be installed/enabled.
-- `observe --compress` makes LLM API calls (Gemini Flash by default) to compress session transcripts into observations
-
-**Environment variables used:**
-- `CLAWVAULT_PATH` — vault location (optional, auto-discovered if not set)
-- `OPENCLAW_HOME` / `OPENCLAW_STATE_DIR` — used by `repair-session` to find session transcripts
-- `GEMINI_API_KEY` — used by `observe` for LLM compression (optional, only if using observe features)
-
-**No cloud sync — all data stays local. No network calls except LLM API for observe compression.**
-
-**This is a full CLI tool, not instruction-only.** It writes files, registers hooks, and runs code.
-
-**Auditability:** the published ClawHub skill bundle includes `SKILL.md`, `HOOK.md`, and `hooks/clawvault/handler.js` so users can inspect hook behavior before enabling it.
-
-## Install (Canonical)
+Every memory is a **typed primitive** — a markdown file with YAML frontmatter following a schema. The agent reads and writes these files. Humans browse them in Obsidian or any editor.
 
 ```bash
-npm install -g clawvault
-openclaw hooks install clawvault
-openclaw hooks enable clawvault
-
-# Verify and reload
-openclaw hooks list --verbose
-openclaw hooks info clawvault
-openclaw hooks check
-# restart gateway process
+npm i -g clawvault
+clawvault init
 ```
 
-`clawhub install clawvault` can install skill guidance, but does not replace explicit hook pack installation.
+## Primitives
 
-### Recommended Safe Install Flow
+ClawVault ships with these default primitive types (defined in `templates/`):
+
+| Type | Directory | Purpose |
+|------|-----------|---------|
+| `task` | `tasks/` | Things to do — status, priority, owner, due date |
+| `project` | `projects/` | Groups of related tasks |
+| `decision` | `decisions/` | Choices made and why |
+| `lesson` | `lessons/` | Mistakes made, patterns learned |
+| `person` | `people/` | Contacts, relationships, preferences |
+| `memory-event` | `memories/` | General observations, preferences, facts |
+
+Templates are **malleable** — users can edit `templates/*.md` to add fields, remove fields, or create entirely new primitive types. The agent reads the schema and adapts.
+
+## For OpenClaw Agents
+
+ClawVault includes an OpenClaw memory plugin. When loaded, it:
+
+1. **Auto-recalls** relevant memories before each agent turn
+2. **Auto-captures** observations from conversations (preferences, decisions, contacts)
+3. **Injects session recap** on first turn (active tasks, recent decisions, current focus)
+4. **Provides tools**: `memory_search`, `memory_get`, `memory_store`, `memory_forget`
+
+Configuration in OpenClaw:
+```json
+{
+  "plugins": {
+    "load": { "paths": ["clawvault/plugin"] },
+    "slots": { "memory": "clawvault" },
+    "entries": {
+      "clawvault": {
+        "enabled": true,
+        "config": { "vaultPath": "~/.openclaw/vault" }
+      }
+    }
+  }
+}
+```
+
+## Setting Up Your Vault
+
+### New Agent (No Existing Memory)
 
 ```bash
-# 1) Review package metadata before install
-npm view clawvault version dist.integrity dist.tarball repository.url
-
-# 2) Install CLI + qmd dependency
-npm install -g clawvault@latest
-npm install -g github:tobi/qmd
-
-# 3) Install hook pack, but DO NOT enable yet
-openclaw hooks install clawvault
-
-# 4) Review hook source locally before enabling
-node -e "const fs=require('fs');const p='hooks/clawvault/handler.js';console.log(fs.existsSync(p)?p:'hook file not found in current directory')"
-openclaw hooks info clawvault
-
-# 5) Enable only after review
-openclaw hooks enable clawvault
-openclaw hooks check
+clawvault init --vault ~/.openclaw/vault
 ```
 
-## Setup
+This creates the vault structure with default templates and directories.
+
+### Existing Agent (Has Memory/Workspace Files)
+
+If you already have OpenClaw workspace files (MEMORY.md, SOUL.md, USER.md, daily logs), the agent should set up its own vault by reading its existing memory and creating typed primitives.
+
+**Agent directive for vault setup:**
+
+> Read your workspace files (MEMORY.md, USER.md, memory/*.md). For each piece of durable knowledge:
+> - People mentioned with contact info → create `people/name.md` with person template
+> - Decisions made → create `decisions/slug.md` with decision template
+> - Lessons learned → create `lessons/slug.md` with lesson template
+> - Active tasks/todos → create `tasks/slug.md` with task template
+> - Preferences/facts → create `memories/slug.md` with memory-event template
+>
+> Read `templates/*.md` in your vault to understand the schema for each type.
+> Use YAML frontmatter matching the template fields. Write the details in the body.
+> Deduplicate: search existing vault files before creating new ones.
+
+The agent is better at classifying and extracting structured knowledge from unstructured text than any regex parser. Let it do the work.
+
+## CLI Commands
 
 ```bash
-# Initialize vault (creates folder structure + templates)
-clawvault init ~/my-vault
+# Vault management
+clawvault init                    # Create new vault
+clawvault setup                   # Configure Obsidian views, graph colors
+clawvault status                  # Vault health
+clawvault doctor                  # Diagnostics
 
-# Or set env var to use existing vault
-export CLAWVAULT_PATH=/path/to/memory
+# Memory operations
+clawvault search "query"          # BM25 keyword search
+clawvault vsearch "query"         # Vector/semantic search
+clawvault observe <session>       # Extract observations from a session transcript
+clawvault reflect                 # Promote stable observations to reflections
 
-# Optional: shell integration (aliases + CLAWVAULT_PATH)
-clawvault shell-init >> ~/.bashrc
+# Primitives
+clawvault task add "title"        # Create task
+clawvault task done <slug>        # Complete task
+clawvault task list               # List tasks
+clawvault project list            # List projects
+
+# Knowledge graph
+clawvault graph                   # Show graph stats
+clawvault entities                # List entity index
+clawvault link                    # Auto-link vault files
+
+# Session lifecycle
+clawvault wake                    # Generate session startup context
+clawvault sleep                   # End-of-session summary
+clawvault checkpoint              # Save current state
+clawvault recover                 # Recover from context death
+
+# Import
+clawvault replay <file>           # Import from ChatGPT/Claude/OpenClaw exports
 ```
 
-## Quick Start for New Agents
+## Template Schema Format
 
-```bash
-# Start your session (recover + recap + summary)
-clawvault wake
+Templates in `templates/*.md` define primitive schemas:
 
-# Capture and checkpoint during work
-clawvault capture "TODO: Review PR tomorrow"
-clawvault checkpoint --working-on "PR review" --focus "type guards"
+```yaml
+---
+primitive: task
+fields:
+  status:
+    type: string
+    required: true
+    default: open
+    enum: [open, in-progress, blocked, done]
+  priority:
+    type: string
+    enum: [critical, high, medium, low]
+  owner:
+    type: string
+  due:
+    type: date
+  tags:
+    type: string[]
+---
 
-# End your session with a handoff
-clawvault sleep "PR review + type guards" --next "respond to CI" --blocked "waiting for CI"
+# {{title}}
 
-# Health check when something feels off
-clawvault doctor
+{{content}}
 ```
 
-## Reality Checks Before Use
+To create a custom primitive: add a new `.md` file to `templates/` with the schema. The plugin discovers it automatically.
 
-```bash
-# Verify runtime compatibility with current OpenClaw setup
-clawvault compat
-
-# Verify qmd is available
-qmd --version
-
-# Verify OpenClaw CLI is installed in this shell
-openclaw --version
-```
-
-ClawVault currently depends on `qmd` for core vault/query flows.
-
-## Current Feature Set
-
-### Memory Graph
-
-ClawVault builds a typed knowledge graph from wiki-links, tags, and frontmatter:
-
-```bash
-# View graph summary
-clawvault graph
-
-# Refresh graph index
-clawvault graph --refresh
-```
-
-Graph is stored at `.clawvault/graph-index.json` — schema versioned, incremental rebuild.
-
-### Graph-Aware Context Retrieval
-
-```bash
-# Default context (semantic + graph neighbors)
-clawvault context "database decision"
-
-# With a profile preset
-clawvault context --profile planning "Q1 roadmap"
-clawvault context --profile incident "production outage"
-clawvault context --profile handoff "session end"
-
-# Auto profile (used by OpenClaw hook)
-clawvault context --profile auto "current task"
-```
-
-### Context Profiles
-
-| Profile | Purpose |
-|---------|---------|
-| `default` | Balanced retrieval |
-| `planning` | Broader strategic context |
-| `incident` | Recent events, blockers, urgent items |
-| `handoff` | Session transition context |
-| `auto` | Hook-selected profile based on session intent |
-
-### OpenClaw Compatibility Diagnostics
-
-```bash
-# Check hook wiring, event routing, handler safety
-clawvault compat
-
-# Strict mode for CI
-clawvault compat --strict
-```
-
-## Core Commands
-
-### Wake + Sleep (primary)
-
-```bash
-clawvault wake
-clawvault sleep "what I was working on" --next "ship v1" --blocked "waiting for API key"
-```
-
-### Store memories by type
-
-```bash
-# Types: fact, feeling, decision, lesson, commitment, preference, relationship, project
-clawvault remember decision "Use Postgres over SQLite" --content "Need concurrent writes for multi-agent setup"
-clawvault remember lesson "Context death is survivable" --content "Checkpoint before heavy work"
-clawvault remember relationship "Justin Dukes" --content "Client contact at Hale Pet Door"
-```
-
-### Quick capture to inbox
-
-```bash
-clawvault capture "TODO: Review PR tomorrow"
-```
-
-### Search (requires qmd installed)
-
-```bash
-# Keyword search (fast)
-clawvault search "client contacts"
-
-# Semantic search (slower, more accurate)
-clawvault vsearch "what did we decide about the database"
-```
-
-## Context Death Resilience
-
-### Wake (start of session)
-
-```bash
-clawvault wake
-```
-
-### Sleep (end of session)
-
-```bash
-clawvault sleep "what I was working on" --next "finish docs" --blocked "waiting for review"
-```
-
-### Checkpoint (save state frequently)
-
-```bash
-clawvault checkpoint --working-on "PR review" --focus "type guards" --blocked "waiting for CI"
-```
-
-### Recover (manual check)
-
-```bash
-clawvault recover --clear
-# Shows: death time, last checkpoint, recent handoff
-```
-
-### Handoff (manual session end)
-
-```bash
-clawvault handoff \
-  --working-on "ClawVault improvements" \
-  --blocked "npm token" \
-  --next "publish to npm, create skill" \
-  --feeling "productive"
-```
-
-### Recap (bootstrap new session)
-
-```bash
-clawvault recap
-# Shows: recent handoffs, active projects, pending commitments, lessons
-```
-
-## Auto-linking
-
-Wiki-link entity mentions in markdown files:
-
-```bash
-# Link all files
-clawvault link --all
-
-# Link single file
-clawvault link memory/2024-01-15.md
-```
-
-## Folder Structure
+## Vault Structure
 
 ```
 vault/
-├── .clawvault/           # Internal state
-│   ├── last-checkpoint.json
-│   └── dirty-death.flag
-├── decisions/            # Key choices with reasoning
-├── lessons/              # Insights and patterns
-├── people/               # One file per person
-├── projects/             # Active work tracking
-├── handoffs/             # Session continuity
-├── inbox/                # Quick captures
-└── templates/            # Document templates
+├── tasks/           # Active work items
+├── projects/        # Project definitions
+├── decisions/       # Decision records
+├── lessons/         # Accumulated wisdom
+├── people/          # Contacts and relationships
+├── memories/        # General observations
+├── templates/       # Primitive schemas (customizable)
+├── .clawvault.json  # Vault config
+└── .obsidian/       # Obsidian settings (optional)
 ```
-
-## Best Practices
-
-1. **Wake at session start** — `clawvault wake` restores context
-2. **Checkpoint every 10-15 min** during heavy work
-3. **Sleep before session end** — `clawvault sleep` captures next steps
-4. **Use types** — knowing WHAT you're storing helps WHERE to put it
-5. **Wiki-link liberally** — `[[person-name]]` builds your knowledge graph
-
-## Checklist for AGENTS.md
-
-```markdown
-## Memory Checklist
-- [ ] Run `clawvault wake` at session start
-- [ ] Checkpoint during heavy work
-- [ ] Capture key decisions/lessons with `clawvault remember`
-- [ ] Use wiki-links like `[[person-name]]`
-- [ ] End with `clawvault sleep "..." --next "..." --blocked "..."`
-- [ ] Run `clawvault doctor` when something feels off
-```
-
-Append this checklist to existing memory instructions. Do not replace your full AGENTS.md behavior unless you intend to.
-
-## Session Transcript Repair (v1.5.0+)
-
-When the Anthropic API rejects with "unexpected tool_use_id found in tool_result blocks", use:
-
-```bash
-# See what's wrong (dry-run)
-clawvault repair-session --dry-run
-
-# Fix it
-clawvault repair-session
-
-# Repair a specific session
-clawvault repair-session --session <id> --agent <agent-id>
-
-# List available sessions
-clawvault repair-session --list
-```
-
-**What it fixes:**
-- Orphaned `tool_result` blocks referencing non-existent `tool_use` IDs
-- Aborted tool calls with partial JSON
-- Broken parent chain references
-
-Backups are created automatically (use `--no-backup` to skip).
 
 ## Troubleshooting
 
-- **qmd not installed** — install qmd, then confirm with `qmd --version`
-- **No ClawVault found** — run `clawvault init` or set `CLAWVAULT_PATH`
-- **CLAWVAULT_PATH missing** — run `clawvault shell-init` and add to shell rc
-- **Too many orphan links** — run `clawvault link --orphans`
-- **Inbox backlog warning** — process or archive inbox items
-- **"unexpected tool_use_id" error** — run `clawvault repair-session`
-- **OpenClaw integration drift** — run `clawvault compat`
-- **Hook enable fails / hook not found** — run `openclaw hooks install clawvault`, then `openclaw hooks enable clawvault`, restart gateway, and verify via `openclaw hooks list --verbose`
-- **Graph out of date** — run `clawvault graph --refresh`
-- **Wrong context for task** — try `clawvault context --profile incident` or `--profile planning`
-
-## Stability Snapshot
-
-- Typecheck passes (`npm run typecheck`)
-- Test suite passes (`449/449`)
-- Cross-platform path handling hardened for Windows in:
-  - qmd URI/document path normalization
-  - WebDAV path safety and filesystem resolution
-  - shell-init output expectations
-- OpenClaw runtime wiring validated by `clawvault compat --strict` (requires local `openclaw` binary for full runtime validation)
-
-## Integration with qmd
-
-ClawVault uses [qmd](https://github.com/tobi/qmd) for search:
-
 ```bash
-# Install qmd
-bun install -g github:tobi/qmd
-
-# Alternative
-npm install -g github:tobi/qmd
-
-# Add vault as collection
-qmd collection add /path/to/vault --name my-memory --mask "**/*.md"
-
-# Update index
-qmd update && qmd embed
+clawvault doctor          # Full diagnostics
+clawvault compat          # Check OpenClaw compatibility
+qmd status -c clawvault   # Search index status
+qmd update -c clawvault   # Reindex vault files
+qmd embed -c clawvault    # Update embeddings
 ```
-
-## Environment Variables
-
-- `CLAWVAULT_PATH` — Default vault path (skips auto-discovery)
-- `OPENCLAW_HOME` — OpenClaw home directory (used by repair-session)
-- `OPENCLAW_STATE_DIR` — OpenClaw state directory (used by repair-session)
-- `GEMINI_API_KEY` — Used by `observe` for LLM-powered compression (optional)
-
-## Links
-
-- npm: https://www.npmjs.com/package/clawvault
-- GitHub: https://github.com/Versatly/clawvault
-- Issues: https://github.com/Versatly/clawvault/issues

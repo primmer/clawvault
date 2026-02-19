@@ -155,7 +155,7 @@ const clawvaultPlugin = {
   id: 'clawvault',
   name: 'ClawVault Memory',
   description: 'Template-driven observational memory with hybrid search. Memories are captured automatically from conversations and classified against template schemas.',
-  version: '2.2.0',
+  version: '3.0.0',
   kind: 'memory' as const,
 
   register(api: any) {
@@ -264,7 +264,7 @@ const clawvaultPlugin = {
                 vectors: vectorCount,
                 autoRecall,
                 autoCapture,
-                version: '2.2.0',
+                version: '3.0.0',
                 templateSchemas: templateRegistry?.schemas.size ?? 0,
               }, null, 2) }],
             };
@@ -588,7 +588,7 @@ const clawvaultPlugin = {
           const config = getVaultConfig(vaultPath);
           console.log(JSON.stringify({ 
             vault: vaultPath, 
-            version: '2.2.0',
+            version: '3.0.0',
             templateSchemas: templateRegistry?.schemas.size ?? 0,
             ...config 
           }, null, 2));

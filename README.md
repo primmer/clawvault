@@ -6,6 +6,8 @@ Structured memory system for AI agents and operators: typed markdown memory, gra
 
 > Local-first. Markdown-first. Built to survive long-running autonomous work.
 
+**$CLAW**: [`5Fjr82MTB8mvxkzi9FYtvrUsPiDGE2M29w3dYcZpump`](https://pump.fun/coin/5Fjr82MTB8mvxkzi9FYtvrUsPiDGE2M29w3dYcZpump)
+
 ## Requirements
 
 - Node.js 18+

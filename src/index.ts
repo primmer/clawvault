@@ -119,6 +119,15 @@ export {
   QMD_INSTALL_COMMAND,
   QMD_INSTALL_URL
 } from './lib/search.js';
+export {
+  embed,
+  embedBatch,
+  cosineSimilarity,
+  semanticSearch,
+  hybridSearch,
+  reciprocalRankFusion,
+  EmbeddingCache,
+} from './lib/hybrid-search.js';
 export { getVaultPath, findNearestVaultPath, resolveVaultPath } from './lib/config.js';
 export { registerCliCommands } from './cli/index.js';
 export {

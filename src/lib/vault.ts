@@ -697,13 +697,15 @@ export class ClawVault {
     if (recap.recentHandoffs.length > 0) {
       md += `## Recent Sessions\n`;
       for (const h of recap.recentHandoffs) {
+        const createdStr = typeof h.created === 'string' ? h.created : (h.created instanceof Date ? h.created.toISOString() : String(h.created));
+        const dateLabel = createdStr.includes('T') ? createdStr.split('T')[0] : createdStr.slice(0, 10);
         if (brief) {
           // Compact format for brief mode
-          md += `- **${h.created.split('T')[0]}:** ${h.workingOn.slice(0, 2).join(', ')}`;
+          md += `- **${dateLabel}:** ${h.workingOn.slice(0, 2).join(', ')}`;
           if (h.nextSteps.length > 0) md += ` → ${h.nextSteps[0]}`;
           md += `\n`;
         } else {
-          md += `\n### ${h.created.split('T')[0]}\n`;
+          md += `\n### ${dateLabel}\n`;
           md += `**Working on:** ${h.workingOn.join(', ')}\n`;
           if (h.blocked.length > 0) md += `**Blocked:** ${h.blocked.join(', ')}\n`;
           md += `**Next:** ${h.nextSteps.join(', ')}\n`;

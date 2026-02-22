@@ -20,6 +20,13 @@ export class QmdUnavailableError extends Error {
   }
 }
 
+export class QmdConfigurationError extends Error {
+  constructor(message: string, public readonly hint?: string) {
+    super(message);
+    this.name = 'QmdConfigurationError';
+  }
+}
+
 /**
  * QMD search result format
  */
@@ -130,6 +137,45 @@ function ensureQmdAvailable(): void {
   }
 }
 
+function detectQmdError(output: string, args: string[]): Error | null {
+  const lowerOutput = output.toLowerCase();
+
+  if (lowerOutput.includes('missing required arguments') || lowerOutput.includes('unknown option')) {
+    return new QmdConfigurationError(
+      'qmd does not support the search command with the expected arguments. ' +
+      'This may indicate an incompatible qmd version or a different tool named "qmd".',
+      `Ensure you have the correct qmd installed: ${QMD_INSTALL_COMMAND}`
+    );
+  }
+
+  if (lowerOutput.includes('collection not found') || lowerOutput.includes('no collection')) {
+    const collectionArg = args.findIndex(a => a === '-c');
+    const collectionName = collectionArg >= 0 && args[collectionArg + 1]
+      ? args[collectionArg + 1]
+      : 'unknown';
+    return new QmdConfigurationError(
+      `qmd collection "${collectionName}" not found.`,
+      'Run `qmd update -c <collection>` to create the collection, or check your vault\'s .clawvault.json "name" field.'
+    );
+  }
+
+  if (lowerOutput.includes('no index') || lowerOutput.includes('index not found')) {
+    return new QmdConfigurationError(
+      'qmd index not found. The vault may not be indexed yet.',
+      'Run `clawvault rebuild` or `qmd update` to build the search index.'
+    );
+  }
+
+  if (lowerOutput.includes('embedding') && (lowerOutput.includes('not found') || lowerOutput.includes('missing'))) {
+    return new QmdConfigurationError(
+      'qmd embeddings not found. Vector search requires embeddings to be generated.',
+      'Run `clawvault embed` or `qmd embed` to generate embeddings for semantic search.'
+    );
+  }
+
+  return null;
+}
+
 /**
  * Execute qmd command and return parsed JSON
  */
@@ -151,6 +197,12 @@ function execQmd(args: string[], indexName?: string): QmdResult[] {
     }
 
     const output = [err?.stdout, err?.stderr].filter(Boolean).join('\n');
+
+    const detectedError = detectQmdError(output, finalArgs);
+    if (detectedError) {
+      throw detectedError;
+    }
+
     if (output) {
       try {
         return parseQmdOutput(output);

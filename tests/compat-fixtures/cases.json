@@ -3,6 +3,7 @@
   "expectedCheckLabels": [
     "openclaw CLI available",
     "package hook registration",
+    "plugin manifest",
     "hook manifest events",
     "hook manifest requirements",
     "hook handler safety",
@@ -18,6 +19,7 @@
     "expectedCheckStatuses": {
       "openclaw CLI available": "ok",
       "package hook registration": "ok",
+      "plugin manifest": "ok",
       "hook manifest events": "ok",
       "hook manifest requirements": "ok",
       "hook handler safety": "ok",

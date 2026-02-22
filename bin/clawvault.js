@@ -29,7 +29,9 @@ import {
   resolveVaultPath,
   runQmd,
   printQmdMissing,
-  QmdUnavailableError
+  printQmdConfigError,
+  QmdUnavailableError,
+  QmdConfigurationError
 } from './command-runtime.js';
 import {
   createVault
@@ -66,7 +68,9 @@ registerQueryCommands(program, {
   getVault,
   resolveVaultPath,
   QmdUnavailableError,
-  printQmdMissing
+  QmdConfigurationError,
+  printQmdMissing,
+  printQmdConfigError
 });
 
 registerSessionLifecycleCommands(program, {

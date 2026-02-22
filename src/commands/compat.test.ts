@@ -49,6 +49,22 @@ function writeProjectFixture(root: string): void {
     "import { execFileSync } from 'child_process';\nexecFileSync('clawvault', ['context', 'task', '--format', 'json', '--profile', 'auto']);\n",
     'utf-8'
   );
+  fs.writeFileSync(
+    path.join(root, 'hooks', 'clawvault', 'openclaw.plugin.json'),
+    JSON.stringify({
+      id: 'clawvault',
+      name: 'ClawVault',
+      version: '2.6.1',
+      configSchema: {
+        type: 'object',
+        properties: {
+          vaultPath: { type: 'string', description: 'Path to the ClawVault vault directory.' }
+        },
+        additionalProperties: false
+      }
+    }),
+    'utf-8'
+  );
 }
 
 afterEach(() => {

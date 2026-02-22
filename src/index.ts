@@ -116,6 +116,7 @@ export {
   qmdUpdate,
   qmdEmbed,
   QmdUnavailableError,
+  QmdConfigurationError,
   QMD_INSTALL_COMMAND,
   QMD_INSTALL_URL
 } from './lib/search.js';

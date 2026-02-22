@@ -4,6 +4,7 @@ import path from 'path';
 import {
   ClawVault,
   QmdUnavailableError,
+  QmdConfigurationError,
   QMD_INSTALL_COMMAND,
   resolveVaultPath as resolveConfiguredVaultPath
 } from '../dist/index.js';
@@ -90,4 +91,11 @@ export function printQmdMissing() {
   console.log(chalk.dim(`Install: ${QMD_INSTALL_COMMAND}`));
 }
 
-export { QmdUnavailableError };
+export function printQmdConfigError(err) {
+  console.error(chalk.red(`Error: ${err.message}`));
+  if (err.hint) {
+    console.log(chalk.yellow(`Hint: ${err.hint}`));
+  }
+}
+
+export { QmdUnavailableError, QmdConfigurationError };

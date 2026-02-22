@@ -9,7 +9,9 @@ export function registerQueryCommands(
     getVault,
     resolveVaultPath,
     QmdUnavailableError,
-    printQmdMissing
+    QmdConfigurationError,
+    printQmdMissing,
+    printQmdConfigError
   }
 ) {
   // === SEARCH ===
@@ -60,6 +62,10 @@ export function registerQueryCommands(
       } catch (err) {
         if (err instanceof QmdUnavailableError) {
           printQmdMissing();
+          process.exit(1);
+        }
+        if (err instanceof QmdConfigurationError) {
+          printQmdConfigError(err);
           process.exit(1);
         }
         console.error(chalk.red(`Error: ${err.message}`));
@@ -117,6 +123,10 @@ export function registerQueryCommands(
           printQmdMissing();
           process.exit(1);
         }
+        if (err instanceof QmdConfigurationError) {
+          printQmdConfigError(err);
+          process.exit(1);
+        }
         console.error(chalk.red(`Error: ${err.message}`));
         process.exit(1);
       }
@@ -161,6 +171,10 @@ export function registerQueryCommands(
       } catch (err) {
         if (err instanceof QmdUnavailableError) {
           printQmdMissing();
+          process.exit(1);
+        }
+        if (err instanceof QmdConfigurationError) {
+          printQmdConfigError(err);
           process.exit(1);
         }
         console.error(chalk.red(`Error: ${err.message}`));

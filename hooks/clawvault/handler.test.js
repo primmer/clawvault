@@ -354,4 +354,157 @@ describe('clawvault hook handler', () => {
     delete process.env.OPENCLAW_PLUGIN_CLAWVAULT_VAULTPATH;
     fs.rmSync(vaultPath, { recursive: true, force: true });
   });
+
+  it('uses per-agent vault path from agentVaults config', async () => {
+    const agent1Vault = makeVaultFixture();
+    const agent2Vault = makeVaultFixture();
+    const fallbackVault = makeVaultFixture();
+
+    execFileSyncMock.mockImplementation((_command, args) => {
+      if (args[0] === 'recover') {
+        return 'Clean startup';
+      }
+      return '';
+    });
+
+    const handler = await loadHandler();
+    const event = {
+      type: 'gateway',
+      action: 'startup',
+      sessionKey: 'agent:agent1:main',
+      pluginConfig: {
+        vaultPath: fallbackVault,
+        agentVaults: {
+          agent1: agent1Vault,
+          agent2: agent2Vault
+        }
+      },
+      messages: []
+    };
+
+    await handler(event);
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'clawvault',
+      expect.arrayContaining(['recover', '--clear', '-v', agent1Vault]),
+      expect.objectContaining({ shell: false })
+    );
+
+    fs.rmSync(agent1Vault, { recursive: true, force: true });
+    fs.rmSync(agent2Vault, { recursive: true, force: true });
+    fs.rmSync(fallbackVault, { recursive: true, force: true });
+  });
+
+  it('falls back to vaultPath when agent not in agentVaults', async () => {
+    const agent1Vault = makeVaultFixture();
+    const fallbackVault = makeVaultFixture();
+
+    execFileSyncMock.mockImplementation((_command, args) => {
+      if (args[0] === 'recover') {
+        return 'Clean startup';
+      }
+      return '';
+    });
+
+    const handler = await loadHandler();
+    const event = {
+      type: 'gateway',
+      action: 'startup',
+      sessionKey: 'agent:unknown-agent:main',
+      pluginConfig: {
+        vaultPath: fallbackVault,
+        agentVaults: {
+          agent1: agent1Vault
+        }
+      },
+      messages: []
+    };
+
+    await handler(event);
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'clawvault',
+      expect.arrayContaining(['recover', '--clear', '-v', fallbackVault]),
+      expect.objectContaining({ shell: false })
+    );
+
+    fs.rmSync(agent1Vault, { recursive: true, force: true });
+    fs.rmSync(fallbackVault, { recursive: true, force: true });
+  });
+
+  it('uses agentVaults from context.pluginConfig', async () => {
+    const agent1Vault = makeVaultFixture();
+    const fallbackVault = makeVaultFixture();
+
+    execFileSyncMock.mockImplementation((_command, args) => {
+      if (args[0] === 'recover') {
+        return 'Clean startup';
+      }
+      return '';
+    });
+
+    const handler = await loadHandler();
+    const event = {
+      type: 'gateway',
+      action: 'startup',
+      sessionKey: 'agent:agent1:main',
+      context: {
+        pluginConfig: {
+          vaultPath: fallbackVault,
+          agentVaults: {
+            agent1: agent1Vault
+          }
+        }
+      },
+      messages: []
+    };
+
+    await handler(event);
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'clawvault',
+      expect.arrayContaining(['recover', '--clear', '-v', agent1Vault]),
+      expect.objectContaining({ shell: false })
+    );
+
+    fs.rmSync(agent1Vault, { recursive: true, force: true });
+    fs.rmSync(fallbackVault, { recursive: true, force: true });
+  });
+
+  it('uses OPENCLAW_AGENT_ID env var for agent resolution when session key not available', async () => {
+    const agent1Vault = makeVaultFixture();
+    const fallbackVault = makeVaultFixture();
+    process.env.OPENCLAW_AGENT_ID = 'agent1';
+
+    execFileSyncMock.mockImplementation((_command, args) => {
+      if (args[0] === 'recover') {
+        return 'Clean startup';
+      }
+      return '';
+    });
+
+    const handler = await loadHandler();
+    const event = {
+      type: 'gateway',
+      action: 'startup',
+      pluginConfig: {
+        vaultPath: fallbackVault,
+        agentVaults: {
+          agent1: agent1Vault
+        }
+      },
+      messages: []
+    };
+
+    await handler(event);
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'clawvault',
+      expect.arrayContaining(['recover', '--clear', '-v', agent1Vault]),
+      expect.objectContaining({ shell: false })
+    );
+
+    fs.rmSync(agent1Vault, { recursive: true, force: true });
+    fs.rmSync(fallbackVault, { recursive: true, force: true });
+  });
 });

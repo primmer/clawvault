@@ -9,7 +9,15 @@
     "properties": {
       "vaultPath": {
         "type": "string",
-        "description": "Path to the ClawVault vault directory. If not set, auto-discovered from CLAWVAULT_PATH or by walking up from cwd."
+        "description": "Path to the ClawVault vault directory. If not set, auto-discovered from CLAWVAULT_PATH or by walking up from cwd. Used as fallback when agentVaults is not set or agent not found."
+      },
+      "agentVaults": {
+        "type": "object",
+        "description": "Mapping of agent names to vault paths. Allows each agent to have its own vault. Falls back to vaultPath if agent not found.",
+        "additionalProperties": {
+          "type": "string",
+          "description": "Path to the vault directory for this agent"
+        }
       },
       "autoCheckpoint": {
         "type": "boolean",
@@ -46,7 +54,11 @@
     "vaultPath": {
       "label": "Vault Path",
       "placeholder": "~/my-vault",
-      "description": "Path to your ClawVault memory vault"
+      "description": "Path to your ClawVault memory vault (fallback when agentVaults not set)"
+    },
+    "agentVaults": {
+      "label": "Agent Vaults",
+      "description": "Per-agent vault paths (e.g., {\"agent1\": \"/path/to/vault1\", \"agent2\": \"/path/to/vault2\"})"
     },
     "autoCheckpoint": {
       "label": "Auto Checkpoint",

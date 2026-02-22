@@ -462,10 +462,39 @@ function extractPluginConfig(event) {
   return {};
 }
 
+// Resolve vault path for a specific agent from agentVaults config
+function resolveAgentVaultPath(pluginConfig, agentId) {
+  if (!agentId || typeof agentId !== 'string') return null;
+  
+  const agentVaults = pluginConfig?.agentVaults;
+  if (!agentVaults || typeof agentVaults !== 'object' || Array.isArray(agentVaults)) {
+    return null;
+  }
+  
+  const agentPath = agentVaults[agentId];
+  if (!agentPath || typeof agentPath !== 'string') return null;
+  
+  return validateVaultPath(agentPath);
+}
+
 // Find vault by walking up directories
-function findVaultPath(event) {
-  // Check plugin config first (set via openclaw config set plugins.clawvault.config.vaultPath)
+// Supports per-agent vault paths via agentVaults config
+function findVaultPath(event, options = {}) {
   const pluginConfig = extractPluginConfig(event);
+  
+  // Determine agent ID for per-agent vault resolution
+  const agentId = options.agentId || resolveAgentIdForEvent(event);
+  
+  // Check agentVaults first (per-agent vault paths)
+  if (agentId) {
+    const agentVaultPath = resolveAgentVaultPath(pluginConfig, agentId);
+    if (agentVaultPath) {
+      console.log(`[clawvault] Using per-agent vault for ${agentId}: ${agentVaultPath}`);
+      return agentVaultPath;
+    }
+  }
+
+  // Check plugin config vaultPath (fallback for all agents)
   if (pluginConfig.vaultPath) {
     const validated = validateVaultPath(pluginConfig.vaultPath);
     if (validated) return validated;

@@ -245,6 +245,64 @@ function checkHookHandlerSafety(options: CompatOptions): CompatCheck {
   return { label: 'hook handler safety', status: 'ok' };
 }
 
+function checkPluginManifest(options: CompatOptions): CompatCheck {
+  const manifestRaw = readOptionalFile(resolveProjectFile('hooks/clawvault/openclaw.plugin.json', options.baseDir));
+  if (!manifestRaw) {
+    return {
+      label: 'plugin manifest',
+      status: 'error',
+      detail: 'hooks/clawvault/openclaw.plugin.json not found',
+      hint: 'Add openclaw.plugin.json to hooks/clawvault/ for config schema registration.'
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(manifestRaw) as {
+      id?: string;
+      configSchema?: { type?: string; properties?: Record<string, unknown> };
+    };
+
+    if (!parsed.id || parsed.id !== 'clawvault') {
+      return {
+        label: 'plugin manifest',
+        status: 'error',
+        detail: `Invalid plugin id: expected "clawvault", got "${parsed.id || '(missing)'}"`
+      };
+    }
+
+    if (!parsed.configSchema || typeof parsed.configSchema !== 'object') {
+      return {
+        label: 'plugin manifest',
+        status: 'error',
+        detail: 'Missing configSchema in plugin manifest',
+        hint: 'Add configSchema to openclaw.plugin.json for config validation.'
+      };
+    }
+
+    const hasVaultPath = Boolean(parsed.configSchema.properties?.vaultPath);
+    if (!hasVaultPath) {
+      return {
+        label: 'plugin manifest',
+        status: 'warn',
+        detail: 'configSchema missing vaultPath property',
+        hint: 'Add vaultPath to configSchema.properties for vault path configuration.'
+      };
+    }
+
+    return {
+      label: 'plugin manifest',
+      status: 'ok',
+      detail: `id: ${parsed.id}, configSchema defined`
+    };
+  } catch (err: any) {
+    return {
+      label: 'plugin manifest',
+      status: 'error',
+      detail: err?.message || 'Unable to parse openclaw.plugin.json'
+    };
+  }
+}
+
 function checkSkillMetadata(options: CompatOptions): CompatCheck {
   const skillRaw = readOptionalFile(resolveProjectFile('SKILL.md', options.baseDir));
   if (!skillRaw) {
@@ -301,6 +359,7 @@ export function checkOpenClawCompatibility(options: CompatOptions = {}): CompatR
   const checks = [
     checkOpenClawCli(),
     checkPackageHookRegistration(options),
+    checkPluginManifest(options),
     checkHookManifest(options),
     checkHookManifestRequirements(options),
     checkHookHandlerSafety(options),

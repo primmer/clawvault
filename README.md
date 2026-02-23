@@ -265,6 +265,29 @@ The hook automatically:
 - Node.js 18+
 - `qmd` installed and available on `PATH` (for search/context features)
 
+## LLM Providers
+
+ClawVault supports multiple LLM providers for features like context generation, observation compression, and semantic search. Set the appropriate environment variable to enable a provider:
+
+| Provider | Environment Variable | Default Model | Notes |
+|----------|---------------------|---------------|-------|
+| **Anthropic** | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-latest` | Claude models |
+| **OpenAI** | `OPENAI_API_KEY` | `gpt-4o-mini` | GPT models |
+| **Google Gemini** | `GEMINI_API_KEY` | `gemini-2.0-flash` | Gemini models |
+| **xAI (Grok)** | `XAI_API_KEY` | `grok-2-latest` | Grok models via OpenAI-compatible API |
+| **Ollama** | (local) | `llama3.2` | Local models, no API key needed |
+| **OpenAI-compatible** | `OPENAI_API_KEY` | `gpt-4o-mini` | Any OpenAI-compatible endpoint |
+
+Provider priority (when multiple keys are set): OpenClaw > Anthropic > OpenAI > Gemini > xAI
+
+```bash
+# Example: Use xAI (Grok) as your LLM provider
+export XAI_API_KEY="your-xai-api-key"
+
+# Example: Use Anthropic
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
+
 ## Install
 
 ```bash

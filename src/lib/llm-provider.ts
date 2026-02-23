@@ -2,14 +2,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-export type LlmProvider = 'anthropic' | 'openai' | 'gemini' | 'openclaw';
+export type LlmProvider = 'anthropic' | 'openai' | 'gemini' | 'xai' | 'openclaw';
 
 const DEFAULT_MODELS: Record<LlmProvider, string> = {
   anthropic: 'claude-3-5-haiku-latest',
   openai: 'gpt-4o-mini',
   gemini: 'gemini-2.0-flash',
+  xai: 'grok-2-latest',
   openclaw: 'gpt-4o-mini'
 };
+
+const XAI_BASE_URL = 'https://api.x.ai/v1';
 
 export interface OpenClawProviderConfig {
   baseUrl: string;
@@ -90,6 +93,9 @@ export function resolveLlmProvider(): LlmProvider | null {
   if (process.env.GEMINI_API_KEY) {
     return 'gemini';
   }
+  if (process.env.XAI_API_KEY) {
+    return 'xai';
+  }
   return null;
 }
 
@@ -107,6 +113,9 @@ export async function requestLlmCompletion(options: LlmCompletionOptions): Promi
   }
   if (provider === 'gemini') {
     return callGemini(options, provider);
+  }
+  if (provider === 'xai') {
+    return callXAI(options, provider);
   }
   return callOpenAI(options, provider);
 }
@@ -176,6 +185,43 @@ async function callOpenAI(options: LlmCompletionOptions, provider: LlmProvider):
 
   if (!response.ok) {
     throw new Error(`OpenAI request failed (${response.status})`);
+  }
+
+  const payload = await response.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return payload.choices?.[0]?.message?.content?.trim() ?? '';
+}
+
+async function callXAI(options: LlmCompletionOptions, provider: LlmProvider): Promise<string> {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) {
+    return '';
+  }
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+  if (options.systemPrompt?.trim()) {
+    messages.push({ role: 'system', content: options.systemPrompt.trim() });
+  }
+  messages.push({ role: 'user', content: options.prompt });
+
+  const response = await fetchImpl(`${XAI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: options.model ?? DEFAULT_MODELS[provider],
+      temperature: options.temperature ?? 0.1,
+      max_tokens: options.maxTokens ?? 1200,
+      messages
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`xAI request failed (${response.status})`);
   }
 
   const payload = await response.json() as {

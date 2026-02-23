@@ -22,6 +22,7 @@ export type CompressionProvider =
   | 'anthropic'
   | 'openai'
   | 'gemini'
+  | 'xai'
   | 'openai-compatible'
   | 'ollama';
 
@@ -33,11 +34,13 @@ type ResolvedCompressionBackend = {
 };
 
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
+const XAI_BASE_URL = 'https://api.x.ai/v1';
 const OLLAMA_BASE_URL = 'http://localhost:11434/v1';
 const DEFAULT_PROVIDER_MODELS: Record<CompressionProvider, string> = {
   anthropic: 'claude-3-5-haiku-latest',
   openai: 'gpt-4o-mini',
   gemini: 'gemini-2.0-flash',
+  xai: 'grok-2-latest',
   'openai-compatible': 'gpt-4o-mini',
   ollama: 'llama3.2'
 };
@@ -85,6 +88,8 @@ export class Compressor {
           ? await this.callGemini(prompt, backend)
           : backend.provider === 'openai'
           ? await this.callOpenAI(prompt, backend)
+          : backend.provider === 'xai'
+          ? await this.callXAI(prompt, backend)
           : await this.callOpenAICompatible(prompt, backend);
         const normalized = this.normalizeLlmOutput(llmOutput);
         if (normalized) {
@@ -152,6 +157,19 @@ export class Compressor {
       };
     }
 
+    if (provider === 'xai') {
+      const apiKey = this.resolveApiKey(provider);
+      if (!apiKey) {
+        return null;
+      }
+      return {
+        provider,
+        model,
+        apiKey,
+        baseUrl: XAI_BASE_URL
+      };
+    }
+
     const apiKey = this.resolveApiKey(provider) ?? undefined;
     return {
       provider,
@@ -190,6 +208,16 @@ export class Compressor {
       };
     }
 
+    const xaiApiKey = this.readEnvValue('XAI_API_KEY');
+    if (xaiApiKey) {
+      return {
+        provider: 'xai',
+        model: allowConfiguredModel ? this.resolveModel('xai') : DEFAULT_PROVIDER_MODELS.xai,
+        apiKey: xaiApiKey,
+        baseUrl: XAI_BASE_URL
+      };
+    }
+
     return null;
   }
 
@@ -212,6 +240,9 @@ export class Compressor {
     }
     if (provider === 'gemini') {
       return this.readEnvValue('GEMINI_API_KEY');
+    }
+    if (provider === 'xai') {
+      return this.readEnvValue('XAI_API_KEY');
     }
     return this.readEnvValue('OPENAI_API_KEY');
   }
@@ -369,6 +400,13 @@ export class Compressor {
   }
 
   private async callOpenAI(
+    prompt: string,
+    backend: ResolvedCompressionBackend
+  ): Promise<string> {
+    return this.callOpenAICompatible(prompt, backend);
+  }
+
+  private async callXAI(
     prompt: string,
     backend: ResolvedCompressionBackend
   ): Promise<string> {

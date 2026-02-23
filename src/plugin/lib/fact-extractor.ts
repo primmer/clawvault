@@ -38,9 +38,17 @@ const STOP_ENTITIES = new Set([
 
 const FACT_PATTERNS: FactPattern[] = [
   {
-    regex: /\b([a-zA-Z0-9][a-zA-Z0-9\s'._-]{0,80}?)\s+(is|are|was|were)\s+([a-zA-Z0-9][a-zA-Z0-9\s'._-]{1,120})/gi,
+    regex: /\b([a-zA-Z0-9][a-zA-Z0-9\s'._-]{0,80}?)\s+(is|are|was|were)\s+(?!based in\b|located in\b)([a-zA-Z0-9][a-zA-Z0-9\s'._-]{1,120})/gi,
     defaultPredicate: 'is',
     confidence: 0.72,
+    subjectGroup: 1,
+    objectGroup: 3,
+    predicateGroup: 2
+  },
+  {
+    regex: /\b([a-zA-Z0-9][a-zA-Z0-9\s'._-]{0,80}?)\s+(?:is|are)\s+(based in|located in)\s+([a-zA-Z0-9][a-zA-Z0-9\s'._-]{1,120})/gi,
+    defaultPredicate: 'lives_in',
+    confidence: 0.84,
     subjectGroup: 1,
     objectGroup: 3,
     predicateGroup: 2

@@ -23,7 +23,14 @@ export type CompressionProvider =
   | 'openai'
   | 'gemini'
   | 'openai-compatible'
-  | 'ollama';
+  | 'ollama'
+  | 'groq'
+  | 'xai'
+  | 'mistral'
+  | 'deepseek'
+  | 'cerebras'
+  | 'fireworks'
+  | 'together';
 
 type ResolvedCompressionBackend = {
   provider: CompressionProvider;
@@ -39,7 +46,14 @@ const DEFAULT_PROVIDER_MODELS: Record<CompressionProvider, string> = {
   openai: 'gpt-4o-mini',
   gemini: 'gemini-2.0-flash',
   'openai-compatible': 'gpt-4o-mini',
-  ollama: 'llama3.2'
+  ollama: 'llama3.2',
+  groq: 'llama-3.3-70b-versatile',
+  xai: 'grok-2-latest',
+  mistral: 'mistral-small-latest',
+  deepseek: 'deepseek-chat',
+  cerebras: 'llama-3.3-70b',
+  fireworks: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+  together: 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
 };
 
 const CRITICAL_RE =

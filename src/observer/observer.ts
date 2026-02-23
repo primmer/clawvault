@@ -60,7 +60,14 @@ const COMPRESSION_PROVIDERS = new Set<CompressionProvider>([
   'openai',
   'gemini',
   'openai-compatible',
-  'ollama'
+  'ollama',
+  'groq',
+  'xai',
+  'mistral',
+  'deepseek',
+  'cerebras',
+  'fireworks',
+  'together'
 ]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {

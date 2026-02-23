@@ -10,7 +10,14 @@ const OBSERVER_COMPRESSION_PROVIDERS = [
   'gemini',
   'openai-compatible',
   'ollama',
-  'openclaw'
+  'openclaw',
+  'groq',
+  'xai',
+  'mistral',
+  'deepseek',
+  'cerebras',
+  'fireworks',
+  'together'
 ] as const;
 const THEMES = ['neural', 'minimal', 'none'] as const;
 const CONTEXT_PROFILES = ['default', 'planning', 'incident', 'handoff', 'auto'] as const;

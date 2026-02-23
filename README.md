@@ -69,6 +69,33 @@ Unlike vector databases or cloud-based memory solutions, ClawVault is:
 
 ---
 
+## Observational Memory
+
+ClawVault v3 introduces **Observational Memory (OM)** — a ledger-first compiler architecture where transcripts are the source of truth and all memory artifacts are compiled outputs.
+
+**Core principles:**
+
+- **Ledger-first**: Raw session transcripts are preserved; observations/reflections/views are derived
+- **Compiler pipeline**: Observation → Reflection → View with deterministic promotion rules
+- **Strict governance**: Hard path allowlist, atomic writes, bounded graph expansion
+- **Replay engine**: Ingest historical exports from ChatGPT, Claude, and other sources
+- **Observer independence**: Agents talk, observers decide what mattered, compilers decide what becomes memory
+
+```bash
+# Replay historical conversations
+clawvault replay --source chatgpt --input ~/exports/conversations.json
+
+# Generate weekly reflections
+clawvault reflect
+
+# Rebuild all observations from raw ledger
+clawvault rebuild
+```
+
+See [docs/observational-memory-design.md](docs/observational-memory-design.md) for the full architecture specification.
+
+---
+
 ## The 8 Primitives
 
 ClawVault is built around 8 core primitives that model how agents should interact with persistent memory:

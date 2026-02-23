@@ -17,7 +17,7 @@ export function registerQueryCommands(
   // === SEARCH ===
   program
     .command('search <query>')
-    .description('Search the vault via qmd (BM25)')
+    .description('Search the vault via qmd (BM25), optionally with semantic hybrid search')
     .option('-n, --limit <n>', 'Max results (default: 10)', '10')
     .option('-c, --category <category>', 'Filter by category')
     .option('--tags <tags>', 'Filter by tags (comma-separated)')
@@ -25,20 +25,57 @@ export function registerQueryCommands(
     .option('--full', 'Include full content in results')
     .option('-v, --vault <path>', 'Vault path')
     .option('--json', 'Output as JSON')
+    .option('--semantic', 'Enable hybrid search (BM25 + semantic with RRF)')
+    .option('--rebuild-embeddings', 'Rebuild the embedding cache before searching')
     .action(async (query, options) => {
       try {
+        const vaultPath = resolveVaultPath(options.vault);
         const vault = await getVault(options.vault);
 
-        const results = await vault.find(query, {
-          limit: parseInt(options.limit, 10),
+        // Handle --rebuild-embeddings flag
+        if (options.rebuildEmbeddings) {
+          const { rebuildEmbeddingsForVault } = await import('../dist/commands/rebuild-embeddings.js');
+          console.log(chalk.cyan('Rebuilding embedding cache...'));
+          const stats = await rebuildEmbeddingsForVault(vaultPath, { 
+            onProgress: (current, total) => {
+              process.stdout.write(`\r  Embedding ${current}/${total} documents...`);
+            }
+          });
+          console.log(chalk.green(`\n  Done. ${stats.total} embeddings (${stats.added} new, ${stats.skipped} cached)`));
+          console.log();
+        }
+
+        // Get BM25 results
+        const bm25Results = await vault.find(query, {
+          limit: options.semantic ? 50 : parseInt(options.limit, 10),
           category: options.category,
           tags: options.tags?.split(',').map((value) => value.trim()),
           fullContent: options.full,
           temporalBoost: options.recent
         });
 
+        let results = bm25Results;
+        let searchMode = 'BM25';
+
+        // Apply hybrid search if --semantic flag is set
+        if (options.semantic) {
+          const { EmbeddingCache, hybridSearch } = await import('../dist/lib/hybrid-search.js');
+          const cache = new EmbeddingCache(vaultPath);
+          cache.load();
+
+          if (cache.size === 0) {
+            console.log(chalk.yellow('Warning: No embeddings found. Run with --rebuild-embeddings to build the cache.'));
+          } else {
+            results = await hybridSearch(query, bm25Results, cache, {
+              topK: parseInt(options.limit, 10),
+              rrfK: 60
+            });
+            searchMode = 'Hybrid (BM25 + Semantic)';
+          }
+        }
+
         if (options.json) {
-          console.log(JSON.stringify(results, null, 2));
+          console.log(JSON.stringify({ searchMode, results }, null, 2));
           return;
         }
 
@@ -47,7 +84,8 @@ export function registerQueryCommands(
           return;
         }
 
-        console.log(chalk.cyan(`\n🔍 Found ${results.length} result(s) for "${query}":\n`));
+        const icon = options.semantic ? '🔍🧠' : '🔍';
+        console.log(chalk.cyan(`\n${icon} Found ${results.length} result(s) for "${query}" [${searchMode}]:\n`));
 
         for (const result of results) {
           const scoreBar = '█'.repeat(Math.round(result.score * 10)).padEnd(10, '░');

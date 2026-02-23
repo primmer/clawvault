@@ -80,6 +80,25 @@ export function registerMaintenanceCommands(program, { chalk }) {
       }
     });
 
+  // === REBUILD-EMBEDDINGS ===
+  program
+    .command('rebuild-embeddings')
+    .description('Rebuild local embedding cache for hybrid search (uses all-MiniLM-L6-v2)')
+    .option('-v, --vault <path>', 'Vault path')
+    .option('--force', 'Force rebuild all embeddings (ignore cache)')
+    .action(async (options) => {
+      try {
+        const { rebuildEmbeddingsCommand } = await import('../dist/commands/rebuild-embeddings.js');
+        await rebuildEmbeddingsCommand({
+          vaultPath: options.vault,
+          force: options.force
+        });
+      } catch (err) {
+        console.error(chalk.red(`Error: ${err.message}`));
+        process.exit(1);
+      }
+    });
+
   // === COMPAT (OpenClaw compatibility) ===
   program
     .command('compat')

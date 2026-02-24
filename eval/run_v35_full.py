@@ -1340,7 +1340,7 @@ class ClawVaultV35:
 
     def _answer_with_heuristic(self, question: str, result: QueryResult) -> str:
         if not result.hits:
-            return "I do not have enough information to answer that."
+            return "I do not have enough information"
         qtype = result.question_type.lower()
         prefers_structured = bool(
             result.structured_hits
@@ -1568,7 +1568,7 @@ class ClawVaultV35:
             top_k=top_k,
         )
         if not result.hits:
-            return "I do not have enough information to answer that.", result
+            return "I do not have enough information", result
         if not self.use_llm_reader:
             return self._answer_with_heuristic(question, result), result
 
@@ -2104,7 +2104,19 @@ def resolve_input_file(args: argparse.Namespace) -> Path:
     if args.in_file:
         in_path = Path(args.in_file)
         if not in_path.exists():
-            raise FileNotFoundError(f"Input file does not exist: {in_path}")
+            if args.no_download:
+                raise FileNotFoundError(f"Input file does not exist: {in_path}")
+            download_url = None
+            for file_name, candidate_url in LONGMEMEVAL_DATASET_URLS.values():
+                if in_path.name == file_name:
+                    download_url = candidate_url
+                    break
+            if download_url:
+                in_path.parent.mkdir(parents=True, exist_ok=True)
+                print(f"Input file not found at {in_path}; downloading from {download_url}")
+                urlretrieve(download_url, in_path)
+            else:
+                raise FileNotFoundError(f"Input file does not exist: {in_path}")
         return in_path
     file_name, url = LONGMEMEVAL_DATASET_URLS[args.dataset_split]
     data_dir = Path(args.data_dir)

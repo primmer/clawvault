@@ -87,6 +87,14 @@ RELATION_ALIASES = {
     "allergic": "allergic_to",
     "allergic_to": "allergic_to",
     "happened_on": "happened_on",
+    "location": "location",
+    "degree": "degree",
+    "attended": "attended",
+    "last_name": "last_name",
+    "previous_occupation": "previous_occupation",
+    "duration": "duration",
+    "internet_speed": "internet_speed",
+    "gift_for_sister": "gift_for_sister",
     "decided_to": "decided_to",
     "chose_over": "chose_over",
 }
@@ -257,6 +265,7 @@ def coerce_datetime(value: Any) -> Optional[datetime]:
         s = value.strip()
         if not s:
             return None
+        s = re.sub(r"(\d{1,2})(st|nd|rd|th)\b", r"\1", s, flags=re.IGNORECASE)
         # ISO
         try:
             return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
@@ -278,9 +287,12 @@ def coerce_datetime(value: Any) -> Optional[datetime]:
             except Exception:
                 return None
         # Month-name formats.
-        for fmt in ("%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y"):
+        for fmt in ("%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y", "%B %d", "%b %d"):
             try:
-                return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+                parsed = datetime.strptime(s, fmt)
+                if "%Y" not in fmt:
+                    parsed = parsed.replace(year=datetime.now(tz=timezone.utc).year)
+                return parsed.replace(tzinfo=timezone.utc)
             except Exception:
                 continue
     return None
@@ -570,7 +582,10 @@ class FactExtractor:
             r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
             r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
         )
-        date_expr = rf"(?:\d{{4}}[-/]\d{{1,2}}[-/]\d{{1,2}}|{month_expr}\s+\d{{1,2}},?\s+\d{{4}})"
+        date_expr = (
+            rf"(?:\d{{4}}[-/]\d{{1,2}}[-/]\d{{1,2}}|"
+            rf"{month_expr}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+\d{{4}})?)"
+        )
         self.preference_patterns = [
             (re.compile(r"\bI\s+(?:really\s+)?(?:like|love|enjoy)\s+(?P<value>[^.?!;]+)", re.IGNORECASE), "likes", 0.88),
             (re.compile(r"\bI\s+(?:really\s+)?prefer\s+(?P<value>[^.?!;]+)", re.IGNORECASE), "prefers", 0.90),
@@ -599,6 +614,32 @@ class FactExtractor:
             (re.compile(self._SUBJECT + r"\s+lives?\s+in\s+(?P<object>[^.?!;]+)", re.IGNORECASE), "lives_in", 0.86),
             (re.compile(self._SUBJECT + r"\s+is\s+(?P<object>\d{1,3})\s+years?\s+old", re.IGNORECASE), "age", 0.92),
             (re.compile(self._SUBJECT + r"\s+bought\s+(?P<object>[^.?!;]+)", re.IGNORECASE), "bought", 0.84),
+            (
+                re.compile(
+                    self._SUBJECT + r"\s+graduated\s+with\s+(?:an?\s+degree\s+in\s+)?(?P<object>[^.?!;]+)",
+                    re.IGNORECASE,
+                ),
+                "degree",
+                0.90,
+            ),
+            (re.compile(self._SUBJECT + r"\s+attended\s+(?P<object>[^.?!;]+)", re.IGNORECASE), "attended", 0.86),
+            (
+                re.compile(
+                    self._SUBJECT + r"\s+redeemed\s+[^.?!;]{0,120}?\b(?:at|in)\s+(?P<object>[^.?!;]+)",
+                    re.IGNORECASE,
+                ),
+                "location",
+                0.84,
+            ),
+            (
+                re.compile(
+                    self._SUBJECT
+                    + r"\s+(?:have|had)\s+(?:a\s+)?new\s+internet\s+plan\s+(?:at|of|with)\s+(?P<object>\d+(?:\.\d+)?\s*(?:mbps|gbps))",
+                    re.IGNORECASE,
+                ),
+                "internet_speed",
+                0.86,
+            ),
             (
                 re.compile(
                     r"\bmy\s+(?P<relation>partner|spouse|wife|husband|boyfriend|girlfriend|friend|manager)\s+is\s+"
@@ -635,6 +676,41 @@ class FactExtractor:
                     re.IGNORECASE,
                 ),
                 0.81,
+            ),
+        ]
+        self.statement_patterns = [
+            (
+                re.compile(r"\bmy\s+last\s+name\s+(?:was|used\s+to\s+be)\s+(?P<object>[A-Z][a-z]+)\b"),
+                "last_name",
+                "entity",
+                0.90,
+            ),
+            (
+                re.compile(r"\bmy\s+previous\s+occupation\s+was\s+(?P<object>[^.?!;]+)", re.IGNORECASE),
+                "previous_occupation",
+                "entity",
+                0.89,
+            ),
+            (
+                re.compile(
+                    r"\bit\s+took\s+(?P<object>\d+(?:\.\d+)?\s*(?:hours?|hrs?|minutes?|mins?|days?|weeks?))\s+to\s+[^.?!;]+",
+                    re.IGNORECASE,
+                ),
+                "duration",
+                "temporal",
+                0.90,
+            ),
+            (
+                re.compile(r"\bmy\s+new\s+internet\s+plan\s+(?:is|was)\s+(?P<object>\d+(?:\.\d+)?\s*(?:mbps|gbps))", re.IGNORECASE),
+                "internet_speed",
+                "entity",
+                0.88,
+            ),
+            (
+                re.compile(r"\bI\s+bought\s+(?P<object>[^.?!;]+?)\s+for\s+my\s+sister(?:'s)?\s+birthday", re.IGNORECASE),
+                "gift_for_sister",
+                "entity",
+                0.90,
             ),
         ]
 
@@ -825,10 +901,35 @@ class FactExtractor:
                         fact_type="temporal",
                         entity=speaker_entity,
                         relation="happened_on",
-                        value=event,
+                        value=when,
                         source_text=match.group(0),
                         confidence=confidence,
                         valid_from=parsed_time,
+                    )
+                )
+
+        # Additional rule-based statements.
+        for pattern, relation, fact_type, confidence in self.statement_patterns:
+            for match in pattern.finditer(text):
+                value = self._clean_value(match.group("object"))
+                if not value:
+                    continue
+                key = (fact_type, normalize_key(speaker_entity), normalize_relation(relation), normalize_key(value))
+                if key in seen:
+                    continue
+                seen.add(key)
+                facts.append(
+                    ExtractedFact(
+                        id=next_fact_id(),
+                        session_id=session_id,
+                        message_id=message_id,
+                        fact_type=fact_type,
+                        entity=speaker_entity,
+                        relation=normalize_relation(relation),
+                        value=value,
+                        source_text=match.group(0),
+                        confidence=confidence,
+                        valid_from=base_valid_from,
                     )
                 )
 
@@ -1117,11 +1218,19 @@ class EntityGraph:
 def infer_entity_relation_from_question(question: str) -> Optional[str]:
     q = normalize_space(question).lower()
     patterns = [
+        (r"\bwhat\s+degree\s+did\s+.+\s+graduate\s+with\b", "degree"),
         (r"\bwhere\s+does\s+.+\s+work\b", "works_at"),
         (r"\bwhere\s+does\s+.+\s+live\b", "lives_in"),
         (r"\bwhere\s+is\s+.+\s+from\b", "lives_in"),
+        (r"\bwhere\s+did\s+.+\b", "location"),
         (r"\bhow\s+old\s+is\s+.+\b", "age"),
+        (r"\bhow\s+long\s+did\s+.+\s+take\b", "duration"),
+        (r"\bwhat\s+play\s+did\s+.+\s+attend\b", "attended"),
         (r"\bwhat\s+did\s+.+\s+buy\b", "bought"),
+        (r"\bwhat\s+was\s+.+\s+last\s+name\b", "last_name"),
+        (r"\bwhat\s+was\s+.+\s+previous\s+occupation\b", "previous_occupation"),
+        (r"\bwhat\s+speed\s+is\s+.+\s+internet\s+plan\b", "internet_speed"),
+        (r"\bwhat\s+did\s+.+\s+buy\s+for\s+.+sister", "gift_for_sister"),
         (r"\bwho\s+is\s+.+\s+(?:partner|spouse|wife|husband|boyfriend|girlfriend)\b", "partner"),
         (r"\bwhat\s+does\s+.+\s+prefer\b", "prefers"),
         (r"\bwhat\s+does\s+.+\s+like\b", "likes"),
@@ -1138,11 +1247,18 @@ def infer_entity_relation_from_question(question: str) -> Optional[str]:
 def extract_subject_from_question(question: str) -> Optional[str]:
     q = normalize_space(question)
     candidates = [
+        re.search(r"what\s+degree\s+did\s+(.+?)\s+graduate\s+with\??$", q, flags=re.IGNORECASE),
         re.search(r"where\s+does\s+(.+?)\s+work\??$", q, flags=re.IGNORECASE),
         re.search(r"where\s+does\s+(.+?)\s+live\??$", q, flags=re.IGNORECASE),
         re.search(r"where\s+is\s+(.+?)\s+from\??$", q, flags=re.IGNORECASE),
+        re.search(r"where\s+did\s+(.+?)\s+[a-z].*\??$", q, flags=re.IGNORECASE),
         re.search(r"how\s+old\s+is\s+(.+?)\??$", q, flags=re.IGNORECASE),
+        re.search(r"how\s+long\s+did\s+(.+?)\s+take\??$", q, flags=re.IGNORECASE),
+        re.search(r"what\s+play\s+did\s+(.+?)\s+attend\??$", q, flags=re.IGNORECASE),
         re.search(r"what\s+did\s+(.+?)\s+buy\??$", q, flags=re.IGNORECASE),
+        re.search(r"what\s+was\s+(.+?)\s+last\s+name\??$", q, flags=re.IGNORECASE),
+        re.search(r"what\s+was\s+(.+?)\s+previous\s+occupation\??$", q, flags=re.IGNORECASE),
+        re.search(r"what\s+speed\s+is\s+(.+?)\s+internet\s+plan\??$", q, flags=re.IGNORECASE),
         re.search(r"what\s+does\s+(.+?)\s+(?:prefer|like|hate)\??$", q, flags=re.IGNORECASE),
         re.search(r"who\s+is\s+(.+?)\??$", q, flags=re.IGNORECASE),
     ]

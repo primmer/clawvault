@@ -1207,7 +1207,20 @@ class ClawVaultV35:
                     limit=limit,
                 )
             )
-        return [self._fact_hit(fact, score, source="fact-preference") for fact, score in candidates[:limit]]
+        q_tokens = tokenize(question)
+        scored_hits: List[RetrievalHit] = []
+        for fact, score in candidates:
+            lexical = overlap_ratio(
+                q_tokens,
+                tokenize(f"{fact.entity} {fact.relation} {fact.value} {fact.source_text}"),
+            )
+            # Preference questions in LongMemEval are often implicit ("recommend ..."),
+            # so skip unrelated preference facts that do not overlap the request.
+            if relation is None and lexical < 0.10:
+                continue
+            scored_hits.append(self._fact_hit(fact, score + 0.35 * lexical, source="fact-preference"))
+        scored_hits.sort(key=lambda hit: hit.score, reverse=True)
+        return scored_hits[:limit]
 
     def _structured_entity_hits(self, question: str, at_time: Optional[datetime], limit: int) -> List[RetrievalHit]:
         graph_matches = self.entity_graph.query(question, at_time=at_time, max_hops=2, limit=limit)
@@ -1220,6 +1233,11 @@ class ClawVaultV35:
     def _structured_decision_hits(self, question: str, at_time: Optional[datetime], limit: int) -> List[RetrievalHit]:
         candidates = self.fact_store.lookup(query=question, fact_type="decision", at_time=at_time, limit=limit)
         return [self._fact_hit(fact, score, source="fact-decision") for fact, score in candidates]
+
+    @staticmethod
+    def _query_overlap(question: str, hit: RetrievalHit) -> float:
+        answer_text = str(hit.metadata.get("answer", "")) if hit.metadata else ""
+        return overlap_ratio(tokenize(question), tokenize(f"{hit.text} {answer_text}"))
 
     def query(
         self,
@@ -1322,6 +1340,18 @@ class ClawVaultV35:
         )
         if prefers_structured:
             top_structured = sorted(result.structured_hits, key=lambda h: h.score, reverse=True)[0]
+            # Guardrail: if a preference fact is weakly related to the prompt,
+            # trust fused retrieval (v34-style lexical/semantic) instead.
+            if top_structured.source == "fact-preference":
+                structured_overlap = self._query_overlap(question, top_structured)
+                top_fused = result.hits[0]
+                fused_overlap = self._query_overlap(question, top_fused)
+                if structured_overlap < 0.08 and fused_overlap > structured_overlap:
+                    if "answer" in top_fused.metadata and normalize_space(str(top_fused.metadata["answer"])):
+                        return self._finalize_hypothesis(str(top_fused.metadata["answer"])), result
+                    if top_fused.source in {"bm25", "semantic"}:
+                        return self._finalize_hypothesis(self._best_sentence(question, top_fused.text)), result
+                    return self._finalize_hypothesis(normalize_space(top_fused.text)[:280]), result
             if "answer" in top_structured.metadata and normalize_space(str(top_structured.metadata["answer"])):
                 answer = str(top_structured.metadata["answer"])
                 return self._finalize_hypothesis(answer), result

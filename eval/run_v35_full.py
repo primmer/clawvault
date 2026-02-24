@@ -1152,7 +1152,7 @@ class ClawVaultV35:
         if "temporal" in qlow or re.search(r"\b(when|before|after|during|date|time|ago)\b", question, re.IGNORECASE):
             structured_hits.extend(self._structured_temporal_hits(question, temporal_ref, k))
 
-        if "decision" in qlow or re.search(r"\b(decid|chose|choose|went with)\b", question, re.IGNORECASE):
+        if "decision" in qlow or re.search(r"\b(decid(?:e|ed|ing|ion)|chose|choose|went with)\b", question, re.IGNORECASE):
             structured_hits.extend(self._structured_decision_hits(question, temporal_ref, k))
 
         # Baseline BM25 + semantic retrieval.
@@ -1167,7 +1167,10 @@ class ClawVaultV35:
             for hit in structured_hits:
                 if hit.id not in dedup or hit.score > dedup[hit.id].score:
                     dedup[hit.id] = hit
-            rank_lists.append(sorted(dedup.values(), key=lambda h: h.score, reverse=True)[: max(k * 2, k + 5)])
+            structured_ranked = sorted(dedup.values(), key=lambda h: h.score, reverse=True)[: max(k * 2, k + 5)]
+            rank_lists.append(structured_ranked)
+            # Bias toward structured retrieval while still using RRF with lexical/semantic.
+            rank_lists.append(structured_ranked)
         rank_lists.append(bm25_hits)
         rank_lists.append(semantic_hits)
 
@@ -1208,11 +1211,25 @@ class ClawVaultV35:
         )
         if not result.hits:
             return "I do not have enough information to answer that.", result
+        qtype = result.question_type.lower()
+        prefers_structured = bool(
+            result.structured_hits
+            and (
+                "preference" in qtype
+                or "temporal" in qtype
+                or "decision" in qtype
+                or qtype in {"single-session-user", "single-session-assistant", "multi-session"}
+                or re.search(r"\b(who|where|works at|lives in|years old|bought|prefer|favorite|allergic)\b", question, re.IGNORECASE)
+            )
+        )
+        if prefers_structured:
+            top_structured = sorted(result.structured_hits, key=lambda h: h.score, reverse=True)[0]
+            if "answer" in top_structured.metadata and normalize_space(str(top_structured.metadata["answer"])):
+                return str(top_structured.metadata["answer"]), result
+            return normalize_space(top_structured.text)[:280], result
         top = result.hits[0]
         if "answer" in top.metadata and normalize_space(str(top.metadata["answer"])):
             return str(top.metadata["answer"]), result
-        if top.source.startswith("doc:"):
-            return self._best_sentence(question, top.text), result
         if top.source in {"bm25", "semantic"}:
             return self._best_sentence(question, top.text), result
         return normalize_space(top.text)[:280], result

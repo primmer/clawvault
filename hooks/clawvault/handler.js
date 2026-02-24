@@ -12,6 +12,7 @@
  */
 
 import { execFileSync } from 'child_process';
+import { createHash, randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -28,6 +29,13 @@ const ONE_MIB = ONE_KIB * ONE_KIB;
 const SMALL_SESSION_THRESHOLD_BYTES = 50 * ONE_KIB;
 const MEDIUM_SESSION_THRESHOLD_BYTES = 150 * ONE_KIB;
 const LARGE_SESSION_THRESHOLD_BYTES = 300 * ONE_KIB;
+const FACTS_FILE = 'facts.jsonl';
+const ENTITY_GRAPH_FILE = 'entity-graph.json';
+const ENTITY_GRAPH_VERSION = 1;
+const MAX_FACT_TEXT_LENGTH = 600;
+const FACT_SENTENCE_SPLIT_RE = /[.!?]+\s+|\r?\n+/;
+const EXCLUSIVE_FACT_RELATIONS = new Set(['lives_in', 'works_at', 'age']);
+const ENTITY_TARGET_RELATIONS = new Set(['works_at', 'lives_in', 'partner_name', 'dog_name', 'parent_name']);
 
 // Sanitize string for safe display (prevent prompt injection via control chars)
 function sanitizeForDisplay(str) {
@@ -608,6 +616,679 @@ function runObserverCron(vaultPath, agentId, options = {}) {
   return true;
 }
 
+function ensureClawvaultDir(vaultPath) {
+  const dir = path.join(vaultPath, '.clawvault');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function getFactsFilePath(vaultPath) {
+  return path.join(ensureClawvaultDir(vaultPath), FACTS_FILE);
+}
+
+function getEntityGraphFilePath(vaultPath) {
+  return path.join(ensureClawvaultDir(vaultPath), ENTITY_GRAPH_FILE);
+}
+
+function sanitizeFactText(value, maxLength = MAX_FACT_TEXT_LENGTH) {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeEntityLabel(value) {
+  const cleaned = sanitizeFactText(value, 120).replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+  if (!cleaned) return 'User';
+  if (/^(i|me|my|mine|we|us|our|ours)$/i.test(cleaned)) {
+    return 'User';
+  }
+  return cleaned;
+}
+
+function normalizeEntityToken(value) {
+  const normalized = sanitizeFactText(value, 120)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || 'user';
+}
+
+function normalizeFactValue(value) {
+  return sanitizeFactText(String(value ?? ''), 260)
+    .replace(/^[,:;\s-]+|[,:;\s-]+$/g, '')
+    .trim();
+}
+
+function normalizeFactRelation(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function clampConfidence(value, fallback = 0.7) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric < 0) return 0;
+  if (numeric > 1) return 1;
+  return numeric;
+}
+
+function toIsoTimestamp(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString();
+  }
+  return date.toISOString();
+}
+
+function slugifyForId(value) {
+  const base = sanitizeFactText(String(value ?? ''), 180)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (!base) return 'unknown';
+  if (base.length <= 80) return base;
+  const hash = createHash('sha1').update(base).digest('hex').slice(0, 10);
+  return `${base.slice(0, 64)}-${hash}`;
+}
+
+function isExclusiveFactRelation(relation) {
+  return EXCLUSIVE_FACT_RELATIONS.has(relation) || relation.startsWith('favorite_');
+}
+
+function createFactRecord({
+  entity,
+  relation,
+  value,
+  validFrom,
+  confidence,
+  category,
+  source,
+  rawText
+}) {
+  const relationToken = normalizeFactRelation(relation);
+  const valueToken = normalizeFactValue(value);
+  if (!relationToken || !valueToken) return null;
+
+  const entityLabel = normalizeEntityLabel(entity || 'User');
+  const entityNorm = normalizeEntityToken(entityLabel);
+  const factSource = sanitizeFactText(source || 'hook');
+  const factRawText = sanitizeFactText(rawText || valueToken);
+  const categoryToken = sanitizeFactText(category || 'facts', 40).toLowerCase() || 'facts';
+
+  return {
+    id: randomUUID(),
+    entity: entityLabel,
+    entityNorm,
+    relation: relationToken,
+    value: valueToken,
+    validFrom: toIsoTimestamp(validFrom),
+    validUntil: null,
+    confidence: clampConfidence(confidence, 0.7),
+    category: categoryToken,
+    source: factSource,
+    rawText: factRawText
+  };
+}
+
+function appendPatternFacts(target, sentence, pattern, options = {}) {
+  pattern.lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(sentence)) !== null) {
+    const relation = options.relation;
+    const category = options.category || 'facts';
+    const confidence = options.confidence ?? 0.7;
+    const value = typeof options.value === 'function' ? options.value(match) : match[2];
+    const entity = typeof options.entity === 'function'
+      ? options.entity(match)
+      : options.entity || match[1] || 'User';
+
+    const record = createFactRecord({
+      entity,
+      relation,
+      value,
+      validFrom: options.validFrom,
+      confidence,
+      category,
+      source: options.source,
+      rawText: sentence
+    });
+
+    if (record) {
+      target.push(record);
+    }
+  }
+}
+
+function extractFactsFromSentence(sentence, options) {
+  const source = options.source || 'hook:event';
+  const validFrom = options.validFrom || new Date().toISOString();
+  const facts = [];
+  const subjectPattern = '([A-Za-z][a-z]+(?:\\s+[A-Za-z][a-z]+)?|i|we)';
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:really\\s+)?prefer(?:s|red|ring)?\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'favorite_preference', category: 'preferences', confidence: 0.86, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:really\\s+)?like(?:s|d)?\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'favorite_preference', category: 'preferences', confidence: 0.8, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:really\\s+)?(?:hate|dislike(?:s|d)?)\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'dislikes', category: 'preferences', confidence: 0.84, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:am|is|are)?\\s*allergic\\s+to\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'allergic_to', category: 'preferences', confidence: 0.92, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:work|works|working)\\s+at\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'works_at', category: 'facts', confidence: 0.92, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:live|lives|living)\\s+in\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'lives_in', category: 'facts', confidence: 0.9, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:am|is|are)\\s+(\\d{1,3})\\s*(?:years?\\s*old)?\\b`, 'gi'),
+    {
+      relation: 'age',
+      category: 'facts',
+      confidence: 0.92,
+      source,
+      validFrom,
+      value: (match) => match[2]
+    }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+bought\\s+([^.;!?]+)`, 'gi'),
+    { relation: 'bought', category: 'facts', confidence: 0.86, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+spent\\s+\\$?(\\d+(?:\\.\\d{1,2})?)(?:\\s*(?:usd|dollars?))?(?:\\s+on\\s+([^.;!?]+))?`, 'gi'),
+    {
+      relation: 'spent',
+      category: 'facts',
+      confidence: 0.9,
+      source,
+      validFrom,
+      value: (match) => {
+        const amount = match[2] ? `$${match[2]}` : '';
+        const onWhat = normalizeFactValue(match[3] || '');
+        return onWhat ? `${amount} on ${onWhat}` : amount;
+      }
+    }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    new RegExp(`\\b${subjectPattern}\\s+(?:decided|chose)\\s+(?:to\\s+|on\\s+)?([^.;!?]+)`, 'gi'),
+    { relation: 'decided', category: 'decisions', confidence: 0.88, source, validFrom }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    /\bmy\s+partner\s+is\s+([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)*)\b/gi,
+    { relation: 'partner_name', category: 'entities', confidence: 0.9, source, validFrom, entity: 'User', value: (match) => match[1] }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    /\b([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)*)\s+is\s+my\s+partner\b/gi,
+    { relation: 'partner_name', category: 'entities', confidence: 0.9, source, validFrom, entity: 'User', value: (match) => match[1] }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    /\bmy\s+dog\s+is\s+([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)*)\b/gi,
+    { relation: 'dog_name', category: 'entities', confidence: 0.9, source, validFrom, entity: 'User', value: (match) => match[1] }
+  );
+
+  appendPatternFacts(
+    facts,
+    sentence,
+    /\bmy\s+(?:mom|mother|dad|father|parent)\s+is\s+([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)*)\b/gi,
+    { relation: 'parent_name', category: 'entities', confidence: 0.9, source, validFrom, entity: 'User', value: (match) => match[1] }
+  );
+
+  const deduped = [];
+  const seen = new Set();
+  for (const fact of facts) {
+    const dedupeKey = `${fact.entityNorm}|${fact.relation}|${normalizeFactValue(fact.value).toLowerCase()}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    deduped.push(fact);
+  }
+
+  return deduped;
+}
+
+function splitObservedTextIntoSentences(text) {
+  return sanitizeFactText(text, 6000)
+    .split(FACT_SENTENCE_SPLIT_RE)
+    .map((part) => sanitizeFactText(part))
+    .filter((part) => part.length >= 8);
+}
+
+function collectTextsFromMessageLike(target, value, depth = 0) {
+  if (depth > 3 || value === null || value === undefined) return;
+
+  if (typeof value === 'string') {
+    const text = sanitizeFactText(value, 4000);
+    if (text) target.push(text);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectTextsFromMessageLike(target, entry, depth + 1);
+    }
+    return;
+  }
+
+  if (typeof value !== 'object') return;
+
+  const direct = extractTextFromMessage(value);
+  if (direct) {
+    target.push(sanitizeFactText(direct, 4000));
+  }
+
+  const directKeys = ['text', 'message', 'content', 'rawText', 'observedText', 'observation', 'prompt'];
+  for (const key of directKeys) {
+    if (typeof value[key] === 'string') {
+      target.push(sanitizeFactText(value[key], 4000));
+    }
+  }
+
+  const nestedKeys = ['messages', 'history', 'entries', 'items', 'observations', 'events', 'payload', 'context'];
+  for (const key of nestedKeys) {
+    if (value[key] !== undefined) {
+      collectTextsFromMessageLike(target, value[key], depth + 1);
+    }
+  }
+}
+
+function collectObservedTextsForFactExtraction(event) {
+  const collected = [];
+
+  const directStringCandidates = [
+    event?.text,
+    event?.message,
+    event?.content,
+    event?.rawText,
+    event?.context?.text,
+    event?.context?.message,
+    event?.context?.content,
+    event?.context?.rawText,
+    event?.context?.initialPrompt
+  ];
+
+  for (const candidate of directStringCandidates) {
+    if (typeof candidate === 'string') {
+      const text = sanitizeFactText(candidate, 4000);
+      if (text) collected.push(text);
+    }
+  }
+
+  const structuredCandidates = [
+    event?.messages,
+    event?.context?.messages,
+    event?.context?.history,
+    event?.context?.initialMessages,
+    event?.context?.memoryFlush,
+    event?.context?.flush,
+    event?.observations,
+    event?.context?.observations,
+    event?.payload?.messages,
+    event?.payload?.events
+  ];
+
+  for (const candidate of structuredCandidates) {
+    collectTextsFromMessageLike(collected, candidate);
+  }
+
+  const deduped = [];
+  const seen = new Set();
+  for (const item of collected) {
+    const normalized = sanitizeFactText(item, 4000);
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(normalized);
+  }
+  return deduped;
+}
+
+function extractFactsFromObservedText(observedTexts, options) {
+  const facts = [];
+  const globalSeen = new Set();
+  for (const text of observedTexts) {
+    for (const sentence of splitObservedTextIntoSentences(text)) {
+      const extracted = extractFactsFromSentence(sentence, options);
+      for (const fact of extracted) {
+        const dedupeKey = `${fact.entityNorm}|${fact.relation}|${normalizeFactValue(fact.value).toLowerCase()}`;
+        if (globalSeen.has(dedupeKey)) continue;
+        globalSeen.add(dedupeKey);
+        facts.push(fact);
+      }
+    }
+  }
+  return facts;
+}
+
+function normalizeStoredFact(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const relation = normalizeFactRelation(raw.relation);
+  const value = normalizeFactValue(raw.value);
+  if (!relation || !value) return null;
+
+  const entity = normalizeEntityLabel(raw.entity || raw.entityNorm || 'User');
+  const entityNorm = normalizeEntityToken(raw.entityNorm || entity);
+  const validFrom = toIsoTimestamp(raw.validFrom || new Date().toISOString());
+  let validUntil = null;
+  if (typeof raw.validUntil === 'string' && raw.validUntil.trim()) {
+    validUntil = toIsoTimestamp(raw.validUntil);
+  }
+
+  const idBase = `${entityNorm}|${relation}|${value}|${validFrom}`;
+  const fallbackId = createHash('sha1').update(idBase).digest('hex').slice(0, 16);
+
+  return {
+    id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : fallbackId,
+    entity,
+    entityNorm,
+    relation,
+    value,
+    validFrom,
+    validUntil,
+    confidence: clampConfidence(raw.confidence, 0.7),
+    category: sanitizeFactText(raw.category || 'facts', 40).toLowerCase() || 'facts',
+    source: sanitizeFactText(raw.source || 'hook', 120) || 'hook',
+    rawText: sanitizeFactText(raw.rawText || value, MAX_FACT_TEXT_LENGTH)
+  };
+}
+
+function readFactsFromVault(vaultPath) {
+  const factsPath = getFactsFilePath(vaultPath);
+  if (!fs.existsSync(factsPath)) {
+    return [];
+  }
+
+  try {
+    const lines = fs.readFileSync(factsPath, 'utf-8')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const facts = [];
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line);
+        const normalized = normalizeStoredFact(parsed);
+        if (normalized) facts.push(normalized);
+      } catch {
+        // Skip malformed lines and keep processing.
+      }
+    }
+    return facts;
+  } catch {
+    return [];
+  }
+}
+
+function writeFactsToVault(vaultPath, facts) {
+  const factsPath = getFactsFilePath(vaultPath);
+  const lines = facts.map((fact) => JSON.stringify(fact));
+  const payload = lines.length > 0 ? `${lines.join('\n')}\n` : '';
+  fs.writeFileSync(factsPath, payload, 'utf-8');
+}
+
+function mergeFactsWithConflictResolution(existingFacts, incomingFacts) {
+  const merged = [...existingFacts];
+  let added = 0;
+  let superseded = 0;
+  let changed = false;
+
+  for (const incoming of incomingFacts) {
+    const activeSameRelation = merged.filter((fact) =>
+      fact.entityNorm === incoming.entityNorm
+      && fact.relation === incoming.relation
+      && !fact.validUntil
+    );
+
+    const incomingValue = normalizeFactValue(incoming.value).toLowerCase();
+    const hasExactActiveMatch = activeSameRelation.some((fact) =>
+      normalizeFactValue(fact.value).toLowerCase() === incomingValue
+    );
+    if (hasExactActiveMatch) {
+      continue;
+    }
+
+    const shouldSupersede = activeSameRelation.some((fact) =>
+      normalizeFactValue(fact.value).toLowerCase() !== incomingValue
+    );
+    if (shouldSupersede || isExclusiveFactRelation(incoming.relation)) {
+      for (const fact of activeSameRelation) {
+        if (normalizeFactValue(fact.value).toLowerCase() === incomingValue) continue;
+        if (!fact.validUntil) {
+          fact.validUntil = incoming.validFrom;
+          superseded += 1;
+          changed = true;
+        }
+      }
+    }
+
+    merged.push(incoming);
+    added += 1;
+    changed = true;
+  }
+
+  return { facts: merged, added, superseded, changed };
+}
+
+function isTimestampAfter(candidate, reference) {
+  const candidateTime = new Date(candidate).getTime();
+  const referenceTime = new Date(reference).getTime();
+  if (Number.isNaN(candidateTime)) return false;
+  if (Number.isNaN(referenceTime)) return true;
+  return candidateTime > referenceTime;
+}
+
+function ensureGraphNode(nodesById, descriptor, seenAt) {
+  const existing = nodesById.get(descriptor.id);
+  if (!existing) {
+    nodesById.set(descriptor.id, {
+      id: descriptor.id,
+      name: descriptor.name,
+      displayName: descriptor.displayName,
+      type: descriptor.type,
+      attributes: descriptor.attributes || {},
+      lastSeen: seenAt
+    });
+    return;
+  }
+
+  existing.attributes = { ...existing.attributes, ...(descriptor.attributes || {}) };
+  if (isTimestampAfter(seenAt, existing.lastSeen)) {
+    existing.lastSeen = seenAt;
+  }
+}
+
+function inferTargetNodeType(relation) {
+  if (relation === 'works_at') return 'organization';
+  if (relation === 'lives_in') return 'location';
+  if (relation === 'partner_name' || relation === 'parent_name') return 'person';
+  if (relation === 'dog_name') return 'pet';
+  if (relation === 'age' || relation === 'spent') return 'number';
+  if (relation === 'bought') return 'item';
+  if (relation === 'decided') return 'decision';
+  if (relation === 'allergic_to') return 'substance';
+  if (relation === 'favorite_preference' || relation === 'dislikes') return 'preference';
+  return 'attribute';
+}
+
+function buildTargetNodeDescriptor(fact) {
+  const relation = normalizeFactRelation(fact.relation);
+  const value = normalizeFactValue(fact.value);
+  if (!relation || !value) return null;
+
+  if (ENTITY_TARGET_RELATIONS.has(relation)) {
+    const normalizedEntityValue = normalizeEntityToken(value);
+    return {
+      id: `entity:${slugifyForId(normalizedEntityValue)}`,
+      name: normalizedEntityValue,
+      displayName: value,
+      type: inferTargetNodeType(relation),
+      attributes: { relation }
+    };
+  }
+
+  return {
+    id: `value:${relation}:${slugifyForId(value)}`,
+    name: value.toLowerCase(),
+    displayName: value,
+    type: inferTargetNodeType(relation),
+    attributes: { relation }
+  };
+}
+
+function buildEntityGraphFromFacts(facts) {
+  const nodesById = new Map();
+  const edges = [];
+
+  for (const fact of facts) {
+    const normalized = normalizeStoredFact(fact);
+    if (!normalized) continue;
+
+    const sourceNodeId = `entity:${slugifyForId(normalized.entityNorm)}`;
+    const seenAt = normalized.validFrom || new Date().toISOString();
+    ensureGraphNode(nodesById, {
+      id: sourceNodeId,
+      name: normalized.entityNorm,
+      displayName: normalized.entity,
+      type: 'person',
+      attributes: { entityNorm: normalized.entityNorm }
+    }, seenAt);
+
+    const targetNode = buildTargetNodeDescriptor(normalized);
+    if (!targetNode) continue;
+    ensureGraphNode(nodesById, targetNode, seenAt);
+
+    const edgeHashSource = `${normalized.id}|${sourceNodeId}|${targetNode.id}|${normalized.relation}|${normalized.validFrom}`;
+    const edgeId = `edge:${createHash('sha1').update(edgeHashSource).digest('hex').slice(0, 18)}`;
+
+    edges.push({
+      id: edgeId,
+      source: sourceNodeId,
+      target: targetNode.id,
+      relation: normalized.relation,
+      validFrom: normalized.validFrom,
+      validUntil: normalized.validUntil,
+      confidence: clampConfidence(normalized.confidence, 0.7)
+    });
+  }
+
+  const nodes = [...nodesById.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const sortedEdges = edges.sort((a, b) => a.id.localeCompare(b.id));
+  return {
+    version: ENTITY_GRAPH_VERSION,
+    nodes,
+    edges: sortedEdges
+  };
+}
+
+function writeEntityGraphToVault(vaultPath, facts) {
+  const graphPath = getEntityGraphFilePath(vaultPath);
+  const graph = buildEntityGraphFromFacts(facts);
+  fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2), 'utf-8');
+}
+
+function persistExtractedFacts(vaultPath, incomingFacts) {
+  const existingFacts = readFactsFromVault(vaultPath);
+  const normalizedIncomingFacts = incomingFacts
+    .map((fact) => normalizeStoredFact(fact))
+    .filter(Boolean);
+
+  if (normalizedIncomingFacts.length === 0) {
+    writeEntityGraphToVault(vaultPath, existingFacts);
+    return { facts: existingFacts, added: 0, superseded: 0 };
+  }
+
+  const { facts, added, superseded, changed } = mergeFactsWithConflictResolution(
+    existingFacts,
+    normalizedIncomingFacts
+  );
+
+  if (changed || !fs.existsSync(getFactsFilePath(vaultPath))) {
+    writeFactsToVault(vaultPath, facts);
+  }
+  writeEntityGraphToVault(vaultPath, facts);
+  return { facts, added, superseded };
+}
+
+function runFactExtractionForEvent(vaultPath, event, eventLabel) {
+  try {
+    const observedTexts = collectObservedTextsForFactExtraction(event);
+    if (observedTexts.length === 0) {
+      console.log(`[clawvault] Fact extraction skipped (${eventLabel}: no observed text)`);
+      return;
+    }
+
+    const validFrom = toIsoTimestamp(extractEventTimestamp(event) || new Date());
+    const source = `hook:${eventLabel}`;
+    const extracted = extractFactsFromObservedText(observedTexts, { source, validFrom });
+
+    if (extracted.length === 0) {
+      console.log(`[clawvault] Fact extraction found no matches (${eventLabel})`);
+      return;
+    }
+
+    const { facts, added, superseded } = persistExtractedFacts(vaultPath, extracted);
+    console.log(`[clawvault] Fact extraction complete (${eventLabel}): +${added}, superseded ${superseded}, total ${facts.length}`);
+  } catch (err) {
+    console.warn(`[clawvault] Fact extraction failed (${eventLabel}): ${err?.message || 'unknown error'}`);
+  }
+}
+
 function extractEventTimestamp(event) {
   const candidates = [
     event?.timestamp,
@@ -727,6 +1408,7 @@ async function handleNew(event) {
     minNewBytes: 1,
     reason: 'command:new flush'
   });
+  runFactExtractionForEvent(vaultPath, event, 'command:new');
 }
 
 // Handle session start - inject dynamic context for first prompt
@@ -821,6 +1503,7 @@ async function handleContextCompaction(event) {
     minNewBytes: 1,
     reason: 'context compaction'
   });
+  runFactExtractionForEvent(vaultPath, event, 'compaction:memoryFlush');
 }
 
 // Main handler - route events

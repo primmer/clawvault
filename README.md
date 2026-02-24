@@ -152,22 +152,6 @@ ClawVault v3 adds **write-time fact extraction** and **entity graphs** to the co
 - **Entity Graph** — Builds a relational graph enabling multi-hop queries ("Alice works at Google + Google is in CA → Alice is in CA")
 - **Hybrid Search** — BM25 + semantic embeddings + Reciprocal Rank Fusion (RRF)
 
-## Benchmark Results
-
-Evaluated on **LongMemEval** (500 questions, 6 categories) with Gemini Flash + heuristic scoring:
-
-| Category | Score | Notes |
-|----------|-------|-------|
-| **Overall** | **49%** | Hybrid BM25+semantic+RRF |
-| Single-session (user) | 34% | Session-level retrieval |
-| Single-session (assistant) | 75% | Best category |
-| Multi-session | 46% | Cross-session reasoning |
-| Temporal reasoning | 52% | Date-aware retrieval |
-| Knowledge updates | 50% | Conflict resolution |
-| Preferences | 33% | Rubric-based evaluation |
-
-> **Note:** Scores vary with LLM backend. Use local models (e.g., Ollama) for reproducible results.
-
 ### Project Stats
 
 - **466 tests** passing across **71 test files**

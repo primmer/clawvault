@@ -37,6 +37,26 @@ function makeOpenClawSessionFixture(agentId, sessionId, transcriptBytes = 0) {
   return { stateRoot, sessionsDir, transcriptPath };
 }
 
+function makeWorkspaceMemoryFixture() {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'clawvault-workspace-'));
+  const memoryDir = path.join(workspacePath, 'memory');
+  fs.mkdirSync(memoryDir, { recursive: true });
+  return { workspacePath, memoryDir };
+}
+
+function readFactsFromVault(vaultPath) {
+  const factsPath = path.join(vaultPath, '.clawvault', 'facts.jsonl');
+  if (!fs.existsSync(factsPath)) {
+    return [];
+  }
+
+  return fs.readFileSync(factsPath, 'utf-8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
 async function loadHandler() {
   vi.resetModules();
   const mod = await import('./handler.js');
@@ -103,6 +123,42 @@ describe('clawvault hook handler', () => {
     );
 
     fs.rmSync(vaultPath, { recursive: true, force: true });
+  });
+
+  it('falls back to latest workspace session-memory file for command:new fact extraction', async () => {
+    const vaultPath = makeVaultFixture();
+    const workspaceFixture = makeWorkspaceMemoryFixture();
+    process.env.CLAWVAULT_PATH = vaultPath;
+
+    const olderFilePath = path.join(workspaceFixture.memoryDir, '2026-02-24T00-00-00Z.md');
+    const latestFilePath = path.join(workspaceFixture.memoryDir, '2026-02-24T00-01-00Z.md');
+    fs.writeFileSync(olderFilePath, 'I live in Oldtown.', 'utf-8');
+    fs.writeFileSync(latestFilePath, 'I live in Lisbon. I prefer coffee.', 'utf-8');
+    fs.utimesSync(olderFilePath, new Date('2026-02-24T00:00:00.000Z'), new Date('2026-02-24T00:00:00.000Z'));
+    fs.utimesSync(latestFilePath, new Date('2026-02-24T00:01:00.000Z'), new Date('2026-02-24T00:01:00.000Z'));
+
+    execFileSyncMock.mockImplementation((_command, args) => {
+      if (args[0] === 'observe') {
+        return 'nothing new';
+      }
+      return '';
+    });
+
+    const handler = await loadHandler();
+    await handler({
+      event: 'command:new',
+      sessionKey: 'agent:clawdious:main',
+      workspacePath: workspaceFixture.workspacePath,
+      context: { commandSource: 'cli' }
+    });
+
+    const facts = readFactsFromVault(vaultPath);
+    expect(facts.some((fact) => fact.relation === 'lives_in' && fact.value.toLowerCase() === 'lisbon')).toBe(true);
+    expect(facts.some((fact) => fact.relation === 'favorite_preference' && fact.value.toLowerCase() === 'coffee')).toBe(true);
+    expect(facts.some((fact) => fact.value.toLowerCase() === 'oldtown')).toBe(false);
+
+    fs.rmSync(vaultPath, { recursive: true, force: true });
+    fs.rmSync(workspaceFixture.workspacePath, { recursive: true, force: true });
   });
 
   it('injects recap and memory context on session start alias event', async () => {

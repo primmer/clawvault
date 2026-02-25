@@ -174,7 +174,8 @@ describe('Observer', () => {
         provider: 'openai-compatible',
         model: 'local-model-v1',
         baseUrl: 'http://localhost:11434/v1'
-      }
+      },
+      factExtractionMode: 'off'
     };
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
 
@@ -224,7 +225,8 @@ describe('Observer', () => {
     config.observer = {
       compression: {
         provider: 'openai'
-      }
+      },
+      factExtractionMode: 'off'
     };
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
 

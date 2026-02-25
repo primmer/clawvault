@@ -159,7 +159,8 @@ export type {
   ObserveProvider,
   ObserverCompressionProvider,
   Theme,
-  ContextProfile as ConfigDefaultProfile
+  ContextProfile as ConfigDefaultProfile,
+  FactExtractionMode
 } from './lib/config-manager.js';
 export {
   MEMORY_GRAPH_SCHEMA_VERSION,
@@ -189,6 +190,23 @@ export type {
 } from './lib/inject-utils.js';
 export { resolveLlmProvider, requestLlmCompletion } from './lib/llm-provider.js';
 export type { LlmProvider, LlmCompletionOptions } from './lib/llm-provider.js';
+export {
+  createGeminiFlashAdapter,
+  createDefaultAdapter,
+  createFactExtractionAdapter,
+  createLlmFunction,
+  resolveFactExtractionMode
+} from './lib/llm-adapter.js';
+export type { LlmAdapter, LlmAdapterOptions } from './lib/llm-adapter.js';
+export {
+  extractFactsRuleBased,
+  extractFactsLlm,
+  normalizeEntity,
+  factId
+} from './lib/fact-extractor.js';
+export type { ExtractedFact, ExtractionResult } from './lib/fact-extractor.js';
+export { FactStore } from './lib/fact-store.js';
+export type { FactStoreStats } from './lib/fact-store.js';
 export type {
   MemoryGraph,
   MemoryGraphNode,

@@ -17,11 +17,13 @@ const OBSERVER_COMPRESSION_PROVIDERS = [
 ] as const;
 const THEMES = ['neural', 'minimal', 'none'] as const;
 const CONTEXT_PROFILES = ['default', 'planning', 'incident', 'handoff', 'auto'] as const;
+const FACT_EXTRACTION_MODES = ['off', 'rule', 'llm', 'hybrid'] as const;
 
 export type ObserveProvider = (typeof OBSERVE_PROVIDERS)[number];
 export type ObserverCompressionProvider = (typeof OBSERVER_COMPRESSION_PROVIDERS)[number];
 export type Theme = (typeof THEMES)[number];
 export type ContextProfile = (typeof CONTEXT_PROFILES)[number];
+export type FactExtractionMode = (typeof FACT_EXTRACTION_MODES)[number];
 export type ManagedConfigKey =
   | 'name'
   | 'categories'
@@ -32,6 +34,7 @@ export type ManagedConfigKey =
   | 'observer.compression.model'
   | 'observer.compression.baseUrl'
   | 'observer.compression.apiKey'
+  | 'observer.factExtractionMode'
   | 'context.maxResults'
   | 'context.defaultProfile'
   | 'graph.maxHops'
@@ -60,6 +63,7 @@ export interface ManagedDefaults {
       baseUrl?: string;
       apiKey?: string;
     };
+    factExtractionMode: FactExtractionMode;
   };
   context: {
     maxResults: number;
@@ -86,6 +90,7 @@ export const SUPPORTED_CONFIG_KEYS: ManagedConfigKey[] = [
   'observer.compression.model',
   'observer.compression.baseUrl',
   'observer.compression.apiKey',
+  'observer.factExtractionMode',
   'context.maxResults',
   'context.defaultProfile',
   'graph.maxHops',
@@ -97,6 +102,7 @@ export const SUPPORTED_CONFIG_KEYS: ManagedConfigKey[] = [
 const DEFAULT_THEME: Theme = 'none';
 const DEFAULT_OBSERVE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_OBSERVE_PROVIDER: ObserveProvider = 'gemini';
+const DEFAULT_FACT_EXTRACTION_MODE: FactExtractionMode = 'llm';
 const DEFAULT_CONTEXT_MAX_RESULTS = 5;
 const DEFAULT_CONTEXT_PROFILE: ContextProfile = 'default';
 const DEFAULT_GRAPH_MAX_HOPS = 2;
@@ -186,6 +192,10 @@ function isTheme(value: unknown): value is Theme {
 
 function isContextProfile(value: unknown): value is ContextProfile {
   return typeof value === 'string' && CONTEXT_PROFILES.includes(value as ContextProfile);
+}
+
+function isFactExtractionMode(value: unknown): value is FactExtractionMode {
+  return typeof value === 'string' && FACT_EXTRACTION_MODES.includes(value as FactExtractionMode);
 }
 
 function normalizeRouteTarget(target: string): string {
@@ -280,7 +290,8 @@ function withDefaults(vaultPath: string, config: Record<string, unknown>): Recor
       provider: DEFAULT_OBSERVE_PROVIDER
     },
     observer: {
-      compression: {}
+      compression: {},
+      factExtractionMode: DEFAULT_FACT_EXTRACTION_MODE
     },
     context: {
       maxResults: DEFAULT_CONTEXT_MAX_RESULTS,
@@ -370,7 +381,10 @@ function withDefaults(vaultPath: string, config: Record<string, unknown>): Recor
     },
     observer: {
       ...observerRecord,
-      compression: normalizedCompression
+      compression: normalizedCompression,
+      factExtractionMode: isFactExtractionMode(observerRecord.factExtractionMode)
+        ? observerRecord.factExtractionMode
+        : defaults.observer.factExtractionMode
     },
     context: {
       ...contextRecord,
@@ -481,6 +495,13 @@ function coerceManagedValue(key: ManagedConfigKey, value: unknown): unknown {
       throw new Error('Config key "observer.compression.apiKey" must be a string.');
     }
     return value.trim();
+  }
+
+  if (key === 'observer.factExtractionMode') {
+    if (!isFactExtractionMode(value)) {
+      throw new Error(`Config key "observer.factExtractionMode" must be one of: ${FACT_EXTRACTION_MODES.join(', ')}`);
+    }
+    return value;
   }
 
   if (key === 'context.maxResults') {
@@ -602,7 +623,8 @@ export function resetConfig(vaultPath: string): Record<string, unknown> {
   ) as Record<string, unknown>;
   document.observer = {
     ...observerRecord,
-    compression: {}
+    compression: {},
+    factExtractionMode: DEFAULT_FACT_EXTRACTION_MODE
   };
   document.context = {
     maxResults: DEFAULT_CONTEXT_MAX_RESULTS,

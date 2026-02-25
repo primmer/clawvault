@@ -17,7 +17,21 @@ import {
   type Task
 } from '../lib/task-utils.js';
 import { listProjects } from '../lib/project-utils.js';
-import { listRouteRules, matchRouteRule, type RouteRule } from '../lib/config-manager.js';
+import {
+  listConfig,
+  listRouteRules,
+  matchRouteRule,
+  type FactExtractionMode,
+  type RouteRule
+} from '../lib/config-manager.js';
+import { extractFactsRuleBased, extractFactsLlm, type ExtractedFact } from '../lib/fact-extractor.js';
+import { FactStore } from '../lib/fact-store.js';
+import {
+  createFactExtractionAdapter,
+  createLlmFunction,
+  resolveFactExtractionMode,
+  type LlmAdapter
+} from '../lib/llm-adapter.js';
 
 /**
  * Routes observations into the appropriate vault category files.
@@ -36,6 +50,9 @@ interface RoutedItem {
 
 interface RouterOptions {
   extractTasks?: boolean;
+  extractFacts?: boolean;
+  factExtractionMode?: FactExtractionMode;
+  llmAdapter?: LlmAdapter;
   now?: () => Date;
 }
 
@@ -136,31 +153,59 @@ const FUTURE_TASK_HINT_RE = /\b(need to|should|todo|must|plan to)\b/i;
 export class Router {
   private readonly vaultPath: string;
   private readonly extractTasks: boolean;
+  private readonly extractFacts: boolean;
+  private readonly factExtractionMode: FactExtractionMode;
+  private readonly llmAdapter: LlmAdapter;
+  private readonly factStore: FactStore;
   private readonly now: () => Date;
   private customRoutes: RouteRule[];
 
   constructor(vaultPath: string, options: RouterOptions = {}) {
     this.vaultPath = path.resolve(vaultPath);
     this.extractTasks = options.extractTasks ?? true;
+    this.extractFacts = options.extractFacts ?? true;
+    this.factExtractionMode = options.factExtractionMode ?? this.loadFactExtractionMode();
+    this.llmAdapter = options.llmAdapter ?? createFactExtractionAdapter();
+    this.factStore = new FactStore(this.vaultPath);
     this.now = options.now ?? (() => new Date());
     this.customRoutes = this.loadCustomRoutes();
+
+    if (this.extractFacts && this.factExtractionMode !== 'off') {
+      this.factStore.load();
+    }
+  }
+
+  private loadFactExtractionMode(): FactExtractionMode {
+    try {
+      const config = listConfig(this.vaultPath);
+      const observer = config.observer as Record<string, unknown> | undefined;
+      const mode = observer?.factExtractionMode;
+      if (mode === 'off' || mode === 'rule' || mode === 'llm' || mode === 'hybrid') {
+        return mode;
+      }
+    } catch {
+      // Config not available, use default
+    }
+    return 'llm';
   }
 
   /**
    * Takes observation markdown and routes items to appropriate vault categories.
    * Routes only items with importance >= 0.4.
+   * Also extracts structured facts from observations when fact extraction is enabled.
    * Returns a summary of what was routed where.
    */
   route(
     observationMarkdown: string,
     context: RouteContext = {}
-  ): { routed: RoutedItem[]; summary: string } {
+  ): { routed: RoutedItem[]; summary: string; factsExtracted: number } {
     this.customRoutes = this.loadCustomRoutes();
     const items = this.parseObservations(observationMarkdown);
     const routed: RoutedItem[] = [];
     const knownWorkItems = this.extractTasks ? this.loadExistingWorkItems() : [];
     const knownProjectDefinitions = this.loadKnownProjectDefinitions();
     let dedupHits = 0;
+    let factsExtracted = 0;
 
     for (const item of items) {
       if (item.importance < 0.4) continue;
@@ -192,8 +237,97 @@ export class Router {
       this.appendToCategory(category, routedItem, knownProjectDefinitions);
     }
 
-    const summary = this.buildSummary(routed, dedupHits);
-    return { routed, summary };
+    if (this.extractFacts && this.factExtractionMode !== 'off') {
+      const extractedCount = this.extractAndStoreFacts(observationMarkdown, context);
+      factsExtracted = extractedCount;
+    }
+
+    const summary = this.buildSummary(routed, dedupHits, factsExtracted);
+    return { routed, summary, factsExtracted };
+  }
+
+  /**
+   * Extract facts from observation markdown and store them in the fact store.
+   * Uses the configured extraction mode (rule-based, LLM, or hybrid).
+   */
+  private extractAndStoreFacts(observationMarkdown: string, context: RouteContext): number {
+    const { mode, useLlm } = resolveFactExtractionMode(this.factExtractionMode, this.llmAdapter);
+
+    if (mode === 'off') {
+      return 0;
+    }
+
+    const source = context.source ?? 'observer';
+    const timestamp = context.timestamp?.toISOString() ?? this.now().toISOString();
+    let facts: ExtractedFact[] = [];
+
+    if (mode === 'rule' || !useLlm) {
+      facts = extractFactsRuleBased(observationMarkdown, source, timestamp);
+    } else if (mode === 'llm') {
+      const llmFn = createLlmFunction(this.llmAdapter);
+      extractFactsLlm(observationMarkdown, source, timestamp, llmFn)
+        .then((llmFacts) => {
+          if (llmFacts.length > 0) {
+            this.factStore.addFacts(llmFacts);
+            this.factStore.save();
+          }
+        })
+        .catch(() => {
+          const ruleFacts = extractFactsRuleBased(observationMarkdown, source, timestamp);
+          if (ruleFacts.length > 0) {
+            this.factStore.addFacts(ruleFacts);
+            this.factStore.save();
+          }
+        });
+      return 0;
+    } else if (mode === 'hybrid') {
+      facts = extractFactsRuleBased(observationMarkdown, source, timestamp);
+      const llmFn = createLlmFunction(this.llmAdapter);
+      extractFactsLlm(observationMarkdown, source, timestamp, llmFn)
+        .then((llmFacts) => {
+          const merged = this.mergeFacts(facts, llmFacts);
+          if (merged.length > facts.length) {
+            this.factStore.addFacts(merged.slice(facts.length));
+            this.factStore.save();
+          }
+        })
+        .catch(() => {
+          // LLM failed, rule-based facts already added
+        });
+    }
+
+    if (facts.length > 0) {
+      this.factStore.addFacts(facts);
+      this.factStore.save();
+    }
+
+    return facts.length;
+  }
+
+  /**
+   * Merge facts from rule-based and LLM extraction, deduplicating by entity+relation.
+   */
+  private mergeFacts(ruleFacts: ExtractedFact[], llmFacts: ExtractedFact[]): ExtractedFact[] {
+    const seen = new Set<string>();
+    const merged: ExtractedFact[] = [];
+
+    for (const fact of ruleFacts) {
+      const key = `${fact.entityNorm}::${fact.relation}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(fact);
+      }
+    }
+
+    for (const fact of llmFacts) {
+      const key = `${fact.entityNorm}::${fact.relation}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(fact);
+      }
+    }
+
+    return merged;
   }
 
   private isTaskObservation(
@@ -809,8 +943,8 @@ export class Router {
     return intersection / (setA.size + setB.size - intersection);
   }
 
-  private buildSummary(routed: RoutedItem[], dedupHits: number): string {
-    if (routed.length === 0) {
+  private buildSummary(routed: RoutedItem[], dedupHits: number, factsExtracted: number = 0): string {
+    if (routed.length === 0 && factsExtracted === 0) {
       if (dedupHits > 0) {
         return `No items routed to vault categories (dedup hits: ${dedupHits}).`;
       }
@@ -823,7 +957,19 @@ export class Router {
     }
 
     const parts = [...byCat.entries()].map(([cat, count]) => `${cat}: ${count}`);
-    const suffix = dedupHits > 0 ? ` (dedup hits: ${dedupHits})` : '';
+    const suffixParts: string[] = [];
+    if (dedupHits > 0) {
+      suffixParts.push(`dedup hits: ${dedupHits}`);
+    }
+    if (factsExtracted > 0) {
+      suffixParts.push(`facts: ${factsExtracted}`);
+    }
+    const suffix = suffixParts.length > 0 ? ` (${suffixParts.join(', ')})` : '';
+    
+    if (routed.length === 0 && factsExtracted > 0) {
+      return `Extracted ${factsExtracted} facts${suffix}`;
+    }
+    
     return `Routed ${routed.length} observations → ${parts.join(', ')}${suffix}`;
   }
 }

@@ -1,0 +1,1 @@
+export const MAX_REPEATABLE_OPTION_VALUES = 256;

@@ -25,21 +25,20 @@ Standard commands are in `package.json` scripts:
 - **Dashboard**: `node dashboard/server.js --vault <path>` starts a web dashboard on port 3377 (Express + WebSocket + force-graph).
 - **LLM API keys optional**: Observer/reflector/compressor features require API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) but are not needed for core CLI or testing.
 
-### Workgraph substrate (v3)
+### Workgraph (v3) — Multi-Agent Coordination
 
-The workgraph substrate lives in `src/workgraph/` and was introduced via PR #64. Key modules:
+The workgraph layer lives in `src/workgraph/` with four modules:
 
-- `src/workgraph/primitive-registry.ts` — typed primitive definitions loaded from `templates/primitive-registry.yaml`
-- `src/workgraph/event-ledger.ts` — monotonic event ledger with crash-recovery resume tokens
-- `src/workgraph/store.ts` — workgraph persistence layer
-- `src/workgraph/writer-policy.ts` — access control for who can write to which primitives
-- `src/workgraph/schema-contract.ts` — field-level schema validation at write time
-- `src/runtime/` — OpenClaw and Claude Code runtime adapters for event normalization
-- `shared/` — constants (registry limits, identifier rules, reserved fields, v3 command surface, removed v3 primitives)
-- `packages/obsidian/` — Obsidian "Control Plane" plugin (graph, workstreams board, ops rail)
+- `registry.ts` — Dynamic primitive type registry. 6 built-in types + agents define new types at runtime.
+- `ledger.ts` — Append-only event log (`.clawvault/ledger.jsonl`). Source of truth for claims and coordination.
+- `store.ts` — CRUD for primitives (markdown files with frontmatter). Every mutation logged to ledger.
+- `thread.ts` — Thread lifecycle: create → claim → active → done (with block/release/cancel).
+- `types.ts` — Type definitions for the system.
 
-The workgraph code imports from `../../shared/` relative paths. If you add new shared modules, place them in `/workspace/shared/` with both `.js` and `.d.ts` files.
+Key patterns:
+- **Claim exclusivity**: The ledger tracks who owns what. `thread.claim()` fails if already claimed.
+- **Dynamic types**: `registry.defineType()` creates new primitive types at runtime. This is how abstractions compound.
+- **Soft schemas**: Field defaults applied, but unknown fields preserved. Schemas suggest, don't enforce.
+- **Audit trail**: Every mutation in ledger.jsonl. Query with `ledger.historyOf()`, `ledger.allClaims()`, etc.
 
-### Obsidian visualization
-
-Obsidian AppImage is at `/tmp/Obsidian.AppImage` (extracted to `/tmp/squashfs-root/`). Launch with `--no-sandbox --disable-gpu-sandbox`. The vault at `/tmp/workgraph-vault` is pre-configured. To install the ClawVault Control Plane plugin, copy `packages/obsidian/` files into `.obsidian/plugins/clawvault-control-plane/` within the vault. The plugin reads from `.clawvault/control-plane/snapshot.json`.
+See `SKILL.md` "Workgraph" section for the full agent-native API reference.

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { loadRegistry, saveRegistry, defineType, getType, listTypes, extendType, registryPath } from './registry.js';
+import { readAll } from './ledger.js';
 
 let vaultPath: string;
 
@@ -52,6 +53,12 @@ describe('registry', () => {
     expect(wf!.fields.title).toBeDefined();
     expect(wf!.fields.created).toBeDefined();
     expect(wf!.directory).toBe('workflows');
+
+    const defineEntries = readAll(vaultPath).filter(e => e.op === 'define');
+    expect(defineEntries).toHaveLength(1);
+    expect(defineEntries[0].actor).toBe('agent-alpha');
+    expect(defineEntries[0].target).toBe('.clawvault/registry.json');
+    expect(defineEntries[0].type).toBe('workflow');
   });
 
   it('refuses to redefine built-in types', () => {

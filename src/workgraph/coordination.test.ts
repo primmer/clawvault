@@ -222,7 +222,8 @@ describe('multi-agent coordination', () => {
 
     // Verify full audit trail shows the compounding
     const defineEntries = ledger.readAll(vaultPath).filter(e => e.op === 'define');
-    expect(defineEntries).toHaveLength(0); // defines aren't logged yet, but creates are
+    expect(defineEntries).toHaveLength(3);
+    expect(new Set(defineEntries.map(e => e.type))).toEqual(new Set(['component', 'test-plan', 'release']));
     const createEntries = ledger.readAll(vaultPath).filter(e => e.op === 'create');
     expect(createEntries).toHaveLength(3);
     expect(new Set(createEntries.map(e => e.type))).toEqual(new Set(['component', 'test-plan', 'release']));

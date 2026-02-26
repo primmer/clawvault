@@ -76,7 +76,8 @@
     "glob": "^10.3.10",
     "gray-matter": "^4.0.3",
     "natural": "^6.10.4",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "yaml": "^2.8.2"
   },
   "peerDependencies": {
     "qmd": "*"

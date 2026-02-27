@@ -50,7 +50,7 @@ describe('store', () => {
   it('lists all instances of a type', () => {
     create(workspacePath, 'thread', { title: 'Thread A', goal: 'A' }, '', 'agent');
     create(workspacePath, 'thread', { title: 'Thread B', goal: 'B' }, '', 'agent');
-    create(workspacePath, 'decision', { title: 'Decision X' }, '', 'agent');
+    create(workspacePath, 'decision', { title: 'Decision X', date: '2026-02-01' }, '', 'agent');
 
     const threads = list(workspacePath, 'thread');
     expect(threads).toHaveLength(2);

@@ -37,10 +37,7 @@ export function registerCoreCommands(
 
       try {
         // Resolve --minimal shorthand
-        const isMinimal = !!options.minimal;
-        const skipBases = isMinimal || options.bases === false;
-        const skipTasks = isMinimal || options.tasks === false;
-        const skipGraph = isMinimal || options.graph === false;
+        const { skipBases, skipTasks, skipGraph } = resolveInitFlags(options);
 
         // Resolve custom categories
         const { DEFAULT_CATEGORIES } = await import('../dist/index.js');
@@ -234,4 +231,13 @@ export function registerCoreCommands(
         process.exit(1);
       }
     });
+}
+
+export function resolveInitFlags(options) {
+  const isMinimal = !!options.minimal;
+  return {
+    skipBases: isMinimal || options.bases === false,
+    skipTasks: isMinimal || options.tasks === false,
+    skipGraph: isMinimal || options.graph === false,
+  };
 }

@@ -6,7 +6,7 @@ on:
 
 jobs:
   notify:
-    if: contains(github.event.pull_request.body, 'cursor.com/background-agent') || contains(github.event.pull_request.head.ref, 'cursor/')
+    if: ${{ github.event_name == 'pull_request' && (contains(github.event.pull_request.body || '', 'cursor.com/background-agent') || contains(github.event.pull_request.head.ref || '', 'cursor/')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Send Telegram notification

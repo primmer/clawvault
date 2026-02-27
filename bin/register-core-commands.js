@@ -39,8 +39,8 @@ export function registerCoreCommands(
         // Resolve --minimal shorthand
         const isMinimal = !!options.minimal;
         const skipBases = isMinimal || options.bases === false;
-        const skipTasks = isMinimal || !!options.noTasks;
-        const skipGraph = isMinimal || !!options.noGraph;
+        const skipTasks = isMinimal || options.tasks === false;
+        const skipGraph = isMinimal || options.graph === false;
 
         // Resolve custom categories
         const { DEFAULT_CATEGORIES } = await import('../dist/index.js');

@@ -163,6 +163,20 @@ ClawVault v3 adds **write-time fact extraction** and **entity graphs** to the co
 
 ## Features
 
+### Standalone Workgraph Package
+
+Need pure multi-agent coordination without full memory scaffolding?
+
+Use the standalone package:
+
+```bash
+npm install -g @clawvault/workgraph
+workgraph init ./coordination-space --json
+workgraph thread next --claim --actor agent-worker --json
+```
+
+`@clawvault/workgraph` is optimized for agent orchestration with JSON-native CLI responses and no qmd dependency.
+
 ### Memory Graph
 
 ClawVault builds a typed knowledge graph from wiki-links, tags, and frontmatter:

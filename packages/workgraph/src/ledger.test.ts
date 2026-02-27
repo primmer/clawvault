@@ -1,0 +1,119 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { append, readAll, readSince, currentOwner, isClaimed, historyOf, activityOf, allClaims, recent } from './ledger.js';
+
+let workspacePath: string;
+
+beforeEach(() => {
+  workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'wg-ledger-'));
+});
+
+afterEach(() => {
+  fs.rmSync(workspacePath, { recursive: true, force: true });
+});
+
+describe('ledger', () => {
+  it('appends entries and reads them back', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/auth.md', 'thread');
+    append(workspacePath, 'agent-a', 'claim', 'threads/auth.md', 'thread');
+
+    const entries = readAll(workspacePath);
+    expect(entries).toHaveLength(2);
+    expect(entries[0].op).toBe('create');
+    expect(entries[1].op).toBe('claim');
+    expect(entries[1].actor).toBe('agent-a');
+  });
+
+  it('returns empty array for non-existent ledger', () => {
+    expect(readAll(workspacePath)).toEqual([]);
+  });
+
+  it('tracks current owner through claim/release cycle', () => {
+    const target = 'threads/auth.md';
+
+    expect(currentOwner(workspacePath, target)).toBeNull();
+
+    append(workspacePath, 'agent-a', 'claim', target);
+    expect(currentOwner(workspacePath, target)).toBe('agent-a');
+
+    append(workspacePath, 'agent-a', 'release', target);
+    expect(currentOwner(workspacePath, target)).toBeNull();
+
+    append(workspacePath, 'agent-b', 'claim', target);
+    expect(currentOwner(workspacePath, target)).toBe('agent-b');
+
+    append(workspacePath, 'agent-b', 'done', target);
+    expect(currentOwner(workspacePath, target)).toBeNull();
+  });
+
+  it('checks if a target is claimed', () => {
+    const target = 'threads/auth.md';
+    expect(isClaimed(workspacePath, target)).toBe(false);
+
+    append(workspacePath, 'agent-a', 'claim', target);
+    expect(isClaimed(workspacePath, target)).toBe(true);
+
+    append(workspacePath, 'agent-a', 'release', target);
+    expect(isClaimed(workspacePath, target)).toBe(false);
+  });
+
+  it('returns history of a specific target', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/auth.md');
+    append(workspacePath, 'agent-a', 'create', 'threads/db.md');
+    append(workspacePath, 'agent-a', 'claim', 'threads/auth.md');
+
+    const history = historyOf(workspacePath, 'threads/auth.md');
+    expect(history).toHaveLength(2);
+  });
+
+  it('returns activity of a specific actor', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/auth.md');
+    append(workspacePath, 'agent-b', 'create', 'threads/db.md');
+    append(workspacePath, 'agent-a', 'claim', 'threads/auth.md');
+
+    const activity = activityOf(workspacePath, 'agent-a');
+    expect(activity).toHaveLength(2);
+  });
+
+  it('returns all current claims', () => {
+    append(workspacePath, 'agent-a', 'claim', 'threads/auth.md');
+    append(workspacePath, 'agent-b', 'claim', 'threads/db.md');
+    append(workspacePath, 'agent-a', 'done', 'threads/auth.md');
+
+    const claims = allClaims(workspacePath);
+    expect(claims.size).toBe(1);
+    expect(claims.get('threads/db.md')).toBe('agent-b');
+  });
+
+  it('returns recent entries', () => {
+    for (let i = 0; i < 30; i++) {
+      append(workspacePath, 'agent', 'create', `threads/t${i}.md`);
+    }
+    const last10 = recent(workspacePath, 10);
+    expect(last10).toHaveLength(10);
+    expect(last10[0].target).toBe('threads/t20.md');
+  });
+
+  it('stores optional data payload', () => {
+    append(workspacePath, 'agent-a', 'block', 'threads/auth.md', 'thread', {
+      blocked_by: 'threads/db.md',
+      reason: 'Need DB schema first',
+    });
+
+    const entries = readAll(workspacePath);
+    expect(entries[0].data?.blocked_by).toBe('threads/db.md');
+    expect(entries[0].data?.reason).toBe('Need DB schema first');
+  });
+
+  it('filters entries since a timestamp', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/old.md');
+    const cutoff = new Date().toISOString();
+    append(workspacePath, 'agent-b', 'create', 'threads/new.md');
+
+    const recentEntries = readSince(workspacePath, cutoff);
+    expect(recentEntries.length).toBeGreaterThanOrEqual(1);
+    expect(recentEntries.some(e => e.target === 'threads/new.md')).toBe(true);
+  });
+});

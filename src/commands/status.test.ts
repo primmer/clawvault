@@ -249,4 +249,56 @@ describe('status command', () => {
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }
   });
+
+  it('warns when qmd collection has files but zero vectors', async () => {
+    hasQmdMock.mockReturnValue(true);
+    execFileSyncMock.mockImplementation((command: string) => {
+      if (command === 'qmd') {
+        return `Collections (1):\n\n${mockCollection} (qmd://${mockCollection}/)\n  Pattern: **/*.md\n  Root: ${mockRoot}\n  Files: 42\n  Vectors: 0\n`;
+      }
+      if (command === 'git') {
+        return '';
+      }
+      return '';
+    });
+
+    const vaultPath = makeTempVaultDir();
+    try {
+      fs.mkdirSync(path.join(vaultPath, '.git'), { recursive: true });
+      const clawvaultDir = path.join(vaultPath, '.clawvault');
+      fs.mkdirSync(clawvaultDir, { recursive: true });
+      const timestamp = new Date(Date.now() - 60_000).toISOString();
+      fs.writeFileSync(
+        path.join(clawvaultDir, 'last-checkpoint.json'),
+        JSON.stringify({ timestamp, workingOn: 'sync', focus: null, blocked: null }, null, 2)
+      );
+      fs.writeFileSync(
+        path.join(clawvaultDir, 'graph-index.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          vaultPath,
+          generatedAt: timestamp,
+          files: {},
+          graph: {
+            nodes: [],
+            edges: [],
+            stats: { nodeCount: 1, edgeCount: 0 }
+          }
+        }, null, 2)
+      );
+
+      mockStats = { documents: 1, categories: { inbox: 1 } };
+      mockCollection = 'vault';
+      mockRoot = vaultPath;
+
+      const status = await getStatus(vaultPath);
+      expect(status.health).toBe('warning');
+      expect(status.qmd.emptyVectors).toBe(true);
+      expect(status.issues).toContain('qmd vectors are empty (run `clawvault embed --force`)');
+      const formatted = formatStatus(status);
+      expect(formatted).toContain('Warning: vectors are empty; run `clawvault embed --force`');
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
 });

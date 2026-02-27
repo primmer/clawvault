@@ -68,11 +68,13 @@ export function registerMaintenanceCommands(program, { chalk }) {
     .command('embed')
     .description('Run qmd embedding for pending vault documents')
     .option('-v, --vault <path>', 'Vault path')
+    .option('--force', 'Force embed rebuild even when hashes look up-to-date')
     .action(async (options) => {
       try {
         const { embedCommand } = await import('../dist/commands/embed.js');
         await embedCommand({
-          vaultPath: options.vault
+          vaultPath: options.vault,
+          force: options.force
         });
       } catch (err) {
         console.error(chalk.red(`Error: ${err.message}`));

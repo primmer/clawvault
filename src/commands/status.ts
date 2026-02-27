@@ -29,6 +29,7 @@ export interface VaultStatus {
     indexStatus: 'present' | 'missing' | 'root-mismatch';
     files?: number;
     vectors?: number;
+    emptyVectors?: boolean;
     error?: string;
   };
   graph: {
@@ -218,6 +219,13 @@ export async function getStatus(
     issues.push(`qmd status error: ${qmdError}`);
   }
 
+  const emptyVectors = qmdIndexResult.status === 'present'
+    && (qmdIndexResult.files ?? 0) > 0
+    && (qmdIndexResult.vectors ?? 0) <= 0;
+  if (emptyVectors) {
+    issues.push('qmd vectors are empty (run `clawvault embed --force`)');
+  }
+
   let gitStatus: VaultStatus['git'] | undefined;
   const gitRoot = findGitRoot(vault.getPath());
   if (gitRoot) {
@@ -272,6 +280,7 @@ export async function getStatus(
       indexStatus: qmdIndexResult.status,
       files: qmdIndexResult.files,
       vectors: qmdIndexResult.vectors,
+      emptyVectors,
       error: qmdError
     },
     graph: graphStatus,
@@ -326,6 +335,9 @@ export function formatStatus(status: VaultStatus): string {
   }
   if (status.qmd.vectors !== undefined) {
     output += `  - Vectors: ${status.qmd.vectors}\n`;
+  }
+  if (status.qmd.emptyVectors) {
+    output += '  - Warning: vectors are empty; run `clawvault embed --force`\n';
   }
   if (status.qmd.error) {
     output += `  - Error: ${status.qmd.error}\n`;

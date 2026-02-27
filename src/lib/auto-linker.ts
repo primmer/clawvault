@@ -5,6 +5,12 @@ interface ProtectedRange {
   end: number;
 }
 
+interface ExistingLinkResolution {
+  alias: string;
+  path: string;
+  line: number;
+}
+
 /**
  * Find all protected ranges in the content that should not be linked:
  * - Frontmatter (--- blocks)
@@ -13,7 +19,11 @@ interface ProtectedRange {
  * - Existing wiki links ([[...]])
  * - URLs
  */
-function findProtectedRanges(content: string): ProtectedRange[] {
+function findProtectedRanges(
+  content: string,
+  options: { includeWikiLinks?: boolean } = {}
+): ProtectedRange[] {
+  const includeWikiLinks = options.includeWikiLinks ?? true;
   const ranges: ProtectedRange[] = [];
   
   // Frontmatter (must be at start)
@@ -35,10 +45,12 @@ function findProtectedRanges(content: string): ProtectedRange[] {
     ranges.push({ start: match.index, end: match.index + match[0].length });
   }
   
-  // Existing wiki links
-  const wikiLinkRegex = /\[\[[^\]]+\]\]/g;
-  while ((match = wikiLinkRegex.exec(content)) !== null) {
-    ranges.push({ start: match.index, end: match.index + match[0].length });
+  if (includeWikiLinks) {
+    // Existing wiki links
+    const wikiLinkRegex = /\[\[[^\]]+\]\]/g;
+    while ((match = wikiLinkRegex.exec(content)) !== null) {
+      ranges.push({ start: match.index, end: match.index + match[0].length });
+    }
   }
   
   // URLs
@@ -74,17 +86,103 @@ function createLineLookup(content: string): (pos: number) => number {
   };
 }
 
+function normalizeWikiTarget(target: string): string {
+  const trimmed = target.trim();
+  if (!trimmed) return '';
+  let normalized = trimmed.replace(/\\/g, '/');
+  if (normalized.startsWith('/')) {
+    normalized = normalized.slice(1);
+  }
+  if (normalized.endsWith('.md')) {
+    normalized = normalized.slice(0, -3);
+  }
+  return normalized.trim();
+}
+
+function sanitizeMalformedWikiLinks(content: string): string {
+  return content
+    .replace(/\[\[\[+/g, '[[')
+    .replace(/\]\]\]+/g, ']]');
+}
+
+function targetAlreadyContainsResolvedPath(target: string, resolvedPath: string): boolean {
+  const normalizedTarget = normalizeWikiTarget(target).toLowerCase();
+  const normalizedResolved = normalizeWikiTarget(resolvedPath).toLowerCase();
+  if (!normalizedTarget || !normalizedResolved) return false;
+  if (normalizedTarget === normalizedResolved) return true;
+  return normalizedTarget.includes(normalizedResolved);
+}
+
+function resolveExistingWikiLinks(
+  content: string,
+  index: EntityIndex
+): { content: string; resolutions: ExistingLinkResolution[] } {
+  const linkRegex = /\[\[([^\]]+)\]\]/g;
+  const protectedRanges = findProtectedRanges(content, { includeWikiLinks: false });
+  const getLineNumber = createLineLookup(content);
+  const resolutions: ExistingLinkResolution[] = [];
+
+  const rewritten = content.replace(linkRegex, (fullMatch, inner, offset: number) => {
+    if (isProtected(offset, protectedRanges)) {
+      return fullMatch;
+    }
+
+    const parts = String(inner).split('|');
+    const rawTargetPart = parts[0] ?? '';
+    const displayPart = parts.length > 1 ? parts.slice(1).join('|').trim() : '';
+
+    const hashIndex = rawTargetPart.indexOf('#');
+    const targetPart = hashIndex === -1 ? rawTargetPart : rawTargetPart.slice(0, hashIndex);
+    const anchorPart = hashIndex === -1 ? '' : rawTargetPart.slice(hashIndex);
+
+    const normalizedTarget = normalizeWikiTarget(targetPart);
+    if (!normalizedTarget) {
+      return fullMatch;
+    }
+
+    const resolvedPath = index.entries.get(normalizedTarget.toLowerCase());
+    if (!resolvedPath) {
+      return fullMatch;
+    }
+
+    if (targetAlreadyContainsResolvedPath(normalizedTarget, resolvedPath)) {
+      return fullMatch;
+    }
+
+    const resolvedTargetWithAnchor = `${resolvedPath}${anchorPart}`;
+    const defaultLabel = normalizedTarget.toLowerCase() === resolvedPath.split('/').pop()?.toLowerCase()
+      ? ''
+      : normalizedTarget;
+    const displayLabel = displayPart || defaultLabel;
+
+    resolutions.push({
+      alias: normalizedTarget,
+      path: resolvedPath,
+      line: getLineNumber(offset)
+    });
+
+    if (displayLabel) {
+      return `[[${resolvedTargetWithAnchor}|${displayLabel}]]`;
+    }
+    return `[[${resolvedTargetWithAnchor}]]`;
+  });
+
+  return { content: rewritten, resolutions };
+}
+
 /**
  * Auto-link entities in markdown content.
  * Only links first occurrence of each entity.
  * Skips protected ranges (frontmatter, code, existing links, URLs).
  */
 export function autoLink(content: string, index: EntityIndex): string {
-  const protectedRanges = findProtectedRanges(content);
+  const sanitized = sanitizeMalformedWikiLinks(content);
+  const { content: resolvedLinksContent, resolutions } = resolveExistingWikiLinks(sanitized, index);
+  const protectedRanges = findProtectedRanges(resolvedLinksContent);
   const sortedAliases = getSortedAliases(index);
-  const linkedEntities = new Set<string>();
+  const linkedEntities = new Set<string>(resolutions.map((resolution) => resolution.path));
   
-  let result = content;
+  let result = resolvedLinksContent;
   let offset = 0;  // Track position shifts from replacements
   
   for (const { alias, path } of sortedAliases) {
@@ -96,7 +194,7 @@ export function autoLink(content: string, index: EntityIndex): string {
     const regex = new RegExp(`\\b${escapedAlias}\\b`, 'gi');
     
     let match;
-    while ((match = regex.exec(content)) !== null) {
+    while ((match = regex.exec(resolvedLinksContent)) !== null) {
       const originalPos = match.index;
       const adjustedPos = originalPos + offset;
       
@@ -130,11 +228,13 @@ export function autoLink(content: string, index: EntityIndex): string {
  * Show what would be linked (dry run)
  */
 export function dryRunLink(content: string, index: EntityIndex): Array<{ alias: string; path: string; line: number }> {
-  const protectedRanges = findProtectedRanges(content);
+  const sanitized = sanitizeMalformedWikiLinks(content);
+  const { content: resolvedLinksContent, resolutions } = resolveExistingWikiLinks(sanitized, index);
+  const protectedRanges = findProtectedRanges(resolvedLinksContent);
   const sortedAliases = getSortedAliases(index);
-  const linkedEntities = new Set<string>();
-  const matches: Array<{ alias: string; path: string; line: number }> = [];
-  const getLineNumber = createLineLookup(content);
+  const linkedEntities = new Set<string>(resolutions.map((resolution) => resolution.path));
+  const matches: Array<{ alias: string; path: string; line: number }> = [...resolutions];
+  const getLineNumber = createLineLookup(resolvedLinksContent);
   
   for (const { alias, path } of sortedAliases) {
     if (linkedEntities.has(path)) continue;
@@ -143,7 +243,7 @@ export function dryRunLink(content: string, index: EntityIndex): Array<{ alias: 
     const regex = new RegExp(`\\b${escapedAlias}\\b`, 'gi');
     
     let match;
-    while ((match = regex.exec(content)) !== null) {
+    while ((match = regex.exec(resolvedLinksContent)) !== null) {
       if (isProtected(match.index, protectedRanges)) continue;
       
       matches.push({

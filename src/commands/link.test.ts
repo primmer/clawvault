@@ -76,4 +76,34 @@ describe('link command', () => {
     expect(content).toContain('[[people/alice]]');
     expect(fs.existsSync(path.join(vaultPath, '.clawvault', 'graph-index.json'))).toBe(true);
   });
+
+  it('keeps link --all idempotent after resolving wiki-link targets', async () => {
+    writeFile(vaultPath, 'people/pedro.md', '# Pedro');
+    writeFile(vaultPath, 'notes/a.md', 'Discussed [[Pedro]] and then Pedro reviewed deployment notes.');
+
+    await linkCommand(undefined, { all: true });
+    const firstPass = fs.readFileSync(path.join(vaultPath, 'notes', 'a.md'), 'utf-8');
+    expect(firstPass).toContain('[[people/pedro|Pedro]]');
+
+    await linkCommand(undefined, { all: true });
+    const secondPass = fs.readFileSync(path.join(vaultPath, 'notes', 'a.md'), 'utf-8');
+    expect(secondPass).toBe(firstPass);
+  });
+
+  it('skips already-resolved wiki-link targets when re-linking all files', async () => {
+    writeFile(
+      vaultPath,
+      'people/pedro.md',
+      ['---', 'aliases:', '  - people/pedro', '---', '', '# Pedro', ''].join('\n')
+    );
+    writeFile(vaultPath, 'notes/a.md', 'Reference [[people/pedro]] in release note.');
+
+    await linkCommand(undefined, { all: true });
+    const firstPass = fs.readFileSync(path.join(vaultPath, 'notes', 'a.md'), 'utf-8');
+
+    await linkCommand(undefined, { all: true });
+    const secondPass = fs.readFileSync(path.join(vaultPath, 'notes', 'a.md'), 'utf-8');
+    expect(secondPass).toBe(firstPass);
+    expect(secondPass).toContain('[[people/pedro]]');
+  });
 });

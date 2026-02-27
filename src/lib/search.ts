@@ -294,9 +294,16 @@ export function qmdUpdate(collection?: string, indexName?: string): void {
 /**
  * Trigger qmd embed (create/update vector embeddings)
  */
-export function qmdEmbed(collection?: string, indexName?: string): void {
+export function qmdEmbed(
+  collection?: string,
+  indexName?: string,
+  options: { force?: boolean } = {}
+): void {
   ensureQmdAvailable();
   const args = ['embed'];
+  if (options.force) {
+    args.push('--force');
+  }
   if (collection) {
     args.push('-c', collection);
   }

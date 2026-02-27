@@ -213,6 +213,59 @@ describe('active-session-observer', () => {
     }
   });
 
+  it('filters transcript noise and truncates tool results before observer compression', async () => {
+    const root = makeTempDir('clawvault-active-observe-filter-');
+    const vaultPath = writeVault(root);
+    const { sessionsDir } = writeSessions(root, [
+      JSON.stringify({ role: 'system', content: 'bootstrap metadata' }),
+      JSON.stringify({ type: 'tool_result', content: 'x'.repeat(170) }),
+      JSON.stringify({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: '<session-recap>internal recap block</session-recap> Implemented rollback checks'
+        }
+      }),
+      JSON.stringify({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: '{"sessionId":"abc-123","updatedAt":1700000000}'
+        }
+      })
+    ]);
+
+    const observedMessages: string[] = [];
+    try {
+      await observeActiveSessions(
+        {
+          vaultPath,
+          sessionsDir,
+          agentId: 'clawdious',
+          minNewBytes: 1
+        },
+        {
+          createObserver: () => ({
+            processMessages: async (messages: string[]): Promise<void> => {
+              observedMessages.push(...messages);
+            },
+            flush: async (): Promise<{ observations: string; routingSummary: string }> => ({
+              observations: '',
+              routingSummary: 'Routed 1 observations → decisions: 1'
+            })
+          })
+        }
+      );
+
+      expect(observedMessages.some((message) => message.includes('system:'))).toBe(false);
+      expect(observedMessages).toContain(`[main] assistant: Implemented rollback checks`);
+      expect(observedMessages).toContain(`[main] tool: ${'x'.repeat(150)} [truncated]`);
+      expect(observedMessages.some((message) => message.includes('sessionId'))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reports stale observer cursors when session file has grown for over 12h', () => {
     const root = makeTempDir('clawvault-observer-staleness-');
     const vaultPath = writeVault(root);

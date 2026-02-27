@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Observer, type ObserverOptions } from './observer.js';
+import { parseSessionJsonLine } from './session-parser.js';
 import { getSessionsDir } from '../lib/session-utils.js';
 
 const ONE_KIB = 1024;
@@ -363,79 +364,6 @@ function discoverSessionDescriptors(sessionsDir: string, fallbackAgentId: string
   return descriptors;
 }
 
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function extractContentText(value: unknown): string {
-  if (typeof value === 'string') {
-    return normalizeWhitespace(value);
-  }
-
-  if (Array.isArray(value)) {
-    const parts = value
-      .map((item) => extractContentText(item))
-      .filter(Boolean);
-    return normalizeWhitespace(parts.join(' '));
-  }
-
-  if (!value || typeof value !== 'object') {
-    return '';
-  }
-
-  const input = value as Record<string, unknown>;
-  if (typeof input.text === 'string') {
-    return normalizeWhitespace(input.text);
-  }
-  if (typeof input.content === 'string') {
-    return normalizeWhitespace(input.content);
-  }
-  return '';
-}
-
-function normalizeRole(role: unknown): string {
-  if (typeof role !== 'string') {
-    return '';
-  }
-  return role.trim().toLowerCase();
-}
-
-function parseOpenClawJsonLine(line: string): string {
-  if (!line.trim()) {
-    return '';
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(line);
-  } catch {
-    return '';
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return '';
-  }
-
-  const entry = parsed as Record<string, unknown>;
-
-  if ('role' in entry && 'content' in entry) {
-    const role = normalizeRole(entry.role);
-    const content = extractContentText(entry.content);
-    if (!content) return '';
-    return role ? `${role}: ${content}` : content;
-  }
-
-  if (entry.type === 'message' && entry.message && typeof entry.message === 'object') {
-    const message = entry.message as Record<string, unknown>;
-    const role = normalizeRole(message.role);
-    const content = extractContentText(message.content);
-    if (!content) return '';
-    return role ? `${role}: ${content}` : content;
-  }
-
-  return '';
-}
-
 function decodeLineBuffer(lineBuffer: Buffer): string {
   if (lineBuffer.length === 0) {
     return '';
@@ -470,7 +398,7 @@ async function readIncrementalMessages(filePath: string, startOffset: number): P
 
       const lineBuffer = combined.subarray(lineStart, index);
       const line = decodeLineBuffer(lineBuffer);
-      const parsed = parseOpenClawJsonLine(line);
+      const parsed = parseSessionJsonLine(line);
       if (parsed) {
         messages.push(parsed);
       }
@@ -486,7 +414,7 @@ async function readIncrementalMessages(filePath: string, startOffset: number): P
   if (remainder.length > 0) {
     const trailing = decodeLineBuffer(remainder);
     if (trailing) {
-      const parsed = parseOpenClawJsonLine(trailing);
+      const parsed = parseSessionJsonLine(trailing);
       if (parsed) {
         messages.push(parsed);
         nextOffset += remainder.length;

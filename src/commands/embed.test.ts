@@ -3,9 +3,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-const { hasQmdMock, qmdEmbedMock } = vi.hoisted(() => ({
+const { hasQmdMock, qmdEmbedMock, listQmdCollectionsMock } = vi.hoisted(() => ({
   hasQmdMock: vi.fn(),
-  qmdEmbedMock: vi.fn()
+  qmdEmbedMock: vi.fn(),
+  listQmdCollectionsMock: vi.fn()
 }));
 
 vi.mock('../lib/search.js', async () => {
@@ -20,7 +21,7 @@ vi.mock('../lib/search.js', async () => {
 vi.mock('../lib/qmd-collections.js', () => ({
   findCollectionByRoot: vi.fn().mockReturnValue(undefined),
   collectionExists: vi.fn().mockReturnValue(true),
-  listQmdCollections: vi.fn().mockReturnValue([]),
+  listQmdCollections: listQmdCollectionsMock,
   getFirstCollection: vi.fn().mockReturnValue(undefined)
 }));
 
@@ -37,6 +38,8 @@ function makeTempDir(prefix: string): string {
 
 afterEach(() => {
   vi.clearAllMocks();
+  listQmdCollectionsMock.mockReset();
+  listQmdCollectionsMock.mockReturnValue([]);
   while (createdTempDirs.length > 0) {
     const dir = createdTempDirs.pop();
     if (dir) {
@@ -69,11 +72,62 @@ describe('embed command', () => {
     expect(qmdEmbedMock).toHaveBeenCalledWith('vault-collection');
     expect(result.qmdCollection).toBe('vault-collection');
     expect(result.qmdRoot).toBe(rootPath);
+    expect(result.usedForce).toBe(false);
   });
 
   it('throws when qmd is unavailable', async () => {
     hasQmdMock.mockReturnValue(false);
     await expect(embedCommand({ vaultPath: '/tmp/memory', quiet: true })).rejects.toBeInstanceOf(QmdUnavailableError);
     expect(qmdEmbedMock).not.toHaveBeenCalled();
+  });
+
+  it('passes force option to qmd embed', async () => {
+    hasQmdMock.mockReturnValue(true);
+    const vaultPath = makeTempDir('clawvault-embed-force-');
+    fs.writeFileSync(
+      path.join(vaultPath, '.clawvault.json'),
+      JSON.stringify({
+        name: 'memory',
+        version: '1.0.0',
+        created: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        categories: [],
+        documentCount: 0,
+        qmdCollection: 'vault-collection',
+        qmdRoot: vaultPath
+      }, null, 2)
+    );
+
+    const result = await embedCommand({ vaultPath, quiet: true, force: true });
+    expect(qmdEmbedMock).toHaveBeenCalledWith('vault-collection', undefined, { force: true });
+    expect(result.usedForce).toBe(true);
+  });
+
+  it('retries with force when vectors are empty after embed', async () => {
+    hasQmdMock.mockReturnValue(true);
+    const vaultPath = makeTempDir('clawvault-embed-empty-vectors-');
+    fs.writeFileSync(
+      path.join(vaultPath, '.clawvault.json'),
+      JSON.stringify({
+        name: 'memory',
+        version: '1.0.0',
+        created: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        categories: [],
+        documentCount: 0,
+        qmdCollection: 'vault-collection',
+        qmdRoot: vaultPath
+      }, null, 2)
+    );
+
+    listQmdCollectionsMock
+      .mockReturnValueOnce([{ name: 'vault-collection', uri: 'qmd://vault-collection', details: {}, files: 10, vectors: 0 }])
+      .mockReturnValueOnce([{ name: 'vault-collection', uri: 'qmd://vault-collection', details: {}, files: 10, vectors: 10 }]);
+
+    const result = await embedCommand({ vaultPath, quiet: true });
+    expect(qmdEmbedMock).toHaveBeenNthCalledWith(1, 'vault-collection');
+    expect(qmdEmbedMock).toHaveBeenNthCalledWith(2, 'vault-collection', undefined, { force: true });
+    expect(result.rebuiltFromEmptyVectors).toBe(true);
+    expect(result.vectors).toBe(10);
   });
 });

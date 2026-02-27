@@ -293,4 +293,32 @@ describe('Router', () => {
       fs.rmSync(vaultPath, { recursive: true, force: true });
     }
   });
+
+  it('links only existing entities and normalizes malformed triple-bracket links', () => {
+    const vaultPath = makeTempVault();
+    const router = new Router(vaultPath);
+    fs.mkdirSync(path.join(vaultPath, 'people'), { recursive: true });
+    fs.mkdirSync(path.join(vaultPath, 'projects'), { recursive: true });
+    fs.writeFileSync(path.join(vaultPath, 'people', 'alice.md'), '# Alice');
+    fs.writeFileSync(path.join(vaultPath, 'projects', 'apollo.md'), '# Apollo');
+
+    const markdown = [
+      '## 2026-02-11',
+      '',
+      '- [decision|c=0.90|i=0.88] 09:00 Discussed Alice and Zorgon before shipping [[[Apollo]]]'
+    ].join('\n');
+
+    try {
+      router.route(markdown);
+      const decisionFile = path.join(vaultPath, 'decisions', '2026-02-11.md');
+      const content = fs.readFileSync(decisionFile, 'utf-8');
+      expect(content).toContain('[[Alice]]');
+      expect(content).toContain('Zorgon');
+      expect(content).not.toContain('[[Zorgon]]');
+      expect(content).toContain('[[Apollo]]');
+      expect(content).not.toContain('[[[Apollo]]]');
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true });
+    }
+  });
 });

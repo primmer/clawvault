@@ -82,6 +82,19 @@ describe('search qmd dependency', () => {
     );
   });
 
+  it('passes --force to qmd embed when requested', async () => {
+    spawnSyncMock.mockReturnValue({ error: undefined });
+    const { qmdEmbed } = await loadSearchModule();
+
+    qmdEmbed('vault', 'clawvault-test', { force: true });
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'qmd',
+      ['--index', 'clawvault-test', 'embed', '--force', '-c', 'vault'],
+      { stdio: 'inherit' }
+    );
+  });
+
   it('uses configured qmd index when search engine executes queries', async () => {
     await withQmdIndexEnv('clawvault-test', async () => {
       spawnSyncMock.mockReturnValue({ error: undefined });

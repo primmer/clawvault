@@ -38,6 +38,28 @@ describe('parseSessionFile', () => {
     fs.rmSync(path.dirname(filePath), { recursive: true, force: true });
   });
 
+  it('filters system and metadata noise from JSONL transcripts', () => {
+    const longToolResult = 'x'.repeat(170);
+    const filePath = writeTempSession(
+      [
+        '{"role":"system","content":"session bootstrap"}',
+        '{"type":"message","message":{"role":"assistant","content":"<session-recap>noisy recap blob</session-recap> Implemented migration guardrails"}}',
+        `{"type":"tool_result","content":"${longToolResult}"}`,
+        '{"type":"message","message":{"role":"assistant","content":"{\\"sessionId\\":\\"abc-123\\",\\"updatedAt\\":1700000000}"}}',
+        '{"type":"message","message":{"role":"user","content":"Need rollback checklist coverage"}}'
+      ].join('\n'),
+      '.jsonl'
+    );
+
+    const messages = parseSessionFile(filePath);
+    expect(messages).toEqual([
+      'assistant: Implemented migration guardrails',
+      `tool: ${'x'.repeat(150)} [truncated]`,
+      'user: Need rollback checklist coverage'
+    ]);
+    fs.rmSync(path.dirname(filePath), { recursive: true, force: true });
+  });
+
   it('parses markdown transcripts into message chunks', () => {
     const filePath = writeTempSession(
       [

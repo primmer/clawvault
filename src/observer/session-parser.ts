@@ -6,6 +6,15 @@ type SessionFormat = 'plain' | 'jsonl' | 'markdown';
 const JSONL_SAMPLE_LIMIT = 20;
 const MARKDOWN_SIGNAL_RE = /^(#{1,6}\s|[-*+]\s|>\s)/;
 const MARKDOWN_INLINE_RE = /(\[[^\]]+\]\([^)]+\)|[*_`~])/;
+const SESSION_RECAP_BLOCK_RE = /<session-recap\b[^>]*>[\s\S]*?<\/session-recap>/gi;
+const TOOL_RESULT_PREVIEW_LIMIT = 150;
+const TOOL_RESULT_TYPES = new Set(['tool_result', 'tool-result', 'tool_result_chunk']);
+
+interface ParsedSessionMessage {
+  role: string;
+  content: unknown;
+  type: string;
+}
 
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
@@ -42,6 +51,45 @@ function extractText(value: unknown): string {
   return '';
 }
 
+function stripSessionRecapBlocks(value: string): string {
+  if (!value.includes('<session-recap')) {
+    return value;
+  }
+  return value.replace(SESSION_RECAP_BLOCK_RE, ' ');
+}
+
+function truncateToolResult(value: string): string {
+  if (value.length <= TOOL_RESULT_PREVIEW_LIMIT) {
+    return value;
+  }
+  return `${value.slice(0, TOOL_RESULT_PREVIEW_LIMIT)} [truncated]`;
+}
+
+function isLikelyMetadataContent(content: string, rawContent: unknown): boolean {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  if (/^(?:\{[\s\S]*\}|\[[\s\S]*\])$/.test(trimmed)) {
+    return true;
+  }
+
+  if (/^(?:metadata|session metadata|tool metadata)\b/i.test(trimmed)) {
+    return true;
+  }
+
+  if (rawContent && typeof rawContent === 'object' && !Array.isArray(rawContent)) {
+    const record = rawContent as Record<string, unknown>;
+    const hasNarrativeFields = ['text', 'content', 'parts', 'message'].some((key) => key in record);
+    if (!hasNarrativeFields) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function normalizeRole(role: unknown): string {
   if (typeof role !== 'string') {
     return '';
@@ -59,18 +107,52 @@ function isLikelyJsonMessage(value: unknown): boolean {
   }
 
   const record = value as Record<string, unknown>;
-  if ('role' in record && 'content' in record) {
+  if ('role' in record || 'content' in record || 'type' in record) {
     return true;
   }
 
-  if (record.type === 'message' && record.message && typeof record.message === 'object') {
+  if ('message' in record && record.message && typeof record.message === 'object') {
     return true;
   }
 
   return false;
 }
 
-function parseJsonLine(line: string): string {
+function parseMessageEntry(entry: Record<string, unknown>): ParsedSessionMessage | null {
+  const entryType = typeof entry.type === 'string' ? entry.type.trim().toLowerCase() : '';
+
+  if ('role' in entry && 'content' in entry) {
+    return {
+      role: normalizeRole(entry.role),
+      content: entry.content,
+      type: entryType
+    };
+  }
+
+  if (entryType === 'message' && entry.message && typeof entry.message === 'object') {
+    const message = entry.message as Record<string, unknown>;
+    const messageType = typeof message.type === 'string'
+      ? message.type.trim().toLowerCase()
+      : entryType;
+    return {
+      role: normalizeRole(message.role),
+      content: message.content,
+      type: messageType
+    };
+  }
+
+  if (TOOL_RESULT_TYPES.has(entryType) && 'content' in entry) {
+    return {
+      role: normalizeRole(entry.role) || 'tool',
+      content: entry.content,
+      type: entryType
+    };
+  }
+
+  return null;
+}
+
+export function parseSessionJsonLine(line: string): string {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -83,23 +165,29 @@ function parseJsonLine(line: string): string {
   }
 
   const entry = parsed as Record<string, unknown>;
-
-  if ('role' in entry && 'content' in entry) {
-    const role = normalizeRole(entry.role);
-    const content = extractText(entry.content);
-    if (!content) return '';
-    return role ? `${role}: ${content}` : content;
+  const message = parseMessageEntry(entry);
+  if (!message) {
+    return '';
   }
 
-  if (entry.type === 'message' && entry.message && typeof entry.message === 'object') {
-    const message = entry.message as Record<string, unknown>;
-    const role = normalizeRole(message.role);
-    const content = extractText(message.content);
-    if (!content) return '';
-    return role ? `${role}: ${content}` : content;
+  if (message.role === 'system' || message.type === 'system') {
+    return '';
   }
 
-  return '';
+  const extracted = extractText(message.content);
+  const withoutRecap = stripSessionRecapBlocks(extracted);
+  const content = normalizeText(withoutRecap);
+  if (!content || isLikelyMetadataContent(content, message.content)) {
+    return '';
+  }
+
+  const isToolResult = TOOL_RESULT_TYPES.has(message.type) || message.role === 'tool';
+  const normalizedContent = isToolResult ? truncateToolResult(content) : content;
+  if (!normalizedContent) {
+    return '';
+  }
+
+  return message.role ? `${message.role}: ${normalizedContent}` : normalizedContent;
 }
 
 function parseJsonLines(raw: string): string[] {
@@ -107,7 +195,7 @@ function parseJsonLines(raw: string): string[] {
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    const parsed = parseJsonLine(trimmed);
+    const parsed = parseSessionJsonLine(trimmed);
     if (parsed) {
       messages.push(parsed);
     }

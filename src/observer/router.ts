@@ -873,11 +873,17 @@ export class Router {
   /**
    * Auto-link proper nouns and known entities with [[wiki-links]].
    * Scans for capitalized names, project names, and tool names.
-   * Skips content already inside [[brackets]].
+   * Links only when a matching vault file/path exists.
    */
   private addWikiLinks(content: string): string {
-    // Don't double-link
-    if (content.includes('[[')) return content;
+    const sanitized = this.sanitizeMalformedWikiLinks(content);
+    const existingLinks: string[] = [];
+    const placeholderPrefix = '__clawvault_wikilink_';
+    const protectedContent = sanitized.replace(/\[\[[^\]]+\]\]/g, (match) => {
+      const token = `${placeholderPrefix}${existingLinks.length}__`;
+      existingLinks.push(match);
+      return token;
+    });
 
     // Match capitalized proper nouns (2+ chars, not at start of sentence after emoji/time)
     // Pattern: standalone capitalized word that looks like a name/entity
@@ -902,27 +908,110 @@ export class Router {
       'Processed', 'Working', 'Built', 'Deployed', 'Discussed', 'Talked',
       'Mentioned', 'Requested', 'Asked', 'Said',
     ]);
+    const targetExistsCache = new Map<string, boolean>();
 
-    // Known tool/project names to always link (lowercase for matching)
-    const knownEntities = new Set([
-      'PostgreSQL', 'MongoDB', 'Railway', 'Vercel', 'React', 'Vue', 'Svelte',
-      'Express', 'NestJS', 'Prisma', 'Docker', 'Kubernetes', 'Redis',
-      'GraphQL', 'Stripe', 'ClawVault', 'OpenClaw', 'GitHub', 'Obsidian',
-    ]);
-
-    return content.replace(namePattern, (match) => {
+    const linkedContent = protectedContent.replace(namePattern, (match) => {
       if (skipWords.has(match)) return match;
-      if (knownEntities.has(match)) return `[[${match}]]`;
-      // Link proper nouns (likely people/orgs)
-      if (/^[A-Z][a-z]+$/.test(match) && match.length >= 3) {
-        return `[[${match}]]`;
+
+      const cacheKey = match.toLowerCase();
+      const cached = targetExistsCache.get(cacheKey);
+      if (cached === false) return match;
+      if (cached === true) return `[[${match}]]`;
+
+      const targetExists = this.wikiLinkTargetExists(match);
+      targetExistsCache.set(cacheKey, targetExists);
+      if (!targetExists) {
+        return match;
       }
-      // Link multi-word proper nouns (e.g., "Justin Dukes")
-      if (/^[A-Z][a-z]+ [A-Z][a-z]+$/.test(match)) {
-        return `[[${match}]]`;
-      }
-      return match;
+      return `[[${match}]]`;
     });
+
+    let restoredContent = linkedContent;
+    for (let index = 0; index < existingLinks.length; index += 1) {
+      const token = `${placeholderPrefix}${index}__`;
+      restoredContent = restoredContent.split(token).join(existingLinks[index]);
+    }
+    return restoredContent;
+  }
+
+  private sanitizeMalformedWikiLinks(content: string): string {
+    return content
+      .replace(/\[\[\[+/g, '[[')
+      .replace(/\]\]\]+/g, ']]');
+  }
+
+  private wikiLinkTargetExists(rawEntity: string): boolean {
+    const entity = rawEntity.trim();
+    if (!entity) return false;
+
+    const slug = this.toSlug(entity);
+    const candidates = new Set<string>([entity]);
+    if (slug) {
+      candidates.add(slug);
+    }
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(path.join(this.vaultPath, `${candidate}.md`))) {
+        return true;
+      }
+      if (fs.existsSync(path.join(this.vaultPath, candidate))) {
+        return true;
+      }
+    }
+
+    const entries = fs.readdirSync(this.vaultPath, { withFileTypes: true });
+    const skipDirs = new Set(['ledger', 'node_modules', 'templates']);
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || skipDirs.has(entry.name)) {
+        continue;
+      }
+
+      const categoryDir = path.join(this.vaultPath, entry.name);
+      for (const candidate of candidates) {
+        if (fs.existsSync(path.join(categoryDir, `${candidate}.md`))) {
+          return true;
+        }
+        if (fs.existsSync(path.join(categoryDir, candidate))) {
+          return true;
+        }
+        if (this.hasNestedEntityMatch(categoryDir, candidate)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private hasNestedEntityMatch(rootDir: string, candidate: string): boolean {
+    const stack: string[] = [rootDir];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue;
+        const fullPath = path.join(current, entry.name);
+        if (entry.isFile() && entry.name === `${candidate}.md`) {
+          return true;
+        }
+        if (entry.isDirectory()) {
+          if (entry.name === candidate) {
+            return true;
+          }
+          stack.push(fullPath);
+        }
+      }
+    }
+
+    return false;
   }
 
   /**

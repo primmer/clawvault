@@ -180,6 +180,21 @@ describe('thread lifecycle', () => {
 });
 
 describe('thread scheduling helpers', () => {
+  it('excludes decomposed parent threads until children are finished', () => {
+    createThread(workspacePath, 'Parent initiative', 'Top-level goal', 'agent-a');
+    decompose(workspacePath, 'threads/parent-initiative.md', [
+      { title: 'Child A', goal: 'First child goal' },
+      { title: 'Child B', goal: 'Second child goal' },
+    ], 'agent-a');
+
+    expect(isReadyForClaim(workspacePath, 'threads/parent-initiative.md')).toBe(false);
+    expect(isReadyForClaim(workspacePath, 'threads/child-a.md')).toBe(true);
+    expect(isReadyForClaim(workspacePath, 'threads/child-b.md')).toBe(true);
+
+    const next = pickNextReadyThread(workspacePath);
+    expect(next?.path).toBe('threads/child-a.md');
+  });
+
   it('marks thread with unfinished deps as not ready', () => {
     createThread(workspacePath, 'Dependency', 'Complete dependency', 'agent-a');
     createThread(workspacePath, 'Blocked task', 'Waits on dep', 'agent-a', {

@@ -48,6 +48,13 @@ export function isReadyForClaim(workspacePath: string, threadPathOrInstance: str
   if (instance.type !== 'thread') return false;
   if (instance.fields.status !== 'open') return false;
 
+  // Parent threads should not be auto-scheduled while unfinished child threads exist.
+  const hasUnfinishedChildren = store.list(workspacePath, 'thread').some((candidate) =>
+    candidate.fields.parent === instance.path &&
+    !['done', 'cancelled'].includes(String(candidate.fields.status))
+  );
+  if (hasUnfinishedChildren) return false;
+
   const deps = Array.isArray(instance.fields.deps) ? instance.fields.deps : [];
   if (deps.length === 0) return true;
 

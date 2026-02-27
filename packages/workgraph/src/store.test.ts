@@ -113,6 +113,31 @@ describe('store', () => {
       .toThrow('already exists');
   });
 
+  it('validates required fields on create', () => {
+    expect(() => create(workspacePath, 'thread', { title: 'Missing goal' }, '', 'agent'))
+      .toThrow('Missing required field "goal"');
+  });
+
+  it('validates field types on update while keeping soft schemas', () => {
+    create(workspacePath, 'thread', { title: 'Typed Update', goal: 'g' }, '', 'agent');
+    expect(() => update(
+      workspacePath,
+      'threads/typed-update.md',
+      { deps: 'threads/other.md' },
+      undefined,
+      'agent',
+    )).toThrow('expected list');
+
+    const updated = update(
+      workspacePath,
+      'threads/typed-update.md',
+      { custom_runtime_hint: { lane: 'api' } },
+      undefined,
+      'agent',
+    );
+    expect(updated.fields.custom_runtime_hint).toEqual({ lane: 'api' });
+  });
+
   it('works with agent-defined types', () => {
     defineType(workspacePath, 'playbook', 'Reusable workflow template', {
       stages: { type: 'list', default: [] },

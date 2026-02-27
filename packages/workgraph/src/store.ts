@@ -31,6 +31,7 @@ export function create(
     created: fields.created ?? now,
     updated: now,
   });
+  validateFields(typeDef, merged, 'create');
 
   const slug = slugify(String(merged.title ?? merged.name ?? typeName));
   const relDir = typeDef.directory;
@@ -103,6 +104,9 @@ export function update(
 
   const now = new Date().toISOString();
   const newFields = { ...existing.fields, ...fieldUpdates, updated: now };
+  const typeDef = getType(workspacePath, existing.type);
+  if (!typeDef) throw new Error(`Unknown primitive type "${existing.type}" for ${relPath}`);
+  validateFields(typeDef, newFields, 'update');
   const newBody = bodyUpdate ?? existing.body;
   const absPath = path.join(workspacePath, relPath);
 
@@ -218,4 +222,59 @@ function normalizeRefPath(value: unknown): string {
     ? raw.slice(2, -2)
     : raw;
   return unwrapped.endsWith('.md') ? unwrapped : `${unwrapped}.md`;
+}
+
+function validateFields(
+  typeDef: PrimitiveTypeDefinition,
+  fields: Record<string, unknown>,
+  mode: 'create' | 'update',
+): void {
+  const issues: string[] = [];
+
+  for (const [fieldName, definition] of Object.entries(typeDef.fields)) {
+    const value = fields[fieldName];
+    if (definition.required && isMissingRequiredValue(value)) {
+      issues.push(`Missing required field "${fieldName}"`);
+      continue;
+    }
+    if (value === undefined || value === null) continue;
+    if (!isFieldTypeCompatible(definition.type, value)) {
+      issues.push(`Field "${fieldName}" expected ${definition.type}, got ${describeValue(value)}`);
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new Error(`Invalid ${typeDef.name} ${mode} payload: ${issues.join('; ')}`);
+  }
+}
+
+function isMissingRequiredValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'string' && value.trim().length === 0) return true;
+  return false;
+}
+
+function isFieldTypeCompatible(type: PrimitiveTypeDefinition['fields'][string]['type'], value: unknown): boolean {
+  switch (type) {
+    case 'string':
+    case 'ref':
+    case 'date':
+      return typeof value === 'string';
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'list':
+      return Array.isArray(value);
+    case 'any':
+      return true;
+    default:
+      return true;
+  }
+}
+
+function describeValue(value: unknown): string {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
+  return typeof value;
 }

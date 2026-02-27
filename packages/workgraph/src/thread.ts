@@ -271,6 +271,7 @@ export function decompose(
     const inst = createThread(workspacePath, sub.title, sub.goal, actor, {
       parent: parentPath,
       deps: sub.deps,
+      space: typeof parent.fields.space === 'string' ? parent.fields.space : undefined,
     });
     created.push(inst);
   }

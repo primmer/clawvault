@@ -130,7 +130,9 @@ describe('thread lifecycle', () => {
   });
 
   it('decompose creates sub-threads with parent ref', () => {
-    createThread(workspacePath, 'Big Task', 'do everything', 'agent-a');
+    createThread(workspacePath, 'Big Task', 'do everything', 'agent-a', {
+      space: 'spaces/backend.md',
+    });
 
     const children = decompose(workspacePath, 'threads/big-task.md', [
       { title: 'Sub A', goal: 'do A' },
@@ -140,6 +142,8 @@ describe('thread lifecycle', () => {
     expect(children).toHaveLength(2);
     expect(children[0].fields.parent).toBe('threads/big-task.md');
     expect(children[1].fields.deps).toContain('threads/sub-a.md');
+    expect(children[0].fields.space).toBe('spaces/backend.md');
+    expect(children[1].fields.space).toBe('spaces/backend.md');
 
     const parent = store.read(workspacePath, 'threads/big-task.md');
     expect(parent!.body).toContain('Sub-threads');

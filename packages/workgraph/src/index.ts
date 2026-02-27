@@ -8,3 +8,4 @@ export * as ledger from './ledger.js';
 export * as store from './store.js';
 export * as thread from './thread.js';
 export * as workspace from './workspace.js';
+export * as commandCenter from './command-center.js';

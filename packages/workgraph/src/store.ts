@@ -159,6 +159,15 @@ export function blockedThreads(workspacePath: string): PrimitiveInstance[] {
   return findByField(workspacePath, 'thread', 'status', 'blocked');
 }
 
+export function threadsInSpace(workspacePath: string, spaceRef: string): PrimitiveInstance[] {
+  const normalizedTarget = normalizeRefPath(spaceRef);
+  return list(workspacePath, 'thread').filter((thread) => {
+    const rawSpace = thread.fields.space;
+    if (!rawSpace) return false;
+    return normalizeRefPath(rawSpace) === normalizedTarget;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -200,4 +209,13 @@ function inferType(workspacePath: string, relPath: string): string {
     if (typeDef.directory === dir) return typeDef.name;
   }
   return 'unknown';
+}
+
+function normalizeRefPath(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const unwrapped = raw.startsWith('[[') && raw.endsWith(']]')
+    ? raw.slice(2, -2)
+    : raw;
+  return unwrapped.endsWith('.md') ? unwrapped : `${unwrapped}.md`;
 }

@@ -2,7 +2,21 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { append, readAll, readSince, currentOwner, isClaimed, historyOf, activityOf, allClaims, recent } from './ledger.js';
+import {
+  append,
+  readAll,
+  readSince,
+  currentOwner,
+  isClaimed,
+  historyOf,
+  activityOf,
+  allClaims,
+  recent,
+  ledgerIndexPath,
+  loadIndex,
+  rebuildIndex,
+  claimsFromIndex,
+} from './ledger.js';
 
 let workspacePath: string;
 
@@ -85,6 +99,32 @@ describe('ledger', () => {
     const claims = allClaims(workspacePath);
     expect(claims.size).toBe(1);
     expect(claims.get('threads/db.md')).toBe('agent-b');
+  });
+
+  it('maintains an index file for active claims', () => {
+    append(workspacePath, 'agent-a', 'claim', 'threads/auth.md');
+    append(workspacePath, 'agent-b', 'claim', 'threads/db.md');
+    append(workspacePath, 'agent-a', 'done', 'threads/auth.md');
+
+    const idx = loadIndex(workspacePath);
+    expect(fs.existsSync(ledgerIndexPath(workspacePath))).toBe(true);
+    expect(idx?.claims).toEqual({
+      'threads/db.md': 'agent-b',
+    });
+  });
+
+  it('rebuilds claim index from ledger entries', () => {
+    append(workspacePath, 'agent-a', 'claim', 'threads/a.md');
+    append(workspacePath, 'agent-b', 'claim', 'threads/b.md');
+    append(workspacePath, 'agent-b', 'release', 'threads/b.md');
+
+    fs.rmSync(ledgerIndexPath(workspacePath), { force: true });
+    const rebuilt = rebuildIndex(workspacePath);
+
+    expect(rebuilt.claims).toEqual({
+      'threads/a.md': 'agent-a',
+    });
+    expect(claimsFromIndex(workspacePath).get('threads/a.md')).toBe('agent-a');
   });
 
   it('returns recent entries', () => {

@@ -6,8 +6,11 @@ Agent-first workgraph workspace for multi-agent collaboration.
 
 - Dynamic primitive registry (`thread`, `space`, `decision`, `lesson`, `fact`, `agent`, plus custom types)
 - Append-only event ledger (`.clawvault/ledger.jsonl`)
+- Ledger claim index (`.clawvault/ledger-index.json`) for fast ownership queries
 - Markdown-native primitive store
 - Thread lifecycle coordination (claim/release/block/unblock/done/decompose)
+- Space-scoped thread scheduling (`--space`)
+- Generated markdown command center (`workgraph command-center`)
 - JSON-friendly CLI for agent orchestration
 
 No memory-category scaffolding, no qmd dependency, no observational-memory pipeline.
@@ -46,6 +49,7 @@ workgraph thread create "Ship command center" \
 
 workgraph thread next --claim --actor agent-worker --json
 workgraph ledger show --count 20 --json
+workgraph command-center --output "ops/Command Center.md" --json
 ```
 
 ### JSON contract
@@ -56,6 +60,41 @@ All commands support `--json` and emit:
 - Failure: `{ "ok": false, "error": "..." }` (non-zero exit)
 
 This is intended for robust parsing by autonomous agents.
+
+### Space-scoped scheduling
+
+```bash
+workgraph thread create "Implement auth middleware" \
+  --goal "Protect private routes" \
+  --space spaces/backend.md \
+  --actor agent-api \
+  --json
+
+workgraph thread list --space spaces/backend --ready --json
+workgraph thread next --space spaces/backend --claim --actor agent-api --json
+```
+
+## ClawVault memory vs Workgraph primitives (split clarification)
+
+`@clawvault/workgraph` is **execution coordination only**.
+
+- Use it for: ownership, decomposition, dependency management, typed coordination primitives.
+- Do not use it for: long-term memory categories (`decisions/`, `people/`, `projects/` memory workflows), qmd semantic retrieval pipelines, observer/reflector memory compression.
+
+This split keeps the workgraph package focused, portable, and shell-agent-native.
+
+## Migrating from mixed memory/workgraph vaults
+
+1. Initialize a clean workgraph workspace:
+   ```bash
+   workgraph init ./coordination-space --json
+   ```
+2. Recreate only coordination entities as workgraph primitives (`thread`, `space`, custom types).
+3. Move or archive memory-specific folders outside the coordination workspace.
+4. Generate a control plane note for humans/agents:
+   ```bash
+   workgraph command-center --output "ops/Command Center.md" --json
+   ```
 
 ## Programmatic API
 

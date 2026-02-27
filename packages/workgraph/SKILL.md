@@ -25,6 +25,7 @@ A workgraph workspace contains:
 - `.workgraph.json` — workspace identity and mode.
 - `.clawvault/registry.json` — primitive type definitions.
 - `.clawvault/ledger.jsonl` — append-only event stream.
+- `.clawvault/ledger-index.json` — derived claim snapshot for fast ownership checks.
 - Primitive directories (e.g. `threads/`, `spaces/`, `agents/`, custom directories).
 
 Initialize once:
@@ -142,6 +143,15 @@ workgraph thread next --claim --actor agent-worker-X --json
 
 No centralized scheduler is required.
 
+### Pattern: Space-scoped queues
+
+Teams can isolate execution lanes with `space`:
+
+```bash
+workgraph thread list --space spaces/backend --ready --json
+workgraph thread next --space spaces/backend --claim --actor agent-backend-1 --json
+```
+
 ### Pattern: Audit-first incident review
 
 For postmortems:
@@ -194,6 +204,7 @@ Then parse:
 2. Only owner can release/done owner-bound threads.
 3. Use `block` when waiting on external or unresolved dependencies.
 4. Keep `output` concise but sufficient for downstream agents.
+5. Keep parent/child decomposition coherent; workers should usually claim leaf threads first.
 
 ## Exit Criteria for Agent Tasks
 
@@ -236,6 +247,9 @@ workgraph primitive list --json
 workgraph ledger show --count 30 --json
 workgraph ledger claims --json
 workgraph ledger history threads/x.md --json
+
+# command center
+workgraph command-center --output "ops/Command Center.md" --json
 ```
 
 ## Anti-Patterns
@@ -253,3 +267,10 @@ If your agents currently use broad memory categories for execution coordination:
 2. Store governance facts as `decision`/`fact` primitives if needed.
 3. Keep long-term memory in a separate system/package.
 4. Use workgraph only for active multi-agent execution topology.
+
+## Split Clarification
+
+- `clawvault` package: memory + retrieval + broader vault lifecycle.
+- `@clawvault/workgraph` package: coordination substrate only.
+
+Treat this package as the authoritative runtime for multi-agent primitives and claims, not as a memory taxonomy tool.

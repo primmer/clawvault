@@ -78,6 +78,7 @@ addWorkspaceOption(
     .option('-p, --priority <level>', 'urgent | high | medium | low', 'medium')
     .option('--deps <paths>', 'Comma-separated dependency thread paths')
     .option('--parent <path>', 'Parent thread path')
+    .option('--space <spaceRef>', 'Optional space ref (e.g. spaces/backend.md)')
     .option('--context <refs>', 'Comma-separated workspace doc refs for context')
     .option('--tags <tags>', 'Comma-separated tags')
     .option('--json', 'Emit structured JSON output')
@@ -91,6 +92,7 @@ addWorkspaceOption(
           priority: opts.priority,
           deps: csv(opts.deps),
           parent: opts.parent,
+          space: opts.space,
           context_refs: csv(opts.context),
           tags: csv(opts.tags),
         }),
@@ -109,6 +111,7 @@ addWorkspaceOption(
     .command('list')
     .description('List threads (optionally by state/ready status)')
     .option('-s, --status <status>', 'open | active | blocked | done | cancelled')
+    .option('--space <spaceRef>', 'Filter threads by space ref')
     .option('--ready', 'Only include threads ready to be claimed now')
     .option('--json', 'Emit structured JSON output')
 ).action((opts) =>
@@ -116,8 +119,15 @@ addWorkspaceOption(
     opts,
     () => {
       const workspacePath = resolveWorkspacePath(opts);
-      let threads = workgraph.store.list(workspacePath, 'thread');
-      const readySet = new Set(workgraph.thread.listReadyThreads(workspacePath).map(t => t.path));
+      let threads = opts.space
+        ? workgraph.store.threadsInSpace(workspacePath, opts.space)
+        : workgraph.store.list(workspacePath, 'thread');
+      const readySet = new Set(
+        (opts.space
+          ? workgraph.thread.listReadyThreadsInSpace(workspacePath, opts.space)
+          : workgraph.thread.listReadyThreads(workspacePath))
+          .map(t => t.path)
+      );
       if (opts.status) threads = threads.filter(t => t.fields.status === opts.status);
       if (opts.ready) threads = threads.filter(t => readySet.has(t.path));
       const enriched = threads.map(t => ({
@@ -146,6 +156,7 @@ addWorkspaceOption(
     .command('next')
     .description('Pick the next ready thread, optionally claim it')
     .option('-a, --actor <name>', 'Agent name', DEFAULT_ACTOR)
+    .option('--space <spaceRef>', 'Restrict scheduling to one space')
     .option('--claim', 'Immediately claim the next ready thread')
     .option('--fail-on-empty', 'Exit non-zero if no ready thread exists')
     .option('--json', 'Emit structured JSON output')
@@ -155,8 +166,12 @@ addWorkspaceOption(
     () => {
       const workspacePath = resolveWorkspacePath(opts);
       const thread = opts.claim
-        ? workgraph.thread.claimNextReady(workspacePath, opts.actor)
-        : workgraph.thread.pickNextReadyThread(workspacePath);
+        ? (opts.space
+            ? workgraph.thread.claimNextReadyInSpace(workspacePath, opts.actor, opts.space)
+            : workgraph.thread.claimNextReady(workspacePath, opts.actor))
+        : (opts.space
+            ? workgraph.thread.pickNextReadyThreadInSpace(workspacePath, opts.space)
+            : workgraph.thread.pickNextReadyThread(workspacePath));
       if (!thread && opts.failOnEmpty) {
         throw new Error('No ready threads available.');
       }
@@ -170,6 +185,7 @@ addWorkspaceOption(
       return [
         `${result.claimed ? 'Claimed' : 'Selected'} thread: ${result.thread.path}`,
         `Title: ${String(result.thread.fields.title)}`,
+        ...(result.thread.fields.space ? [`Space: ${String(result.thread.fields.space)}`] : []),
       ];
     }
   )
@@ -465,6 +481,35 @@ addWorkspaceOption(
       return { claims, count: claims.length };
     },
     (result) => result.claims.map(c => `${c.owner} -> ${c.target}`)
+  )
+);
+
+addWorkspaceOption(
+  program
+    .command('command-center')
+    .description('Generate a markdown command center from workgraph state')
+    .option('-a, --actor <name>', 'Agent name', DEFAULT_ACTOR)
+    .option('-o, --output <path>', 'Output markdown path', 'Command Center.md')
+    .option('-n, --recent <count>', 'Recent ledger entries to include', '15')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      const parsedRecent = Number.parseInt(String(opts.recent), 10);
+      const safeRecent = Number.isNaN(parsedRecent) ? 15 : parsedRecent;
+      return workgraph.commandCenter.generateCommandCenter(workspacePath, {
+        actor: opts.actor,
+        outputPath: opts.output,
+        recentCount: safeRecent,
+      });
+    },
+    (result) => [
+      `Generated command center: ${result.outputPath}`,
+      `Threads: total=${result.stats.totalThreads} open=${result.stats.openThreads} active=${result.stats.activeThreads} blocked=${result.stats.blockedThreads}`,
+      `Claims: ${result.stats.activeClaims} Recent events: ${result.stats.recentEvents}`,
+    ]
   )
 );
 

@@ -30,6 +30,7 @@ const BUILT_IN_TYPES: PrimitiveTypeDefinition[] = [
       priority:    { type: 'string', default: 'medium', description: 'urgent | high | medium | low' },
       deps:        { type: 'list', default: [], description: 'Thread refs this depends on' },
       parent:      { type: 'ref', description: 'Parent thread if decomposed from larger thread' },
+      space:       { type: 'ref', description: 'Space ref this thread belongs to' },
       context_refs:{ type: 'list', default: [], description: 'Docs that inform this work' },
       tags:        { type: 'list', default: [], description: 'Freeform tags' },
       created:     { type: 'date', required: true },

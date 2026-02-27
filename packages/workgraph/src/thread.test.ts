@@ -13,8 +13,11 @@ import {
   decompose,
   isReadyForClaim,
   listReadyThreads,
+  listReadyThreadsInSpace,
   pickNextReadyThread,
+  pickNextReadyThreadInSpace,
   claimNextReady,
+  claimNextReadyInSpace,
 } from './thread.js';
 import { loadRegistry, saveRegistry } from './registry.js';
 import * as ledger from './ledger.js';
@@ -38,6 +41,14 @@ describe('thread lifecycle', () => {
     expect(t.fields.status).toBe('open');
     expect(t.fields.owner).toBeUndefined();
     expect(t.path).toBe('threads/build-auth.md');
+  });
+
+  it('supports space-scoped thread creation', () => {
+    const t = createThread(workspacePath, 'Space Task', 'Do work in space', 'agent-a', {
+      space: 'spaces/backend',
+    });
+    expect(t.fields.space).toBe('spaces/backend.md');
+    expect(t.fields.context_refs).toContain('spaces/backend.md');
   });
 
   it('claim sets status to active and records owner', () => {
@@ -226,6 +237,23 @@ describe('thread scheduling helpers', () => {
 
     const claimed = claimNextReady(workspacePath, 'agent-worker');
     expect(claimed?.path).toBe('threads/high-task.md');
+    expect(claimed?.fields.owner).toBe('agent-worker');
+  });
+
+  it('supports space-scoped ready thread selection', () => {
+    createThread(workspacePath, 'Backend task', 'backend', 'agent-a', { space: 'spaces/backend.md', priority: 'high' });
+    createThread(workspacePath, 'Frontend task', 'frontend', 'agent-a', { space: 'spaces/frontend.md', priority: 'high' });
+    createThread(workspacePath, 'No-space task', 'none', 'agent-a', { priority: 'urgent' });
+
+    const backendReady = listReadyThreadsInSpace(workspacePath, 'spaces/backend');
+    expect(backendReady).toHaveLength(1);
+    expect(backendReady[0].path).toBe('threads/backend-task.md');
+
+    const backendNext = pickNextReadyThreadInSpace(workspacePath, 'spaces/backend');
+    expect(backendNext?.path).toBe('threads/backend-task.md');
+
+    const claimed = claimNextReadyInSpace(workspacePath, 'agent-worker', 'spaces/backend');
+    expect(claimed?.path).toBe('threads/backend-task.md');
     expect(claimed?.fields.owner).toBe('agent-worker');
   });
 });

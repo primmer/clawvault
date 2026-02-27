@@ -58,6 +58,12 @@ export interface LedgerEntry {
   data?: Record<string, unknown>;
 }
 
+export interface LedgerIndex {
+  version: number;
+  lastEntryTs: string;
+  claims: Record<string, string>;
+}
+
 // ---------------------------------------------------------------------------
 // Thread status lifecycle
 // ---------------------------------------------------------------------------

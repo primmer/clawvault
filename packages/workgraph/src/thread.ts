@@ -20,10 +20,17 @@ export function createThread(
     priority?: string;
     deps?: string[];
     parent?: string;
+    space?: string;
     context_refs?: string[];
     tags?: string[];
   } = {},
 ): PrimitiveInstance {
+  const normalizedSpace = opts.space ? normalizeWorkspaceRef(opts.space) : undefined;
+  const contextRefs = opts.context_refs ?? [];
+  const mergedContextRefs = normalizedSpace && !contextRefs.includes(normalizedSpace)
+    ? [...contextRefs, normalizedSpace]
+    : contextRefs;
+
   return store.create(workspacePath, 'thread', {
     title,
     goal,
@@ -31,7 +38,8 @@ export function createThread(
     priority: opts.priority ?? 'medium',
     deps: opts.deps ?? [],
     parent: opts.parent,
-    context_refs: opts.context_refs ?? [],
+    space: normalizedSpace,
+    context_refs: mergedContextRefs,
     tags: opts.tags ?? [],
   }, `## Goal\n\n${goal}\n`, actor);
 }
@@ -74,13 +82,31 @@ export function listReadyThreads(workspacePath: string): PrimitiveInstance[] {
   return open.filter(t => isReadyForClaim(workspacePath, t)).sort(compareThreadPriority);
 }
 
+export function listReadyThreadsInSpace(workspacePath: string, spaceRef: string): PrimitiveInstance[] {
+  const normalizedSpace = normalizeWorkspaceRef(spaceRef);
+  return listReadyThreads(workspacePath).filter((thread) =>
+    normalizeWorkspaceRef(thread.fields.space) === normalizedSpace
+  );
+}
+
 export function pickNextReadyThread(workspacePath: string): PrimitiveInstance | null {
   const ready = listReadyThreads(workspacePath);
   return ready[0] ?? null;
 }
 
+export function pickNextReadyThreadInSpace(workspacePath: string, spaceRef: string): PrimitiveInstance | null {
+  const ready = listReadyThreadsInSpace(workspacePath, spaceRef);
+  return ready[0] ?? null;
+}
+
 export function claimNextReady(workspacePath: string, actor: string): PrimitiveInstance | null {
   const next = pickNextReadyThread(workspacePath);
+  if (!next) return null;
+  return claim(workspacePath, next.path, actor);
+}
+
+export function claimNextReadyInSpace(workspacePath: string, actor: string, spaceRef: string): PrimitiveInstance | null {
+  const next = pickNextReadyThreadInSpace(workspacePath, spaceRef);
   if (!next) return null;
   return claim(workspacePath, next.path, actor);
 }
@@ -309,4 +335,13 @@ function normalizeThreadRef(value: unknown): string {
   if (unwrapped.startsWith('external/')) return unwrapped;
   if (unwrapped.endsWith('.md')) return unwrapped;
   return `${unwrapped}.md`;
+}
+
+function normalizeWorkspaceRef(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const unwrapped = raw.startsWith('[[') && raw.endsWith(']]')
+    ? raw.slice(2, -2)
+    : raw;
+  return unwrapped.endsWith('.md') ? unwrapped : `${unwrapped}.md`;
 }

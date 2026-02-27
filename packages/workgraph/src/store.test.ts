@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { create, read, list, update, remove, findByField, openThreads } from './store.js';
+import { create, read, list, update, remove, findByField, openThreads, threadsInSpace } from './store.js';
 import { defineType, loadRegistry, saveRegistry } from './registry.js';
 import * as ledger from './ledger.js';
 
@@ -148,5 +148,18 @@ describe('store', () => {
 
     const open = openThreads(workspacePath);
     expect(open).toHaveLength(2);
+  });
+
+  it('filters threads by space reference', () => {
+    create(workspacePath, 'thread', { title: 'Backend 1', goal: 'g', space: 'spaces/backend.md' }, '', 'a');
+    create(workspacePath, 'thread', { title: 'Backend 2', goal: 'g', space: '[[spaces/backend.md]]' }, '', 'a');
+    create(workspacePath, 'thread', { title: 'Frontend', goal: 'g', space: 'spaces/frontend.md' }, '', 'a');
+
+    const backendThreads = threadsInSpace(workspacePath, 'spaces/backend');
+    expect(backendThreads).toHaveLength(2);
+    expect(backendThreads.map(t => t.path).sort()).toEqual([
+      'threads/backend-1.md',
+      'threads/backend-2.md',
+    ]);
   });
 });

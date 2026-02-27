@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "build": "node ./scripts/prepare-dist.mjs",
-    "test": "vitest run src/handler.contract.test.js",
+    "test": "vitest run --config vitest.config.ts",
     "ci": "npm run test && npm run build"
   },
   "keywords": [

@@ -22,13 +22,15 @@ import importlib
 import inspect
 import json
 import math
+import os
 import re
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
-from urllib.request import urlretrieve
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen, urlretrieve
 
 
 WORD_RE = re.compile(r"[a-zA-Z0-9']+")
@@ -208,6 +210,8 @@ LONGMEMEVAL_DATASET_URLS = {
         "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned/resolve/main/longmemeval_oracle.json",
     ),
 }
+
+READER_SYSTEM_PROMPT = "You are answering questions based on retrieved conversation memories."
 
 
 def tokenize(text: str) -> List[str]:
@@ -1091,9 +1095,24 @@ class ClawVaultV35:
       lists with RRF.
     """
 
-    def __init__(self, *, top_k: int = 20, rrf_k: int = 60) -> None:
+    DEFAULT_READER_MODEL = "gemini-2.0-flash"
+
+    def __init__(
+        self,
+        *,
+        top_k: int = 20,
+        rrf_k: int = 60,
+        use_llm_reader: bool = True,
+        reader_model: str = DEFAULT_READER_MODEL,
+        reader_passage_count: int = 8,
+        reader_timeout_seconds: float = 20.0,
+    ) -> None:
         self.top_k = top_k
         self.rrf_k = rrf_k
+        self.use_llm_reader = use_llm_reader
+        self.reader_model = normalize_space(reader_model) or self.DEFAULT_READER_MODEL
+        self.reader_passage_count = min(10, max(5, reader_passage_count))
+        self.reader_timeout_seconds = max(1.0, float(reader_timeout_seconds))
         self.index = LexicalSemanticIndex()
         self.extractor = FactExtractor()
         self.fact_store = FactStore()
@@ -1319,6 +1338,221 @@ class ClawVaultV35:
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[0][0]
 
+    def _answer_with_heuristic(self, question: str, result: QueryResult) -> str:
+        if not result.hits:
+            return "I do not have enough information"
+        qtype = result.question_type.lower()
+        prefers_structured = bool(
+            result.structured_hits
+            and (
+                "preference" in qtype
+                or "temporal" in qtype
+                or "decision" in qtype
+                or qtype in {"single-session-user", "single-session-assistant", "multi-session"}
+                or re.search(
+                    r"\b(who|where|works at|lives in|years old|bought|prefer|favorite|allergic)\b",
+                    question,
+                    re.IGNORECASE,
+                )
+            )
+        )
+        if prefers_structured:
+            top_structured = sorted(result.structured_hits, key=lambda h: h.score, reverse=True)[0]
+            if "answer" in top_structured.metadata and normalize_space(str(top_structured.metadata["answer"])):
+                return str(top_structured.metadata["answer"])
+            return normalize_space(top_structured.text)[:280]
+        top = result.hits[0]
+        if "answer" in top.metadata and normalize_space(str(top.metadata["answer"])):
+            return str(top.metadata["answer"])
+        if top.source in {"bm25", "semantic"}:
+            return self._best_sentence(question, top.text)
+        return normalize_space(top.text)[:280]
+
+    def _reader_passages(self, result: QueryResult) -> List[RetrievalHit]:
+        return result.hits[: self.reader_passage_count]
+
+    def _reader_structured_facts(
+        self,
+        *,
+        question: str,
+        question_type: str,
+        question_timestamp: Optional[datetime],
+        limit: int,
+    ) -> List[ExtractedFact]:
+        qtype = (question_type or "").lower()
+        wants_preference_facts = "preference" in qtype or bool(
+            re.search(r"\b(prefer|favorite|allergic|like|dislike|hate)\b", question, re.IGNORECASE)
+        )
+        wants_temporal_facts = "temporal" in qtype or bool(
+            re.search(r"\b(when|before|after|during|date|time|ago|earlier|later)\b", question, re.IGNORECASE)
+        )
+        if not wants_preference_facts and not wants_temporal_facts:
+            return []
+        temporal_ref = extract_temporal_reference(question, question_timestamp)
+        ranked: Dict[str, Tuple[ExtractedFact, float]] = {}
+
+        if wants_preference_facts:
+            pref_relation = infer_preference_relation_from_question(question)
+            pref_candidates = self.fact_store.lookup(
+                query=question,
+                entity="user",
+                relation=pref_relation if pref_relation else None,
+                fact_type="preference",
+                at_time=temporal_ref,
+                limit=limit,
+            )
+            for fact, score in pref_candidates:
+                if fact.id not in ranked or score > ranked[fact.id][1]:
+                    ranked[fact.id] = (fact, score)
+
+        if wants_temporal_facts:
+            temporal_candidates = self.fact_store.lookup(
+                query=question,
+                at_time=temporal_ref,
+                limit=limit,
+            )
+            for fact, score in temporal_candidates:
+                if fact.id not in ranked or score > ranked[fact.id][1]:
+                    ranked[fact.id] = (fact, score)
+
+        ordered = sorted(ranked.values(), key=lambda item: item[1], reverse=True)
+        return [fact for fact, _ in ordered[:limit]]
+
+    @staticmethod
+    def _format_reader_passage(index: int, hit: RetrievalHit) -> str:
+        metadata = hit.metadata if isinstance(hit.metadata, dict) else {}
+        timestamp = (
+            metadata.get("timestamp")
+            or metadata.get("valid_from")
+            or metadata.get("valid_until")
+            or "unknown"
+        )
+        session_id = metadata.get("session_id") or "unknown"
+        turn = metadata.get("turn_index") or metadata.get("message_id") or "unknown"
+        passage_text = normalize_space(str(hit.text))
+        if len(passage_text) > 700:
+            passage_text = f"{passage_text[:697]}..."
+        return (
+            f"[{index}] source={hit.source}; session={session_id}; turn={turn}; "
+            f"timestamp={timestamp}\n{passage_text}"
+        )
+
+    @staticmethod
+    def _format_reader_fact(index: int, fact: ExtractedFact) -> str:
+        valid_from = to_iso(fact.valid_from) or "unknown"
+        valid_until = to_iso(fact.valid_until) or "present"
+        source_text = normalize_space(fact.source_text)
+        if len(source_text) > 300:
+            source_text = f"{source_text[:297]}..."
+        return (
+            f"- [{index}] {fact.entity} {fact.relation} {fact.value} "
+            f"(type={fact.fact_type}; session={fact.session_id}; message={fact.message_id}; "
+            f"valid_from={valid_from}; valid_until={valid_until}; active={fact.active})\n"
+            f"  evidence: {source_text}"
+        )
+
+    def _build_reader_prompt(
+        self,
+        *,
+        question: str,
+        passages: Sequence[RetrievalHit],
+        structured_facts: Sequence[ExtractedFact],
+    ) -> str:
+        lines = [
+            "Question:",
+            normalize_space(question),
+            "",
+            "Retrieved Passages:",
+        ]
+        for idx, hit in enumerate(passages, start=1):
+            lines.append(self._format_reader_passage(idx, hit))
+        if structured_facts:
+            lines.append("")
+            lines.append("Structured Facts from Fact Store:")
+            for idx, fact in enumerate(structured_facts, start=1):
+                lines.append(self._format_reader_fact(idx, fact))
+        lines.extend(
+            [
+                "",
+                "Instructions:",
+                "- Use Chain-of-Note style reasoning internally, grounded in the retrieved evidence.",
+                "- Prioritize more recent timestamped evidence if memories conflict.",
+                "- Answer with a concise, direct answer phrase (not a full sentence).",
+                "- If the answer cannot be found in the provided evidence, output exactly:",
+                "  I do not have enough information",
+                "- Output only the final answer text.",
+            ]
+        )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _extract_reader_text(response_payload: Dict[str, Any]) -> Optional[str]:
+        candidates = response_payload.get("candidates")
+        if not isinstance(candidates, list):
+            return None
+        answer_text = ""
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            content = candidate.get("content")
+            if not isinstance(content, dict):
+                continue
+            parts = content.get("parts")
+            if not isinstance(parts, list):
+                continue
+            part_texts: List[str] = []
+            for part in parts:
+                if isinstance(part, dict) and "text" in part:
+                    part_texts.append(str(part["text"]))
+            candidate_text = normalize_space(" ".join(part_texts))
+            if candidate_text:
+                answer_text = candidate_text
+                break
+        if not answer_text:
+            return None
+        if "i do not have enough information" in answer_text.lower():
+            return "I do not have enough information"
+        cleaned_lines = [normalize_space(line) for line in answer_text.splitlines() if normalize_space(line)]
+        if cleaned_lines:
+            answer_text = cleaned_lines[-1]
+        answer_text = re.sub(r"(?i)^(?:final answer|answer)\s*:\s*", "", answer_text).strip()
+        answer_text = answer_text.strip("`").strip("\"'")
+        answer_text = normalize_space(answer_text)
+        return answer_text or None
+
+    def _call_llm_reader(self, prompt: str) -> Optional[str]:
+        api_key = normalize_space(os.environ.get("GEMINI_API_KEY", ""))
+        if not api_key:
+            return None
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.reader_model}:generateContent"
+        payload = {
+            "systemInstruction": {"parts": [{"text": READER_SYSTEM_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.0,
+                "maxOutputTokens": 100,
+            },
+        }
+        request = Request(
+            endpoint,
+            data=json.dumps(payload, ensure_ascii=True).encode("utf-8"),
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key,
+            },
+        )
+        try:
+            with urlopen(request, timeout=self.reader_timeout_seconds) as response:
+                raw = response.read().decode("utf-8")
+        except (HTTPError, URLError, TimeoutError, OSError):
+            return None
+        try:
+            response_payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        return self._extract_reader_text(response_payload)
+
     def answer(
         self,
         question: str,
@@ -1334,29 +1568,26 @@ class ClawVaultV35:
             top_k=top_k,
         )
         if not result.hits:
-            return "I do not have enough information to answer that.", result
-        qtype = result.question_type.lower()
-        prefers_structured = bool(
-            result.structured_hits
-            and (
-                "preference" in qtype
-                or "temporal" in qtype
-                or "decision" in qtype
-                or qtype in {"single-session-user", "single-session-assistant", "multi-session"}
-                or re.search(r"\b(who|where|works at|lives in|years old|bought|prefer|favorite|allergic)\b", question, re.IGNORECASE)
-            )
+            return "I do not have enough information", result
+        if not self.use_llm_reader:
+            return self._answer_with_heuristic(question, result), result
+
+        passages = self._reader_passages(result)
+        structured_facts = self._reader_structured_facts(
+            question=question,
+            question_type=result.question_type,
+            question_timestamp=question_timestamp,
+            limit=self.reader_passage_count,
         )
-        if prefers_structured:
-            top_structured = sorted(result.structured_hits, key=lambda h: h.score, reverse=True)[0]
-            if "answer" in top_structured.metadata and normalize_space(str(top_structured.metadata["answer"])):
-                return str(top_structured.metadata["answer"]), result
-            return normalize_space(top_structured.text)[:280], result
-        top = result.hits[0]
-        if "answer" in top.metadata and normalize_space(str(top.metadata["answer"])):
-            return str(top.metadata["answer"]), result
-        if top.source in {"bm25", "semantic"}:
-            return self._best_sentence(question, top.text), result
-        return normalize_space(top.text)[:280], result
+        reader_prompt = self._build_reader_prompt(
+            question=question,
+            passages=passages,
+            structured_facts=structured_facts,
+        )
+        reader_answer = self._call_llm_reader(reader_prompt)
+        if reader_answer:
+            return reader_answer, result
+        return self._answer_with_heuristic(question, result), result
 
 
 def normalize_answer(text: str) -> str:
@@ -1800,13 +2031,20 @@ def run_benchmark(
     *,
     top_k: int,
     rrf_k: int,
+    use_llm_reader: bool,
+    reader_model: str,
     max_questions: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     predictions: List[Dict[str, Any]] = []
     for idx, ex in enumerate(examples):
         if max_questions is not None and idx >= max_questions:
             break
-        adapter = ClawVaultV35(top_k=top_k, rrf_k=rrf_k)
+        adapter = ClawVaultV35(
+            top_k=top_k,
+            rrf_k=rrf_k,
+            use_llm_reader=use_llm_reader,
+            reader_model=reader_model,
+        )
         for sess_idx, session_blob in enumerate(ex.haystack_sessions):
             sid = ex.haystack_session_ids[sess_idx] if sess_idx < len(ex.haystack_session_ids) else f"session_{sess_idx + 1}"
             sdate = ex.haystack_dates[sess_idx] if sess_idx < len(ex.haystack_dates) else None
@@ -1827,6 +2065,8 @@ def run_benchmark(
                 "answer": ex.answer,
                 "hypothesis": hypothesis,
                 "structured_used": result.structured_used,
+                "llm_reader_enabled": use_llm_reader,
+                "reader_model": reader_model if use_llm_reader else None,
                 "retrieved": [
                     {
                         "id": hit.id,
@@ -1864,7 +2104,19 @@ def resolve_input_file(args: argparse.Namespace) -> Path:
     if args.in_file:
         in_path = Path(args.in_file)
         if not in_path.exists():
-            raise FileNotFoundError(f"Input file does not exist: {in_path}")
+            if args.no_download:
+                raise FileNotFoundError(f"Input file does not exist: {in_path}")
+            download_url = None
+            for file_name, candidate_url in LONGMEMEVAL_DATASET_URLS.values():
+                if in_path.name == file_name:
+                    download_url = candidate_url
+                    break
+            if download_url:
+                in_path.parent.mkdir(parents=True, exist_ok=True)
+                print(f"Input file not found at {in_path}; downloading from {download_url}")
+                urlretrieve(download_url, in_path)
+            else:
+                raise FileNotFoundError(f"Input file does not exist: {in_path}")
         return in_path
     file_name, url = LONGMEMEVAL_DATASET_URLS[args.dataset_split]
     data_dir = Path(args.data_dir)
@@ -1919,6 +2171,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rrf-k", type=int, default=60, help="RRF k parameter.")
     parser.add_argument("--max-questions", type=int, default=None, help="Optional cap for quick runs.")
     parser.add_argument(
+        "--no-llm-reader",
+        action="store_true",
+        help="Disable LLM reader stage and use heuristic answer extraction only.",
+    )
+    parser.add_argument(
+        "--reader-model",
+        default=ClawVaultV35.DEFAULT_READER_MODEL,
+        help="Gemini model name for the reader stage (default: gemini-2.0-flash).",
+    )
+    parser.add_argument(
         "--use-v34-scorer",
         action="store_true",
         help="Use v34 scoring module when available. Default uses improved v35 local heuristic scorer.",
@@ -1928,6 +2190,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    llm_reader_enabled = not args.no_llm_reader
+    if llm_reader_enabled and not normalize_space(os.environ.get("GEMINI_API_KEY", "")):
+        print("Warning: GEMINI_API_KEY is not set; falling back to heuristic answer extraction.")
     in_path = resolve_input_file(args)
     out_path = Path(args.out_file)
     metrics_path = Path(args.metrics_file)
@@ -1938,6 +2203,8 @@ def main() -> None:
         examples,
         top_k=args.top_k,
         rrf_k=args.rrf_k,
+        use_llm_reader=llm_reader_enabled,
+        reader_model=args.reader_model,
         max_questions=args.max_questions,
     )
     if args.use_v34_scorer:
@@ -1946,6 +2213,8 @@ def main() -> None:
         metrics = evaluate_predictions_local(predictions)
     metrics["input_file"] = str(in_path)
     metrics["evaluated_questions"] = len(predictions)
+    metrics["llm_reader_enabled"] = llm_reader_enabled
+    metrics["reader_model"] = args.reader_model if llm_reader_enabled else None
 
     write_jsonl(out_path, predictions)
     metrics_path.parent.mkdir(parents=True, exist_ok=True)

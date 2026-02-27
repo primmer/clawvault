@@ -140,12 +140,30 @@ function resolveExistingWikiLinks(
       return fullMatch;
     }
 
-    const resolvedPath = index.entries.get(normalizedTarget.toLowerCase());
+    let resolvedPath = index.entries.get(normalizedTarget.toLowerCase());
+    if (!resolvedPath) {
+      if (index.byPath.has(normalizedTarget)) {
+        resolvedPath = normalizedTarget;
+      } else {
+        const normalizedLower = normalizedTarget.toLowerCase();
+        for (const existingPath of index.byPath.keys()) {
+          if (existingPath.toLowerCase() === normalizedLower) {
+            resolvedPath = existingPath;
+            break;
+          }
+        }
+      }
+    }
     if (!resolvedPath) {
       return fullMatch;
     }
 
     if (targetAlreadyContainsResolvedPath(normalizedTarget, resolvedPath)) {
+      resolutions.push({
+        alias: normalizedTarget,
+        path: resolvedPath,
+        line: getLineNumber(offset)
+      });
       return fullMatch;
     }
 

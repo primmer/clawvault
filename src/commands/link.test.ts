@@ -83,7 +83,7 @@ describe('link command', () => {
 
     await linkCommand(undefined, { all: true });
     const firstPass = fs.readFileSync(path.join(vaultPath, 'notes', 'a.md'), 'utf-8');
-    expect(firstPass).toContain('[[people/pedro|Pedro]]');
+    expect(firstPass).toContain('[[people/pedro]]');
 
     await linkCommand(undefined, { all: true });
     const secondPass = fs.readFileSync(path.join(vaultPath, 'notes', 'a.md'), 'utf-8');

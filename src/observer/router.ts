@@ -909,21 +909,37 @@ export class Router {
       'Mentioned', 'Requested', 'Asked', 'Said',
     ]);
     const targetExistsCache = new Map<string, boolean>();
+    const tryLinkCandidate = (candidate: string): string | null => {
+      const key = candidate.toLowerCase();
+      const cached = targetExistsCache.get(key);
+      if (cached === false) return null;
+      if (cached === true) return `[[${candidate}]]`;
+
+      const targetExists = this.wikiLinkTargetExists(candidate);
+      targetExistsCache.set(key, targetExists);
+      return targetExists ? `[[${candidate}]]` : null;
+    };
 
     const linkedContent = protectedContent.replace(namePattern, (match) => {
       if (skipWords.has(match)) return match;
 
-      const cacheKey = match.toLowerCase();
-      const cached = targetExistsCache.get(cacheKey);
-      if (cached === false) return match;
-      if (cached === true) return `[[${match}]]`;
+      if (match.includes(' ')) {
+        const [firstWord, ...rest] = match.split(/\s+/);
+        if (skipWords.has(firstWord) && rest.length > 0) {
+          const tailCandidate = rest.join(' ');
+          const linkedTail = tryLinkCandidate(tailCandidate);
+          if (linkedTail) {
+            return `${firstWord} ${linkedTail}`;
+          }
+          return match;
+        }
+      }
 
-      const targetExists = this.wikiLinkTargetExists(match);
-      targetExistsCache.set(cacheKey, targetExists);
-      if (!targetExists) {
+      const linked = tryLinkCandidate(match);
+      if (!linked) {
         return match;
       }
-      return `[[${match}]]`;
+      return linked;
     });
 
     let restoredContent = linkedContent;

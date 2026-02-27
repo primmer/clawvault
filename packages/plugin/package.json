@@ -1,0 +1,49 @@
+{
+  "name": "@clawvault/memory-plugin",
+  "version": "0.1.0",
+  "description": "OpenClaw memory plugin for ClawVault context resilience and automatic session recovery hooks.",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    },
+    "./handler": {
+      "import": "./dist/handler.js"
+    },
+    "./openclaw.plugin.json": "./openclaw.plugin.json"
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ./scripts/prepare-dist.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "ci": "npm run test && npm run build"
+  },
+  "keywords": [
+    "clawvault",
+    "plugin",
+    "memory",
+    "openclaw",
+    "hook"
+  ],
+  "author": "Versatly",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Versatly/clawvault.git",
+    "directory": "packages/plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/Versatly/clawvault/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.1"
+  }
+}

@@ -5,46 +5,47 @@ import os from 'node:os';
 import { loadRegistry, saveRegistry, defineType, getType, listTypes, extendType, registryPath } from './registry.js';
 import { readAll } from './ledger.js';
 
-let vaultPath: string;
+let workspacePath: string;
 
 beforeEach(() => {
-  vaultPath = fs.mkdtempSync(path.join(os.tmpdir(), 'wg-registry-'));
-  fs.mkdirSync(path.join(vaultPath, '.clawvault'), { recursive: true });
+  workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'wg-registry-'));
+  fs.mkdirSync(path.join(workspacePath, '.clawvault'), { recursive: true });
 });
 
 afterEach(() => {
-  fs.rmSync(vaultPath, { recursive: true, force: true });
+  fs.rmSync(workspacePath, { recursive: true, force: true });
 });
 
 describe('registry', () => {
   it('seeds built-in types on first load', () => {
-    const reg = loadRegistry(vaultPath);
+    const reg = loadRegistry(workspacePath);
     expect(reg.types.thread).toBeDefined();
     expect(reg.types.space).toBeDefined();
     expect(reg.types.decision).toBeDefined();
     expect(reg.types.lesson).toBeDefined();
     expect(reg.types.fact).toBeDefined();
     expect(reg.types.agent).toBeDefined();
+    expect(reg.types.skill).toBeDefined();
     expect(reg.types.thread.builtIn).toBe(true);
   });
 
   it('persists registry to disk', () => {
-    const reg = loadRegistry(vaultPath);
-    saveRegistry(vaultPath, reg);
-    expect(fs.existsSync(registryPath(vaultPath))).toBe(true);
+    const reg = loadRegistry(workspacePath);
+    saveRegistry(workspacePath, reg);
+    expect(fs.existsSync(registryPath(workspacePath))).toBe(true);
 
-    const loaded = loadRegistry(vaultPath);
+    const loaded = loadRegistry(workspacePath);
     expect(loaded.types.thread.name).toBe('thread');
   });
 
   it('defines a new primitive type at runtime', () => {
-    defineType(vaultPath, 'workflow', 'A sequence of staged work', {
+    defineType(workspacePath, 'workflow', 'A sequence of staged work', {
       stages: { type: 'list', required: true, description: 'Ordered stage names' },
       current_stage: { type: 'string', default: '' },
       assigned_agents: { type: 'list', default: [] },
     }, 'agent-alpha');
 
-    const wf = getType(vaultPath, 'workflow');
+    const wf = getType(workspacePath, 'workflow');
     expect(wf).toBeDefined();
     expect(wf!.name).toBe('workflow');
     expect(wf!.builtIn).toBe(false);
@@ -54,7 +55,7 @@ describe('registry', () => {
     expect(wf!.fields.created).toBeDefined();
     expect(wf!.directory).toBe('workflows');
 
-    const defineEntries = readAll(vaultPath).filter(e => e.op === 'define');
+    const defineEntries = readAll(workspacePath).filter(e => e.op === 'define');
     expect(defineEntries).toHaveLength(1);
     expect(defineEntries[0].actor).toBe('agent-alpha');
     expect(defineEntries[0].target).toBe('.clawvault/registry.json');
@@ -62,47 +63,47 @@ describe('registry', () => {
   });
 
   it('refuses to redefine built-in types', () => {
-    expect(() => defineType(vaultPath, 'thread', 'override', {}, 'bad-actor'))
+    expect(() => defineType(workspacePath, 'thread', 'override', {}, 'bad-actor'))
       .toThrow('Cannot redefine built-in type');
   });
 
   it('extends existing types with new fields', () => {
-    const before = getType(vaultPath, 'thread');
+    const before = getType(workspacePath, 'thread');
     expect(before!.fields.estimated_hours).toBeUndefined();
 
-    extendType(vaultPath, 'thread', {
+    extendType(workspacePath, 'thread', {
       estimated_hours: { type: 'number', description: 'Time estimate' },
     }, 'agent-beta');
 
-    const after = getType(vaultPath, 'thread');
+    const after = getType(workspacePath, 'thread');
     expect(after!.fields.estimated_hours).toBeDefined();
     expect(after!.fields.estimated_hours.type).toBe('number');
   });
 
   it('lists all types including custom ones', () => {
-    defineType(vaultPath, 'review-gate', 'Approval checkpoint', {
+    defineType(workspacePath, 'review-gate', 'Approval checkpoint', {
       approver: { type: 'string', required: true },
       approved: { type: 'boolean', default: false },
     }, 'agent-gamma');
 
-    const types = listTypes(vaultPath);
+    const types = listTypes(workspacePath);
     const names = types.map(t => t.name);
     expect(names).toContain('thread');
     expect(names).toContain('review-gate');
   });
 
   it('sanitizes type names', () => {
-    defineType(vaultPath, 'My Custom Type!', 'test', {}, 'agent');
-    const t = getType(vaultPath, 'my-custom-type-');
+    defineType(workspacePath, 'My Custom Type!', 'test', {}, 'agent');
+    const t = getType(workspacePath, 'my-custom-type-');
     expect(t).toBeDefined();
   });
 
   it('ensures built-ins survive registry reload', () => {
-    const reg = loadRegistry(vaultPath);
+    const reg = loadRegistry(workspacePath);
     delete reg.types.thread;
-    saveRegistry(vaultPath, reg);
+    saveRegistry(workspacePath, reg);
 
-    const reloaded = loadRegistry(vaultPath);
+    const reloaded = loadRegistry(workspacePath);
     expect(reloaded.types.thread).toBeDefined();
   });
 });

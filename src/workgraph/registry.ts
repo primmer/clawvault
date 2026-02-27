@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FieldDefinition, PrimitiveTypeDefinition, Registry } from './types.js';
+import * as ledger from './ledger.js';
 
 const REGISTRY_FILE = '.clawvault/registry.json';
 const CURRENT_VERSION = 1;
@@ -179,6 +180,11 @@ export function defineType(
 
   registry.types[safeName] = typeDef;
   saveRegistry(vaultPath, registry);
+  ledger.append(vaultPath, actor, 'define', '.clawvault/registry.json', safeName, {
+    name: safeName,
+    directory: typeDef.directory,
+    fields: Object.keys(typeDef.fields),
+  });
   return typeDef;
 }
 

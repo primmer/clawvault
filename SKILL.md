@@ -124,6 +124,8 @@ ClawVault currently depends on `qmd` for core vault/query flows.
 ClawVault's workgraph layer enables multiple agents to coordinate through the vault.
 Three layers: **Registry** (what types exist), **Ledger** (what happened), **Store** (the files).
 
+> Need a pure coordination workspace (without memory scaffolding)? Use the standalone package in `packages/workgraph` and follow `packages/workgraph/SKILL.md`.
+
 ### Core Concepts
 
 **Primitives** are typed markdown files with YAML frontmatter. Built-in types: `thread`, `space`, `decision`, `lesson`, `fact`, `agent`. Agents can define new types at runtime.

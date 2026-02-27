@@ -30,6 +30,22 @@ Unlike vector databases or cloud-based memory solutions, ClawVault is:
 - **Session-resilient** — Checkpoint/recover primitives survive crashes and context resets.
 - **Fact-aware** — Write-time extraction builds structured facts with conflict resolution.
 
+## Monorepo packages
+
+This repository now supports package-by-package publication for coordination and integration use-cases:
+
+- `clawvault` (root package): full CLI + memory engine.
+- `@clawvault/workgraph`: standalone multi-agent coordination primitives + agent-first CLI.
+- `@clawvault/memory-plugin` (`packages/plugin`): OpenClaw memory hook plugin package.
+- `@clawvault/sdk-demo` (`packages/sdk-demo`): JSON-first demo SDK for programmatic `workgraph` orchestration.
+
+Workspace-level commands:
+
+```bash
+npm run ci:packages   # run ci for each workspace package
+npm run ci:all        # root ci + package ci + cli contract checks
+```
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           ClawVault Architecture                            │
@@ -162,6 +178,20 @@ ClawVault v3 adds **write-time fact extraction** and **entity graphs** to the co
 ---
 
 ## Features
+
+### Standalone Workgraph Package
+
+Need pure multi-agent coordination without full memory scaffolding?
+
+Use the standalone package:
+
+```bash
+npm install -g @clawvault/workgraph
+workgraph init ./coordination-space --json
+workgraph thread next --claim --actor agent-worker --json
+```
+
+`@clawvault/workgraph` is optimized for agent orchestration with JSON-native CLI responses and no qmd dependency.
 
 ### Memory Graph
 

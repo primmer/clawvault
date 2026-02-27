@@ -1,0 +1,50 @@
+{
+  "name": "@clawvault/sdk-demo",
+  "version": "0.1.0",
+  "description": "Demo SDK package showing JSON-first programmatic orchestration with the workgraph CLI.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "ci": "npm run typecheck && npm run test && npm run build"
+  },
+  "keywords": [
+    "clawvault",
+    "workgraph",
+    "sdk",
+    "agent",
+    "demo"
+  ],
+  "author": "Versatly",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Versatly/clawvault.git",
+    "directory": "packages/sdk-demo"
+  },
+  "bugs": {
+    "url": "https://github.com/Versatly/clawvault/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.6.1"
+  }
+}

@@ -56,6 +56,24 @@ workgraph command-center --output "ops/Command Center.md" --json
 workgraph bases generate --refresh-registry --json
 ```
 
+## One-command product demo bootstrap
+
+```bash
+workgraph demo bootstrap /tmp/workgraph-product-demo --json
+```
+
+This command initializes a fresh standalone workspace, defines custom malleable primitives (`milestone`, `release-gate`), runs a multi-agent thread lifecycle (claim/block/unblock/done), generates a command center snapshot, and verifies ledger hash-chain integrity.
+
+## Deep standalone CLI validation
+
+From `packages/workgraph/`:
+
+```bash
+npm run test:e2e
+```
+
+This executes a full CLI contract and behavior harness against a clean workspace, including success and expected-failure flows (idempotent init, claim contention, owner checks, ledger verification, skill lifecycle, and `.base` generation).
+
 ### JSON contract
 
 All commands support `--json` and emit:

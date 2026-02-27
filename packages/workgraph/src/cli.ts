@@ -845,6 +845,52 @@ addWorkspaceOption(
   )
 );
 
+// ============================================================================
+// demo
+// ============================================================================
+
+const demoCmd = program
+  .command('demo')
+  .description('Bootstrap and validate a product-demo workgraph workspace');
+
+addWorkspaceOption(
+  demoCmd
+    .command('bootstrap [path]')
+    .description('Create a complete standalone product-demo workspace state')
+    .option('-n, --name <name>', 'Workspace name')
+    .option('-a, --actor <name>', 'Lead actor name', DEFAULT_ACTOR)
+    .option('--worker-one <name>', 'Primary worker actor', 'agent-worker-1')
+    .option('--worker-two <name>', 'Secondary worker actor', 'agent-worker-2')
+    .option(
+      '--command-center-output <path>',
+      'Command center markdown output path',
+      'ops/Command Center.md'
+    )
+    .option('--json', 'Emit structured JSON output')
+).action((targetPath, opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = path.resolve(targetPath || resolveWorkspacePath(opts));
+      return workgraph.demo.bootstrapProductDemo(workspacePath, {
+        name: opts.name,
+        actor: opts.actor,
+        workerOne: opts.workerOne,
+        workerTwo: opts.workerTwo,
+        commandCenterPath: opts.commandCenterOutput,
+      });
+    },
+    (result) => [
+      `Bootstrapped demo workspace: ${result.workspacePath}`,
+      `Custom primitives: ${result.customTypes.join(', ')}`,
+      `Threads completed: ${result.threads.completed.length}`,
+      `Command center: ${result.commandCenterPath}`,
+      `Ledger entries: ${result.ledger.entries}`,
+      `Ledger hash-chain valid: ${result.ledger.ok}`,
+    ]
+  )
+);
+
 program.parse();
 
 function addWorkspaceOption<T extends Command>(command: T): T {

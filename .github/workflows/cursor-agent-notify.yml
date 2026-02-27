@@ -3,6 +3,9 @@ name: Notify on Cursor Agent PR
 on:
   pull_request:
     types: [opened, ready_for_review]
+  push:
+    branches:
+      - cursor/**
 
 jobs:
   notify:
@@ -34,3 +37,10 @@ ${PR_URL}"
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d text="${MESSAGE}" \
             -d parse_mode="HTML"
+
+  noop-on-push:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark workflow as healthy on push
+        run: echo "cursor-agent-notify is pull-request-focused; skipping notification for push events."

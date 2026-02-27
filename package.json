@@ -42,7 +42,7 @@
     "check:cli": "node scripts/check-cli.mjs",
     "ci:packages": "npm run ci --workspaces --if-present",
     "ci:all": "npm run ci && npm run ci:packages && npm run check:cli",
-    "ci": "npm run typecheck && npm test && npm run build",
+    "ci": "npm run typecheck && npm run build && npm test",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

@@ -116,6 +116,29 @@ const BUILT_IN_TYPES: PrimitiveTypeDefinition[] = [
       last_seen:    { type: 'date' },
     },
   },
+  {
+    name: 'skill',
+    description: 'A reusable agent skill shared through the workgraph workspace.',
+    directory: 'skills',
+    builtIn: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    createdBy: 'system',
+    fields: {
+      title:        { type: 'string', required: true, description: 'Skill title' },
+      status:       { type: 'string', required: true, default: 'draft', description: 'draft | proposed | active | deprecated | archived' },
+      version:      { type: 'string', default: '0.1.0', description: 'Semantic version of this skill' },
+      owner:        { type: 'string', description: 'Primary skill owner/maintainer' },
+      reviewers:    { type: 'list', default: [], description: 'Reviewers involved in proposal' },
+      proposal_thread: { type: 'ref', description: 'Thread coordinating review/promotion' },
+      proposed_at:  { type: 'date' },
+      promoted_at:  { type: 'date' },
+      distribution: { type: 'string', default: 'tailscale-shared-vault', description: 'Distribution channel for skill usage' },
+      tailscale_path: { type: 'string', description: 'Shared vault path over Tailscale' },
+      tags:         { type: 'list', default: [] },
+      created:      { type: 'date', required: true },
+      updated:      { type: 'date', required: true },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------

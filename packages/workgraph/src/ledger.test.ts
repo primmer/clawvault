@@ -16,6 +16,11 @@ import {
   loadIndex,
   rebuildIndex,
   claimsFromIndex,
+  query,
+  blame,
+  verifyHashChain,
+  ledgerChainStatePath,
+  rebuildHashChainState,
 } from './ledger.js';
 
 let workspacePath: string;
@@ -111,6 +116,7 @@ describe('ledger', () => {
     expect(idx?.claims).toEqual({
       'threads/db.md': 'agent-b',
     });
+    expect(fs.existsSync(ledgerChainStatePath(workspacePath))).toBe(true);
   });
 
   it('rebuilds claim index from ledger entries', () => {
@@ -155,5 +161,56 @@ describe('ledger', () => {
     const recentEntries = readSince(workspacePath, cutoff);
     expect(recentEntries.length).toBeGreaterThanOrEqual(1);
     expect(recentEntries.some(e => e.target === 'threads/new.md')).toBe(true);
+  });
+
+  it('queries entries by actor and operation', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/a.md', 'thread');
+    append(workspacePath, 'agent-b', 'create', 'threads/b.md', 'thread');
+    append(workspacePath, 'agent-a', 'claim', 'threads/a.md', 'thread');
+    const result = query(workspacePath, { actor: 'agent-a', op: 'create' });
+    expect(result).toHaveLength(1);
+    expect(result[0].target).toBe('threads/a.md');
+  });
+
+  it('provides blame summary for a target', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/a.md', 'thread');
+    append(workspacePath, 'agent-b', 'claim', 'threads/a.md', 'thread');
+    append(workspacePath, 'agent-b', 'done', 'threads/a.md', 'thread');
+
+    const result = blame(workspacePath, 'threads/a.md');
+    expect(result.totalEntries).toBe(3);
+    expect(result.latest?.op).toBe('done');
+    expect(result.actors.find(actor => actor.actor === 'agent-b')?.count).toBe(2);
+  });
+
+  it('verifies hash-chain integrity and detects tampering', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/a.md', 'thread');
+    append(workspacePath, 'agent-a', 'claim', 'threads/a.md', 'thread');
+    append(workspacePath, 'agent-a', 'done', 'threads/a.md', 'thread');
+
+    const validResult = verifyHashChain(workspacePath, { strict: true });
+    expect(validResult.ok).toBe(true);
+
+    const entries = readAll(workspacePath);
+    entries[1].actor = 'intruder';
+    fs.writeFileSync(
+      path.join(workspacePath, '.clawvault/ledger.jsonl'),
+      entries.map(entry => JSON.stringify(entry)).join('\n') + '\n',
+      'utf-8',
+    );
+
+    const tamperedResult = verifyHashChain(workspacePath, { strict: true });
+    expect(tamperedResult.ok).toBe(false);
+    expect(tamperedResult.issues.length).toBeGreaterThan(0);
+  });
+
+  it('rebuilds hash chain state for legacy ledgers', () => {
+    append(workspacePath, 'agent-a', 'create', 'threads/legacy-a.md', 'thread');
+    append(workspacePath, 'agent-a', 'create', 'threads/legacy-b.md', 'thread');
+    fs.rmSync(ledgerChainStatePath(workspacePath), { force: true });
+
+    const rebuilt = rebuildHashChainState(workspacePath);
+    expect(rebuilt.count).toBe(2);
+    expect(rebuilt.lastHash.length).toBeGreaterThan(10);
   });
 });

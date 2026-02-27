@@ -7,6 +7,7 @@ type JsonCapableOptions = {
   json?: boolean;
   workspace?: string;
   vault?: string;
+  sharedVault?: string;
 };
 
 const DEFAULT_ACTOR =
@@ -39,6 +40,7 @@ addWorkspaceOption(
     .description('Initialize a pure workgraph workspace (no memory category scaffolding)')
     .option('-n, --name <name>', 'Workspace name')
     .option('--no-type-dirs', 'Do not pre-create built-in type directories')
+    .option('--no-bases', 'Do not generate .base files from primitive registry')
     .option('--no-readme', 'Do not create README.md')
     .option('--json', 'Emit structured JSON output')
 ).action((targetPath, opts) =>
@@ -49,6 +51,7 @@ addWorkspaceOption(
       const result = workgraph.workspace.initWorkspace(workspacePath, {
         name: opts.name,
         createTypeDirs: opts.typeDirs,
+        createBases: opts.bases,
         createReadme: opts.readme,
       });
       return result;
@@ -56,6 +59,7 @@ addWorkspaceOption(
     (result) => [
       `Initialized workgraph workspace: ${result.workspacePath}`,
       `Seeded types: ${result.seededTypes.join(', ')}`,
+      `Generated .base files: ${result.generatedBases.length}`,
       `Config: ${result.configPath}`,
     ]
   )
@@ -355,18 +359,87 @@ addWorkspaceOption(
         const [fieldName, fieldType = 'string'] = String(spec).split(':');
         fields[fieldName.trim()] = { type: fieldType.trim() as workgraph.FieldDefinition['type'] };
       }
+      const type = workgraph.registry.defineType(
+        workspacePath,
+        name,
+        opts.description,
+        fields,
+        opts.actor,
+        opts.dir
+      );
+      workgraph.bases.syncPrimitiveRegistryManifest(workspacePath);
+      const baseResult = workgraph.bases.generateBasesFromPrimitiveRegistry(workspacePath, {
+        includeNonCanonical: true,
+      });
       return {
-        type: workgraph.registry.defineType(
-          workspacePath,
-          name,
-          opts.description,
-          fields,
-          opts.actor,
-          opts.dir
-        ),
+        type,
+        basesGenerated: baseResult.generated.length,
       };
     },
-    (result) => [`Defined type: ${result.type.name}`, `Directory: ${result.type.directory}/`]
+    (result) => [
+      `Defined type: ${result.type.name}`,
+      `Directory: ${result.type.directory}/`,
+      `Bases generated: ${result.basesGenerated}`,
+    ]
+  )
+);
+
+// ============================================================================
+// bases
+// ============================================================================
+
+const basesCmd = program
+  .command('bases')
+  .description('Generate Obsidian .base files from primitive-registry.yaml');
+
+addWorkspaceOption(
+  basesCmd
+    .command('sync-registry')
+    .description('Sync .clawvault/primitive-registry.yaml from active registry')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      const manifest = workgraph.bases.syncPrimitiveRegistryManifest(workspacePath);
+      return {
+        primitiveCount: manifest.primitives.length,
+        manifestPath: '.clawvault/primitive-registry.yaml',
+      };
+    },
+    (result) => [
+      `Synced primitive registry manifest: ${result.manifestPath}`,
+      `Primitives: ${result.primitiveCount}`,
+    ]
+  )
+);
+
+addWorkspaceOption(
+  basesCmd
+    .command('generate')
+    .description('Generate .base files by reading primitive-registry.yaml')
+    .option('--all', 'Include non-canonical primitives')
+    .option('--refresh-registry', 'Refresh primitive-registry.yaml before generation')
+    .option('--output-dir <path>', 'Output directory for .base files (default: .clawvault/bases)')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      if (opts.refreshRegistry) {
+        workgraph.bases.syncPrimitiveRegistryManifest(workspacePath);
+      }
+      return workgraph.bases.generateBasesFromPrimitiveRegistry(workspacePath, {
+        includeNonCanonical: !!opts.all,
+        outputDirectory: opts.outputDir,
+      });
+    },
+    (result) => [
+      `Generated ${result.generated.length} .base file(s)`,
+      `Directory: ${result.outputDirectory}`,
+    ]
   )
 );
 
@@ -416,6 +489,160 @@ addWorkspaceOption(
       };
     },
     (result) => [`Created ${result.instance.type}: ${result.instance.path}`]
+  )
+);
+
+// ============================================================================
+// skill
+// ============================================================================
+
+const skillCmd = program
+  .command('skill')
+  .description('Manage native skill primitives in shared workgraph vaults');
+
+addWorkspaceOption(
+  skillCmd
+    .command('write <title>')
+    .description('Create or update a skill primitive')
+    .option('-a, --actor <name>', 'Agent name', DEFAULT_ACTOR)
+    .option('--owner <name>', 'Skill owner')
+    .option('--version <semver>', 'Skill version')
+    .option('--status <status>', 'draft | proposed | active | deprecated | archived')
+    .option('--distribution <mode>', 'Distribution mode', 'tailscale-shared-vault')
+    .option('--tailscale-path <path>', 'Shared Tailscale workspace path')
+    .option('--reviewers <list>', 'Comma-separated reviewer names')
+    .option('--tags <list>', 'Comma-separated tags')
+    .option('--body <text>', 'Skill markdown content')
+    .option('--body-file <path>', 'Read markdown content from file')
+    .option('--json', 'Emit structured JSON output')
+).action((title, opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      let body = opts.body ?? '';
+      if (opts.bodyFile) {
+        const absBodyFile = path.resolve(opts.bodyFile);
+        body = fs.readFileSync(absBodyFile, 'utf-8');
+      }
+      const instance = workgraph.skill.writeSkill(
+        workspacePath,
+        title,
+        body,
+        opts.actor,
+        {
+          owner: opts.owner,
+          version: opts.version,
+          status: opts.status,
+          distribution: opts.distribution,
+          tailscalePath: opts.tailscalePath,
+          reviewers: csv(opts.reviewers),
+          tags: csv(opts.tags),
+        }
+      );
+      workgraph.bases.syncPrimitiveRegistryManifest(workspacePath);
+      workgraph.bases.generateBasesFromPrimitiveRegistry(workspacePath, { includeNonCanonical: true });
+      return { skill: instance };
+    },
+    (result) => [
+      `Wrote skill: ${result.skill.path}`,
+      `Status: ${String(result.skill.fields.status)} Version: ${String(result.skill.fields.version)}`,
+    ]
+  )
+);
+
+addWorkspaceOption(
+  skillCmd
+    .command('load <skillRef>')
+    .description('Load one skill primitive by slug or path')
+    .option('--json', 'Emit structured JSON output')
+).action((skillRef, opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      return { skill: workgraph.skill.loadSkill(workspacePath, skillRef) };
+    },
+    (result) => [
+      `Skill: ${String(result.skill.fields.title)}`,
+      `Path: ${result.skill.path}`,
+      `Status: ${String(result.skill.fields.status)}`,
+    ]
+  )
+);
+
+addWorkspaceOption(
+  skillCmd
+    .command('list')
+    .description('List skills')
+    .option('--status <status>', 'Filter by status')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      const skills = workgraph.skill.listSkills(workspacePath, { status: opts.status });
+      return { skills, count: skills.length };
+    },
+    (result) => result.skills.map((skill) =>
+      `${String(skill.fields.title)} [${String(skill.fields.status)}] -> ${skill.path}`)
+  )
+);
+
+addWorkspaceOption(
+  skillCmd
+    .command('propose <skillRef>')
+    .description('Move a skill into proposed state and open review thread')
+    .option('-a, --actor <name>', 'Agent name', DEFAULT_ACTOR)
+    .option('--proposal-thread <path>', 'Explicit proposal thread path')
+    .option('--no-create-thread', 'Do not create a proposal thread automatically')
+    .option('--space <spaceRef>', 'Space for created proposal thread')
+    .option('--reviewers <list>', 'Comma-separated reviewers')
+    .option('--json', 'Emit structured JSON output')
+).action((skillRef, opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      return {
+        skill: workgraph.skill.proposeSkill(workspacePath, skillRef, opts.actor, {
+          proposalThread: opts.proposalThread,
+          createThreadIfMissing: opts.createThread,
+          space: opts.space,
+          reviewers: csv(opts.reviewers),
+        }),
+      };
+    },
+    (result) => [
+      `Proposed skill: ${result.skill.path}`,
+      `Proposal thread: ${String(result.skill.fields.proposal_thread ?? 'none')}`,
+    ]
+  )
+);
+
+addWorkspaceOption(
+  skillCmd
+    .command('promote <skillRef>')
+    .description('Promote a proposed/draft skill to active')
+    .option('-a, --actor <name>', 'Agent name', DEFAULT_ACTOR)
+    .option('--version <semver>', 'Explicit promoted version')
+    .option('--json', 'Emit structured JSON output')
+).action((skillRef, opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      return {
+        skill: workgraph.skill.promoteSkill(workspacePath, skillRef, opts.actor, {
+          version: opts.version,
+        }),
+      };
+    },
+    (result) => [
+      `Promoted skill: ${result.skill.path}`,
+      `Status: ${String(result.skill.fields.status)} Version: ${String(result.skill.fields.version)}`,
+    ]
   )
 );
 
@@ -485,6 +712,111 @@ addWorkspaceOption(
 );
 
 addWorkspaceOption(
+  ledgerCmd
+    .command('query')
+    .description('Query ledger with structured filters')
+    .option('--actor <name>', 'Filter by actor')
+    .option('--op <operation>', 'Filter by operation')
+    .option('--type <primitiveType>', 'Filter by primitive type')
+    .option('--target <path>', 'Filter by exact target path')
+    .option('--target-includes <text>', 'Filter by target substring')
+    .option('--since <iso>', 'Filter entries on/after ISO timestamp')
+    .option('--until <iso>', 'Filter entries on/before ISO timestamp')
+    .option('--limit <n>', 'Limit number of results')
+    .option('--offset <n>', 'Offset into result set')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      return {
+        entries: workgraph.ledger.query(workspacePath, {
+          actor: opts.actor,
+          op: opts.op,
+          type: opts.type,
+          target: opts.target,
+          targetIncludes: opts.targetIncludes,
+          since: opts.since,
+          until: opts.until,
+          limit: opts.limit ? Number.parseInt(String(opts.limit), 10) : undefined,
+          offset: opts.offset ? Number.parseInt(String(opts.offset), 10) : undefined,
+        }),
+      };
+    },
+    (result) => result.entries.map((entry) => `${entry.ts} ${entry.op} ${entry.actor} ${entry.target}`)
+  )
+);
+
+addWorkspaceOption(
+  ledgerCmd
+    .command('blame <targetPath>')
+    .description('Show actor attribution summary for one target')
+    .option('--json', 'Emit structured JSON output')
+).action((targetPath, opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      return workgraph.ledger.blame(workspacePath, targetPath);
+    },
+    (result) => [
+      `Target: ${result.target}`,
+      `Entries: ${result.totalEntries}`,
+      ...result.actors.map((actor) => `${actor.actor}: ${actor.count} change(s)`),
+    ]
+  )
+);
+
+addWorkspaceOption(
+  ledgerCmd
+    .command('verify')
+    .description('Verify tamper-evident ledger hash-chain integrity')
+    .option('--strict', 'Treat missing hash fields as verification failures')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      return workgraph.ledger.verifyHashChain(workspacePath, { strict: !!opts.strict });
+    },
+    (result) => [
+      `Hash-chain valid: ${result.ok}`,
+      `Entries: ${result.entries}`,
+      `Last hash: ${result.lastHash}`,
+      ...(result.issues.length > 0 ? result.issues.map((issue) => `ISSUE: ${issue}`) : []),
+      ...(result.warnings.length > 0 ? result.warnings.map((warning) => `WARN: ${warning}`) : []),
+    ]
+  )
+);
+
+addWorkspaceOption(
+  ledgerCmd
+    .command('seal')
+    .description('Rebuild ledger index + hash-chain state from ledger.jsonl')
+    .option('--json', 'Emit structured JSON output')
+).action((opts) =>
+  runCommand(
+    opts,
+    () => {
+      const workspacePath = resolveWorkspacePath(opts);
+      const index = workgraph.ledger.rebuildIndex(workspacePath);
+      const chain = workgraph.ledger.rebuildHashChainState(workspacePath);
+      return {
+        indexClaims: Object.keys(index.claims).length,
+        chainCount: chain.count,
+        chainLastHash: chain.lastHash,
+      };
+    },
+    (result) => [
+      `Rebuilt ledger index claims: ${result.indexClaims}`,
+      `Rebuilt chain entries: ${result.chainCount}`,
+    ]
+  )
+);
+
+addWorkspaceOption(
   program
     .command('command-center')
     .description('Generate a markdown command center from workgraph state')
@@ -518,12 +850,14 @@ program.parse();
 function addWorkspaceOption<T extends Command>(command: T): T {
   return command
     .option('-w, --workspace <path>', 'Workgraph workspace path')
-    .option('--vault <path>', 'Alias for --workspace');
+    .option('--vault <path>', 'Alias for --workspace')
+    .option('--shared-vault <path>', 'Shared vault path (e.g. mounted via Tailscale)');
 }
 
 function resolveWorkspacePath(opts: JsonCapableOptions): string {
-  const explicit = opts.workspace || opts.vault;
+  const explicit = opts.workspace || opts.vault || opts.sharedVault;
   if (explicit) return path.resolve(explicit);
+  if (process.env.WORKGRAPH_SHARED_VAULT) return path.resolve(process.env.WORKGRAPH_SHARED_VAULT);
   if (process.env.WORKGRAPH_PATH) return path.resolve(process.env.WORKGRAPH_PATH);
   if (process.env.CLAWVAULT_PATH) return path.resolve(process.env.CLAWVAULT_PATH);
   return process.cwd();

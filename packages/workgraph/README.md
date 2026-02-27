@@ -7,10 +7,13 @@ Agent-first workgraph workspace for multi-agent collaboration.
 - Dynamic primitive registry (`thread`, `space`, `decision`, `lesson`, `fact`, `agent`, plus custom types)
 - Append-only event ledger (`.clawvault/ledger.jsonl`)
 - Ledger claim index (`.clawvault/ledger-index.json`) for fast ownership queries
+- Tamper-evident ledger hash-chain (`.clawvault/ledger-chain.json`)
 - Markdown-native primitive store
 - Thread lifecycle coordination (claim/release/block/unblock/done/decompose)
 - Space-scoped thread scheduling (`--space`)
 - Generated markdown command center (`workgraph command-center`)
+- Native skill primitive lifecycle (`workgraph skill write/load/propose/promote`)
+- Primitive-registry manifest + auto-generated `.base` files
 - JSON-friendly CLI for agent orchestration
 
 No memory-category scaffolding, no qmd dependency, no observational-memory pipeline.
@@ -50,6 +53,7 @@ workgraph thread create "Ship command center" \
 workgraph thread next --claim --actor agent-worker --json
 workgraph ledger show --count 20 --json
 workgraph command-center --output "ops/Command Center.md" --json
+workgraph bases generate --refresh-registry --json
 ```
 
 ### JSON contract
@@ -72,6 +76,44 @@ workgraph thread create "Implement auth middleware" \
 
 workgraph thread list --space spaces/backend --ready --json
 workgraph thread next --space spaces/backend --claim --actor agent-api --json
+```
+
+### Auto-generate `.base` files from primitive registry
+
+```bash
+# Sync .clawvault/primitive-registry.yaml
+workgraph bases sync-registry --json
+
+# Generate canonical primitive .base files
+workgraph bases generate --json
+
+# Include non-canonical (agent-defined) primitives
+workgraph bases generate --all --refresh-registry --json
+```
+
+### Ledger query, blame, and tamper detection
+
+```bash
+workgraph ledger query --actor agent-worker --op claim --json
+workgraph ledger blame threads/auth.md --json
+workgraph ledger verify --strict --json
+```
+
+### Native skill lifecycle (shared vault / Tailscale)
+
+```bash
+# with shared vault env (e.g. tailscale-mounted path)
+export WORKGRAPH_SHARED_VAULT=/mnt/tailscale/company-workgraph
+
+workgraph skill write "workgraph-manual" \
+  --body-file ./skills/workgraph-manual.md \
+  --owner agent-architect \
+  --actor agent-architect \
+  --json
+
+workgraph skill propose workgraph-manual --actor agent-reviewer --space spaces/platform --json
+workgraph skill promote workgraph-manual --actor agent-lead --json
+workgraph skill load workgraph-manual --json
 ```
 
 ## ClawVault memory vs Workgraph primitives (split clarification)

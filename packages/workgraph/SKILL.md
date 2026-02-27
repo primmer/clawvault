@@ -26,6 +26,9 @@ A workgraph workspace contains:
 - `.clawvault/registry.json` — primitive type definitions.
 - `.clawvault/ledger.jsonl` — append-only event stream.
 - `.clawvault/ledger-index.json` — derived claim snapshot for fast ownership checks.
+- `.clawvault/ledger-chain.json` — tamper-evident hash-chain state.
+- `.clawvault/primitive-registry.yaml` — canonical primitive registry manifest.
+- `.clawvault/bases/*.base` — generated Obsidian Bases files.
 - Primitive directories (e.g. `threads/`, `spaces/`, `agents/`, custom directories).
 
 Initialize once:
@@ -67,6 +70,7 @@ Before major orchestration steps, inspect:
 ```bash
 workgraph ledger claims --json
 workgraph ledger show --count 30 --json
+workgraph ledger verify --json
 ```
 
 ## Standard Agent Loop
@@ -159,6 +163,7 @@ For postmortems:
 ```bash
 workgraph ledger history threads/critical-thread.md --json
 workgraph ledger show --count 200 --json
+workgraph ledger blame threads/critical-thread.md --json
 ```
 
 ## pi-mono Compatibility Profile
@@ -192,6 +197,14 @@ Then parse:
 3. implement task
 4. `workgraph thread done <path> --actor pi-mono-worker --output "<summary>" --json`
 5. repeat
+
+### pi-mono skill distribution flow
+
+```bash
+workgraph skill write "workgraph-manual" --body-file ./skills/workgraph-manual.md --actor pi-mono-curator --json
+workgraph skill propose workgraph-manual --actor pi-mono-reviewer --space spaces/platform --json
+workgraph skill promote workgraph-manual --actor pi-mono-lead --json
+```
 
 ### Backoff recommendations
 
@@ -243,13 +256,28 @@ workgraph primitive define type-name --description "..." --fields key:string --a
 workgraph primitive create type-name "Instance Title" --set key=value --actor me --json
 workgraph primitive list --json
 
+# bases
+workgraph bases sync-registry --json
+workgraph bases generate --json
+workgraph bases generate --all --refresh-registry --json
+
 # ledger
 workgraph ledger show --count 30 --json
 workgraph ledger claims --json
 workgraph ledger history threads/x.md --json
+workgraph ledger query --actor me --op claim --json
+workgraph ledger blame threads/x.md --json
+workgraph ledger verify --strict --json
+workgraph ledger seal --json
 
 # command center
 workgraph command-center --output "ops/Command Center.md" --json
+
+# skills
+workgraph skill write "name" --body-file ./skills/name.md --actor me --json
+workgraph skill load name --json
+workgraph skill propose name --actor me --json
+workgraph skill promote name --actor me --json
 ```
 
 ## Anti-Patterns

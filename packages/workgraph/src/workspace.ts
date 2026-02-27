@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadRegistry, saveRegistry, listTypes } from './registry.js';
+import { syncPrimitiveRegistryManifest, generateBasesFromPrimitiveRegistry } from './bases.js';
 import type { WorkgraphWorkspaceConfig } from './types.js';
 
 const WORKGRAPH_CONFIG_FILE = '.workgraph.json';
@@ -13,6 +14,7 @@ export interface InitWorkspaceOptions {
   name?: string;
   createTypeDirs?: boolean;
   createReadme?: boolean;
+  createBases?: boolean;
 }
 
 export interface InitWorkspaceResult {
@@ -21,6 +23,8 @@ export interface InitWorkspaceResult {
   config: WorkgraphWorkspaceConfig;
   createdDirectories: string[];
   seededTypes: string[];
+  generatedBases: string[];
+  primitiveRegistryManifestPath: string;
 }
 
 export function workspaceConfigPath(workspacePath: string): string {
@@ -44,6 +48,7 @@ export function initWorkspace(targetPath: string, options: InitWorkspaceOptions 
 
   const registry = loadRegistry(resolvedPath);
   saveRegistry(resolvedPath, registry);
+  syncPrimitiveRegistryManifest(resolvedPath);
 
   if (options.createTypeDirs !== false) {
     const types = listTypes(resolvedPath);
@@ -66,12 +71,18 @@ export function initWorkspace(targetPath: string, options: InitWorkspaceOptions 
     writeReadmeIfMissing(resolvedPath, config.name);
   }
 
+  const bases = options.createBases === false
+    ? { generated: [] }
+    : generateBasesFromPrimitiveRegistry(resolvedPath);
+
   return {
     workspacePath: resolvedPath,
     configPath,
     config,
     createdDirectories,
     seededTypes: listTypes(resolvedPath).map(t => t.name),
+    generatedBases: bases.generated,
+    primitiveRegistryManifestPath: '.clawvault/primitive-registry.yaml',
   };
 }
 

@@ -56,12 +56,22 @@ export interface LedgerEntry {
   target: string;
   type?: string;
   data?: Record<string, unknown>;
+  prevHash?: string;
+  hash?: string;
 }
 
 export interface LedgerIndex {
   version: number;
   lastEntryTs: string;
   claims: Record<string, string>;
+}
+
+export interface LedgerChainState {
+  version: number;
+  algorithm: 'sha256';
+  lastHash: string;
+  count: number;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------

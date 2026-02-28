@@ -1,6 +1,6 @@
 {
   "name": "clawvault",
-  "version": "2.6.3",
+  "version": "2.6.4",
   "description": "Structured memory system for AI agents — typed storage, knowledge graph, context profiles, canvas dashboards, neural graph themes, and Obsidian-native task views. An elephant never forgets. 🐘",
   "type": "module",
   "main": "dist/index.cjs",
@@ -67,7 +67,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1",
     "chalk": "^5.3.0",
     "chokidar": "^5.0.0",
     "commander": "^12.0.0",
@@ -88,6 +87,7 @@
     }
   },
   "devDependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@types/node": "^20.11.0",
     "ajv": "^8.17.1",
     "puppeteer": "^24.37.2",

@@ -36,8 +36,8 @@ function findProtectedRanges(content: string): ProtectedRange[] {
     ranges.push({ start: match.index, end: match.index + match[0].length });
   }
   
-  // Inline code
-  const inlineCodeRegex = /`[^`]+`/g;
+  // Inline code (single backticks only; avoids matching fenced code markers)
+  const inlineCodeRegex = /(?<!`)`[^`\n]+`(?!`)/g;
   while ((match = inlineCodeRegex.exec(content)) !== null) {
     ranges.push({ start: match.index, end: match.index + match[0].length });
   }

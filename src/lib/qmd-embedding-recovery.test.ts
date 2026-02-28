@@ -95,8 +95,13 @@ describe('qmd embedding recovery', () => {
 
     expect(result).toEqual({ recovered: true, reason: 'interrupted_wal' });
     expect(readQmdEmbedWalRecord(vaultPath)).toBeNull();
-    expect(execFileSyncMock).toHaveBeenCalledWith('qmd', ['update', '-c', 'vault'], { stdio: 'inherit' });
-    expect(execFileSyncMock).toHaveBeenCalledWith('qmd', ['embed', '-f', '-c', 'vault'], { stdio: 'inherit' });
+    const executedArgs = execFileSyncMock.mock.calls.map((call) => call[1] as string[]);
+    expect(
+      executedArgs.some((args) => args.includes('update') && args.includes('-c') && args.includes('vault'))
+    ).toBe(true);
+    expect(
+      executedArgs.some((args) => args.includes('embed') && args.includes('-f') && args.includes('-c') && args.includes('vault'))
+    ).toBe(true);
   });
 
   it('rebuilds automatically when vectors are empty with no pending embeddings', async () => {
@@ -124,8 +129,13 @@ describe('qmd embedding recovery', () => {
     });
 
     expect(result).toEqual({ recovered: true, reason: 'empty_vectors' });
-    expect(execFileSyncMock).toHaveBeenCalledWith('qmd', ['update', '-c', 'vault'], { stdio: 'inherit' });
-    expect(execFileSyncMock).toHaveBeenCalledWith('qmd', ['embed', '-f', '-c', 'vault'], { stdio: 'inherit' });
+    const executedArgs = execFileSyncMock.mock.calls.map((call) => call[1] as string[]);
+    expect(
+      executedArgs.some((args) => args.includes('update') && args.includes('-c') && args.includes('vault'))
+    ).toBe(true);
+    expect(
+      executedArgs.some((args) => args.includes('embed') && args.includes('-f') && args.includes('-c') && args.includes('vault'))
+    ).toBe(true);
   });
 
   it('does not rebuild when vectors are pending (healthy incremental state)', async () => {

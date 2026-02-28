@@ -194,20 +194,22 @@ describe('SessionWatcher', () => {
     try {
       await watcher.start();
       fs.writeFileSync(sessionPath, '', 'utf-8');
-      fs.appendFileSync(sessionPath, 'first observed line\n', 'utf-8');
+      fs.appendFileSync(sessionPath, 'first observed line with extra characters to enlarge offset\n', 'utf-8');
 
       await waitFor(() => {
         expect(compressSpy).toHaveBeenCalledTimes(1);
       });
-      expect(compressSpy.mock.calls[0]?.[0]).toEqual(['first observed line']);
+      expect(compressSpy.mock.calls[0]?.[0]).toEqual([
+        'first observed line with extra characters to enlarge offset'
+      ]);
 
       fs.writeFileSync(sessionPath, '', 'utf-8');
-      fs.appendFileSync(sessionPath, 'line after truncate\n', 'utf-8');
+      fs.appendFileSync(sessionPath, 'tiny\n', 'utf-8');
 
       await waitFor(() => {
         expect(compressSpy).toHaveBeenCalledTimes(2);
       });
-      expect(compressSpy.mock.calls[1]?.[0]).toEqual(['line after truncate']);
+      expect(compressSpy.mock.calls[1]?.[0]).toEqual(['tiny']);
     } finally {
       await watcher.stop();
       fs.rmSync(vaultPath, { recursive: true, force: true });

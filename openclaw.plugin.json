@@ -1,23 +1,48 @@
 {
   "id": "clawvault",
   "name": "ClawVault",
-  "version": "2.6.1",
-  "description": "Structured memory system for AI agents with context death resilience",
+  "version": "4.0.0",
+  "description": "Structured memory system for AI agents with hybrid retrieval, cross-encoder reranking, adaptive capture, and multi-scope support",
   "kind": "memory",
   "configSchema": {
     "type": "object",
     "properties": {
       "vaultPath": {
         "type": "string",
-        "description": "Path to the ClawVault vault directory. If not set, auto-discovered from CLAWVAULT_PATH or by walking up from cwd. Used as fallback when agentVaults is not set or agent not found."
+        "description": "Path to the ClawVault vault directory. If not set, auto-discovered from CLAWVAULT_PATH or by walking up from cwd."
       },
       "agentVaults": {
         "type": "object",
-        "description": "Mapping of agent names to vault paths. Allows each agent to have its own vault. Falls back to vaultPath if agent not found.",
+        "description": "Mapping of agent names to vault paths. Falls back to vaultPath if agent not found.",
         "additionalProperties": {
-          "type": "string",
-          "description": "Path to the vault directory for this agent"
+          "type": "string"
         }
+      },
+      "collection": {
+        "type": "string",
+        "description": "qmd collection name",
+        "default": "clawvault"
+      },
+      "autoRecall": {
+        "type": "boolean",
+        "description": "Enable automatic memory recall on session start",
+        "default": true
+      },
+      "autoCapture": {
+        "type": "boolean",
+        "description": "Enable automatic observation capture from conversations",
+        "default": true
+      },
+      "recallLimit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20,
+        "description": "Maximum number of memories to recall per query",
+        "default": 5
+      },
+      "templatesDir": {
+        "type": "string",
+        "description": "Custom path to template schema directory"
       },
       "autoCheckpoint": {
         "type": "boolean",
@@ -46,6 +71,150 @@
         "type": "boolean",
         "description": "Enable weekly reflection on Sunday midnight UTC",
         "default": true
+      },
+      "defaultScope": {
+        "type": "string",
+        "description": "Default memory scope. Use 'global' for shared, or 'agent:<id>', 'project:<name>', 'user:<id>' for scoped.",
+        "default": "global"
+      },
+      "retrieval": {
+        "type": "object",
+        "description": "Hybrid retrieval pipeline configuration",
+        "properties": {
+          "bm25Weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "BM25 weight in RRF fusion",
+            "default": 0.5
+          },
+          "semanticWeight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Semantic search weight in RRF fusion",
+            "default": 0.5
+          },
+          "rrfK": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "RRF k parameter (higher = more weight to lower-ranked items)",
+            "default": 60
+          },
+          "topK": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Maximum results to return",
+            "default": 10
+          },
+          "minScore": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Minimum score threshold for results",
+            "default": 0.01
+          },
+          "recencyHalfLifeDays": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Recency boost half-life in days (0 = disabled)",
+            "default": 14
+          },
+          "recencyWeight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Recency boost weight (additive)",
+            "default": 0.10
+          },
+          "decayHalfLifeDays": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Time decay half-life in days (0 = disabled)",
+            "default": 60
+          },
+          "lengthNormAnchor": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Length normalization anchor in characters (0 = disabled)",
+            "default": 500
+          },
+          "mmrLambda": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "MMR diversity lambda (1.0 = no diversity, lower = more diverse)",
+            "default": 0.7
+          },
+          "rerankProvider": {
+            "type": "string",
+            "enum": ["jina", "voyage", "siliconflow", "pinecone"],
+            "description": "Cross-encoder reranker API provider (optional)"
+          },
+          "rerankApiKey": {
+            "type": "string",
+            "description": "API key for the reranker service"
+          },
+          "rerankModel": {
+            "type": "string",
+            "description": "Reranker model name (auto-selected per provider if omitted)"
+          },
+          "rerankEndpoint": {
+            "type": "string",
+            "description": "Custom reranker endpoint URL"
+          },
+          "rerankWeight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Weight of reranker score vs fused score (0.6 = 60% reranker)",
+            "default": 0.6
+          }
+        },
+        "additionalProperties": false
+      },
+      "noise": {
+        "type": "object",
+        "description": "Noise filtering configuration for write and read paths",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable noise filtering",
+            "default": true
+          },
+          "minLength": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Minimum text length to accept",
+            "default": 15
+          },
+          "maxLength": {
+            "type": "integer",
+            "minimum": 100,
+            "description": "Maximum text length to accept",
+            "default": 5000
+          }
+        },
+        "additionalProperties": false
+      },
+      "adaptive": {
+        "type": "object",
+        "description": "Adaptive retrieval configuration — skip retrieval for low-value queries",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable adaptive retrieval skipping",
+            "default": true
+          },
+          "skipPatterns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Additional regex patterns that should skip retrieval",
+            "default": []
+          }
+        },
+        "additionalProperties": false
       }
     },
     "additionalProperties": false
@@ -54,31 +223,39 @@
     "vaultPath": {
       "label": "Vault Path",
       "placeholder": "~/my-vault",
-      "description": "Path to your ClawVault memory vault (fallback when agentVaults not set)"
+      "description": "Path to your ClawVault memory vault"
     },
     "agentVaults": {
       "label": "Agent Vaults",
-      "description": "Per-agent vault paths (e.g., {\"agent1\": \"/path/to/vault1\", \"agent2\": \"/path/to/vault2\"})"
+      "description": "Per-agent vault paths"
     },
-    "autoCheckpoint": {
-      "label": "Auto Checkpoint",
-      "description": "Automatically checkpoint before session resets"
+    "autoRecall": {
+      "label": "Auto Recall",
+      "description": "Automatically recall relevant memories on session start"
     },
-    "contextProfile": {
-      "label": "Context Profile",
-      "description": "Profile used for context injection at session start"
+    "autoCapture": {
+      "label": "Auto Capture",
+      "description": "Automatically capture observations from conversations"
     },
-    "maxContextResults": {
-      "label": "Max Context Results",
-      "description": "Number of vault memories to inject"
+    "recallLimit": {
+      "label": "Recall Limit",
+      "description": "Max memories to recall per query"
     },
-    "observeOnHeartbeat": {
-      "label": "Observe on Heartbeat",
-      "description": "Check observation thresholds during heartbeat events"
+    "defaultScope": {
+      "label": "Default Scope",
+      "description": "Default memory scope (global, agent:<id>, project:<name>, user:<id>)"
     },
-    "weeklyReflection": {
-      "label": "Weekly Reflection",
-      "description": "Run weekly reflection on Sunday midnight UTC"
+    "retrieval": {
+      "label": "Retrieval Pipeline",
+      "description": "Configure hybrid search, reranking, recency, and diversity settings"
+    },
+    "noise": {
+      "label": "Noise Filter",
+      "description": "Filter low-quality content from capture and retrieval"
+    },
+    "adaptive": {
+      "label": "Adaptive Retrieval",
+      "description": "Skip memory retrieval for greetings, commands, and acknowledgments"
     }
   }
 }

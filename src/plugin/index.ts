@@ -607,6 +607,10 @@ const clawvaultPlugin: Plugin = {
         if (!prompt || prompt.length < 10) return;
         if (prompt.includes('HEARTBEAT') || prompt.startsWith('[System')) return;
 
+
+        // Per-request disable tokens (#133)
+        if (prompt.includes('#clawvault:no-recall') || prompt.includes('#clawvault:no-memory')) return;
+
         // Adaptive retrieval check
         if (adaptiveConfig.enabled) {
           const check = shouldRetrieve(prompt, adaptiveConfig);
@@ -683,6 +687,10 @@ ${formatted.join('\n')}
       api.on('message_received', async (event) => {
         const content = event.content as string | undefined;
         if (!content || !isObservable(content, noiseConfig)) return;
+
+
+        // Per-request disable tokens (#133)
+        if (content.includes('#clawvault:no-capture') || content.includes('#clawvault:no-memory')) return;
 
         // Noise filter on write path
         if (noiseConfig.enabled && isNoise(content, noiseConfig).isNoise) return;

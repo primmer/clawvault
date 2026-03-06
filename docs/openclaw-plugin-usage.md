@@ -205,3 +205,21 @@ If MEMORY.md and vault conflict, instruct the agent to trust `clawvault wake` ou
 - [README: OpenClaw Integration](../README.md#openclaw-integration)
 - [HOOK.md: Hook Configuration](../hooks/clawvault/HOOK.md)
 - [SKILL.md: Skill Documentation](../SKILL.md)
+
+## Per-Request Memory Control
+
+You can disable memory injection or capture on a per-request basis by including tokens in your message:
+
+| Token | Effect |
+|-------|--------|
+| `#clawvault:no-recall` | Skip memory injection for this request |
+| `#clawvault:no-capture` | Skip auto-capture for this message |
+| `#clawvault:no-memory` | Disable both recall and capture |
+
+This is useful for sub-agents or workflows where you want clean, uncontaminated context:
+
+```
+#clawvault:no-memory Analyze this code without any prior context influencing your response.
+```
+
+The tokens are checked as substrings — they can appear anywhere in the message.

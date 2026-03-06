@@ -12,7 +12,7 @@
 
 *An elephant never forgets. Neither should your AI.*
 
-[Documentation](https://clawvault.dev) · [npm Package](https://www.npmjs.com/package/clawvault) · [Obsidian Plugin](https://clawvault.dev/obsidian) · [GitHub](https://github.com/Versatly/clawvault)
+[Documentation](https://clawvault.dev) · [npm Package](https://www.npmjs.com/package/clawvault) · [Obsidian Plugin](https://clawvault.dev/obsidian) · [Community](https://github.com/Versatly/clawvault/discussions) · [GitHub](https://github.com/Versatly/clawvault)
 
 </div>
 

@@ -14,7 +14,7 @@ on:
 
 jobs:
   droid:
-if: |
+    if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@droid') && contains(fromJson('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@droid') && contains(fromJson('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@droid') && contains(fromJson('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)) ||
